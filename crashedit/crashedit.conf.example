@@ -181,6 +181,18 @@ FORCEINTL 0
 # Default: areas.golded
 AREAFILE work:fido/etc/areas.golded
 
+# OUTBOUND -- Base outbound directory where the freq popup writes its
+#             .req/.clo files for the mailer (binkd) to pick up
+# Default: (empty)
+#OUTBOUND work:fido/outbound
+
+# OUTBOUNDMODE -- Outbound mode for freq requests:
+#                 aso = Amiga-style outbound
+#                 bso = Binkley-style outbound
+#                 bso-ext = BSO with extended zone
+# Default: (empty - asks at runtime)
+#OUTBOUNDMODE bso
+
 
 #===========================================================================
 #  CHARSETS
@@ -213,11 +225,6 @@ VIEWKLUDGE YES
 # Default: YES
 #VIEWANSI YES
 
-# ANSISIZE -- Font size for ANSI box-drawing characters on Windows.
-#            8x8 uses 8x8 pixel BIOS font, 8x16 uses 8x16 pixel VGA font.
-#            Only affects Windows platform when VIEWANSI is enabled.
-# Default: 8x16
-#ANSISIZE 8x16
 
 # MSGLISTFIRST -- Skip the area list on startup and go straight to the
 #                 message list of the first/selected area
@@ -242,6 +249,11 @@ SHOWDELETED NO
 #               Useful on slow machines (e.g. Amiga) with large areas
 # Default: 0
 #MSGLISTMAX 200
+
+# SEARCHMAX -- Maximum number of search hits to keep in memory.
+#              0 means use the default (limited only by available RAM)
+# Default: 0
+#SEARCHMAX 1000
 
 
 #===========================================================================
@@ -306,7 +318,7 @@ AREALISTFORMAT "A E PNU C D G"
 #          <pair> is one of: NORMAL, SELECTED, HEADER, STATUS, MENU,
 #          MENUHOT, BORDER, QUOTE1, QUOTE2, QUOTE3, QUOTE4, KLUDGE,
 #          TEAR, ORIGIN, SEENBY, VIA, UNREAD, DELETED, POPUP, POPUPSEL,
-#          ERROR, TAGLINE
+#          ERROR, TAGLINE, SEARCH_MATCH
 #          <fg> and <bg> are color names: black, red, green, yellow,
 #          blue, magenta, cyan, white (these will use your COLORMAP if defined)
 # Default: built-in palette (see below for defaults)
@@ -336,26 +348,33 @@ AREALISTFORMAT "A E PNU C D G"
 # Default: topaz.font (Amiga), Consolas (Windows)
 #FONT hyperansi.font
 
+# ANSIFONT -- ANSI font name (platform-specific)
+#             On Amiga: monospaced font (e.g. topaz.font)
+#             On Windows: monospaced font (e.g. Consolas, Lucida Console)
+# Default: topaz.font (Amiga), Consolas (Windows)
+#ANSIFONT topaz.font
+
 # Built-in default color palette (these are used if you do not override):
-#   NORMAL    white on black
-#   SELECTED  black on cyan
-#   HEADER    yellow on blue
-#   STATUS    black on white
-#   MENU      black on white
-#   MENUHOT   red on white
-#   BORDER    cyan on black
-#   QUOTE1-4  green on black
-#   KLUDGE    cyan on black
-#   TEAR      yellow on black
-#   ORIGIN    yellow on black
-#   SEENBY    magenta on black
-#   VIA       blue on black
-#   UNREAD    yellow on black
-#   DELETED   red on black
-#   POPUP     white on blue
-#   POPUPSEL  black on cyan
-#   ERROR     white on red
-#   TAGLINE   cyan on black
+#   NORMAL       white on black
+#   SELECTED     black on cyan
+#   HEADER       yellow on blue
+#   STATUS       black on white
+#   MENU         black on white
+#   MENUHOT      red on white
+#   BORDER       cyan on black
+#   QUOTE1-4     green on black
+#   KLUDGE       cyan on black
+#   TEAR         yellow on black
+#   ORIGIN       yellow on black
+#   SEENBY       magenta on black
+#   VIA          blue on black
+#   UNREAD       yellow on black
+#   DELETED      red on black
+#   POPUP        white on blue
+#   POPUPSEL     black on cyan
+#   ERROR        white on red
+#   TAGLINE      cyan on black
+#   SEARCH_MATCH yellow on black
 
 
 #===========================================================================
