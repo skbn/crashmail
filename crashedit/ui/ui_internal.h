@@ -1,0 +1,285 @@
+/*
+ * crashedit - Message area editor for AmigaOS
+ *
+ * This file is part of the crashedit project.
+ *
+ * Copyright (C) 2026 Tanausú M. 39:190/101@amiganet 2:341/207@fidonet
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ *
+ * This program uses JAMLIB, which is licensed under the GNU Lesser
+ * General Public License v2.1. See src/jamlib/LICENSE for details.
+ */
+
+/* ui_internal.h -- Internal types and helpers shared between UI modules */
+#ifndef UI_INTERNAL_H
+#define UI_INTERNAL_H
+
+#include "../wrapper.h"
+#include <wchar.h>
+
+#ifdef PLATFORM_AMIGA
+#include "../ncursesw_amiga.h"
+#elif defined(PLATFORM_WIN32)
+#include "../ncursesw_win32.h"
+#else
+#include <ncurses.h>
+#endif
+
+#include "../core/keys.h"
+
+/* CTRL('B') = 0x02 */
+#ifndef CTRL
+#define CTRL(ch) ((ch) - 64)
+#endif
+
+/* Extended keycodes (above KEY_MAX to avoid collisions) */
+#ifndef KEY_PASTE_START
+#define KEY_PASTE_START 0x7F1 /* bracketed paste start */
+#endif
+#ifndef KEY_PASTE_END
+#define KEY_PASTE_END 0x7F2 /* bracketed paste end */
+#endif
+#ifndef KEY_CLEFT
+#define KEY_CLEFT 0x7F3 /* Ctrl+Left */
+#endif
+#ifndef KEY_CRIGHT
+#define KEY_CRIGHT 0x7F4 /* Ctrl+Right */
+#endif
+#ifndef KEY_ALEFT
+#define KEY_ALEFT 0x7F5 /* Alt+Left */
+#endif
+#ifndef KEY_ARIGHT
+#define KEY_ARIGHT 0x7F6 /* Alt+Right */
+#endif
+
+/* Color pairs */
+#define COL_NORMAL 1
+#define COL_SELECTED 2
+#define COL_HEADER 3
+#define COL_STATUS 4
+#define COL_MENU 5
+#define COL_MENU_HOT 6
+#define COL_BORDER 7
+#define COL_QUOTE1 8
+#define COL_QUOTE2 9
+#define COL_QUOTE3 10
+#define COL_QUOTE4 11
+#define COL_KLUDGE 12
+#define COL_TEAR 13
+#define COL_ORIGIN 14
+#define COL_SEENBY 15
+#define COL_VIA 16
+#define COL_UNREAD 17
+#define COL_DELETED 18
+#define COL_POPUP 19
+#define COL_POPUP_SEL 20
+#define COL_ERROR 21
+#define COL_TAGLINE 22
+#define COL_SEARCH_MATCH 23
+
+/* View states */
+typedef enum
+{
+    VIEW_AREALIST,
+    VIEW_MSGLIST,
+    VIEW_READER,
+    VIEW_EDITOR,
+    VIEW_SEARCH_RESULTS, /* persistent search browser; reader/editor return here */
+    VIEW_QUIT
+} UiView;
+
+/* Session (per-area state) */
+typedef struct
+{
+    int area_idx;     /* index in app->areas->entries */
+    JamArea jam;      /* open JAM area */
+    int jam_open;     /* 1 if jam_open succeeded */
+    JamMsgInfo *msgs; /* loaded headers */
+    int msg_count;
+    int *order; /* sort/filter index map (msg_idx -> real) */
+    int order_count;
+    int msg_sel; /* selected msg in order[] */
+    int msg_top; /* topmost visible row in msglist */
+    uint32_t user_crc;
+    uint32_t lastread;  /* updated only by the reader */
+    uint32_t lastseen;  /* highest msgnum acknowledged via msglist; drives "*" indicator */
+    wchar_t search[80]; /* current filter text */
+} UiSession;
+
+/* Main app state */
+struct UiApp
+{
+    CrashEditCfg *cfg;
+    AreaList *areas;
+
+    /* Path to the loaded config file, so the setup screen can save
+     * back to it. Set by main after ui_init. */
+    const char *cfg_path;
+
+    /* Set by the setup screen when the user saves changes: signals the
+     * main loop to tear everything down and reload from disk (the
+     * "restart in place" behaviour). ui_run() returns this value */
+    int want_reload;
+
+    UiView view;
+    UiSession sess;
+
+    /* Area list state */
+    int *area_order; /* sorted indices */
+    int area_order_count;
+    int area_sel;
+    int area_top;
+    wchar_t area_search[64];
+
+    /* Reader state */
+    Reader *reader;
+    MsgHdr *hdr;
+    char msg_charset[32];          /* charset detected when reading */
+    char view_charset[32];         /* charset chosen for display */
+    char decoded_charset[32];      /* actual decode charset (may differ from view_charset) */
+    uint32_t cur_msgnum;           /* JAM msgnum of currently shown msg */
+    char cur_msgid[160];           /* MSGID value of currently shown msg (without ^A) */
+    char cur_reply[160];           /* REPLY value of currently shown msg (without ^A) */
+    wchar_t reader_search[64];     /* last search query in reader */
+    int *reader_search_matches;    /* malloc'd array of line indices with matches */
+    int reader_search_match_count; /* number of matches */
+
+    /* Editor state */
+    Ed *editor;
+    MsgHdr *edit_hdr;
+    char *saved_kludges;               /* malloc'd, freed on close */
+    char edit_charset[32];             /* charset for save */
+    char edit_charset_saved[32];       /* saved edit_charset before auto-detection */
+    int edit_charset_manually_changed; /* 1 = user changed charset via F3, 0 = auto-detected */
+    int edit_aka_idx;                  /* selected AKA (netmail only) */
+    int edit_is_new;                   /* 1 = new, 0 = edit existing */
+    int edit_is_reply;                 /* 1 = reply, swap from/to */
+    int edit_return_view;              /* VIEW_READER or VIEW_MSGLIST: where to go on cancel/save */
+    int edit_active_field;             /* 0..4 = FROM/TO/SUBJ/DADDR/BODY, -1 idle */
+    uint32_t edit_reply_to_msgnum;
+    uint32_t edit_attr;          /* MSG_PRIVATE / MSG_CRASH / MSG_HOLD */
+    wchar_t edit_search[64];     /* last forward-search query */
+    int *edit_search_rows;       /* malloc'd array of row indices with matches */
+    int *edit_search_cols;       /* malloc'd array of col indices with matches */
+    int edit_search_match_count; /* number of matches */
+    AttachList *attach_list;     /* file attachments for current message */
+
+    /* Status message (one-line) */
+    char status[256];
+    int status_dirty;
+
+    int msglist_overlay_from_reader; /* 1 = msglist shown over reader; ESC returns to reader */
+
+    /* Search state for VIEW_SEARCH_RESULTS. Freed via ui_search_cleanup() */
+    void *search;
+    void *search_runs;
+    int search_n_runs;
+    int search_mode; /* 0 = areas list, 1 = hits in picked area */
+    int search_area_pick;
+    int search_area_top;
+    int search_hit_pick;
+    int search_hit_top;
+    UiView search_from_view;
+    int from_search;
+
+    /* Force setup mode on first run or missing config. ui_run() drops into setup screen */
+    int force_setup;
+};
+
+typedef struct UiApp UiApp;
+
+/* Status and UI helpers */
+void ui_status(UiApp *app, const char *fmt, ...);
+void ui_draw_statusbar(UiApp *app);
+void ui_draw_menubar(UiApp *app, const char *title);
+void ui_draw_statusbar(UiApp *app);
+
+/* Border helpers */
+void ui_box(int y, int x, int h, int w);
+void ui_hline(int y, int x, int len);
+
+/* wchar_t -> UTF-8 via static rotating buffers (multiple args per printf safe) */
+const char *ui_wcs2u8(const wchar_t *wcs);
+
+/* Color helper: returns color pair for FTN line type (FTN_LT_*) */
+int ui_color_for_type(int ftn_line_type);
+
+/* Is current area netmail? (type == 1) */
+int ui_is_netmail(const UiApp *app);
+
+/* View entry points (one per source file) */
+UiView ui_arealist_run(UiApp *app);
+UiView ui_msglist_run(UiApp *app);
+UiView ui_reader_run(UiApp *app);
+UiView ui_editor_run(UiApp *app);
+
+/* Persistent search-result browser. Driven by the search_* fields
+ * in UiApp (see comments there). When app->search is NULL, this
+ * just bounces back to VIEW_AREALIST */
+UiView ui_search_results_run(UiApp *app);
+
+/* Free the active search session if any; called by ui_cleanup and
+ * by the result browser when the user ESCs out */
+void ui_search_cleanup(UiApp *app);
+
+/* Session helpers */
+int ui_session_open(UiApp *app, int area_idx);
+void ui_session_close(UiApp *app);
+void ui_session_rebuild_order(UiApp *app);
+
+/* Area list helpers */
+void ui_arealist_rebuild_order(UiApp *app);
+
+/* Popups (blocking, return value = user choice) */
+int ui_popup_confirm(const char *title, const char *msg);     /* 1=yes, 0=no, -1=ESC */
+int ui_popup_confirm_all(const char *title, const char *msg); /* 1=yes, 0=no, -1=ESC, 2=all */
+
+/* Choose one item from string array (-1=cancel, initial=preselected) */
+int ui_popup_list(const char *title, const char **items, int count, int initial);
+
+/* Search results popup with line numbers and context */
+int ui_popup_search_results(const char *title, const int *line_nums, const char **contexts, int count, int initial);
+
+/* Charset pickers (0=ok, -1=cancel) */
+int ui_popup_charset(const char *title, const char *cur, char *out, int outsz);
+int ui_popup_charset_pair(const char *view_in, const char *output_in, const char *view_def, const char *output_def, char *view_out, int view_outsz, char *output_out, int output_outsz);
+
+/* Choose AKA from cfg->aka[] (cur_idx=preselected, returns selected index, -1=cancel) */
+int ui_popup_aka(const UiApp *app, int cur_idx);
+
+/* Input text: prompt + prefilled buffer (0=ok, -1=cancel) */
+/* Wide-char input (for filters/text with possible accents) */
+int ui_popup_input_wcs(const char *title, const char *prompt, wchar_t *wbuf, int wcap);
+
+/* Narrow-char input (for ASCII fields: paths, sort spec) */
+int ui_popup_input(const char *title, const char *prompt, char *buf, int bufsz);
+int ui_popup_input_at(int py, int px, int ph, int pw, const char *title, const char *prompt, char *buf, int bufsz);
+
+/* Choose area list sort spec (0=ok, -1=cancel) */
+int ui_popup_sort(char *spec, int specsz, const char *cfg_default);
+
+/* Help and attachment popups */
+void ui_popup_help(const char *title, const char *const *lines, int n);
+int ui_popup_attach_add(UiApp *app);    /* 1=added, 0=canceled, -1=error */
+int ui_popup_freq(UiApp *app);          /* file request popup; 1=written, 0=canceled */
+int ui_setup_run(UiApp *app);           /* config editor; 1=saved (reload), 0=cancelled */
+int ui_popup_attach_remove(UiApp *app); /* 1=removed, 0=canceled */
+int ui_popup_attach_clear(UiApp *app);  /* 1=cleared, 0=canceled */
+int ui_popup_attach_list(UiApp *app);   /* 0=closed */
+
+/* Compute centered popup geometry, clamped to LINES/COLS */
+void ui_popup_center(int want_h, int want_w, int *y, int *x, int *h, int *w);
+
+#endif /* UI_INTERNAL_H */

@@ -1,0 +1,370 @@
+#############################################################################
+#                                                                           #
+#   crashedit.cfg  --  Example / reference configuration (MANUAL)           #
+#                                                                           #
+#   This is a fully annotated sample showing EVERY supported keyword,       #
+#   what it does, the accepted values and the built-in default.             #
+#                                                                           #
+#   Place this file next to the crashedit binary, or pass its path as the   #
+#   startup argument.                                                       #
+#                                                                           #
+#   Syntax notes:                                                           #
+#     - One keyword per line:  KEYWORD value                                #
+#     - Keywords are case-insensitive                                       #
+#     - Lines beginning with '#' are comments and are ignored               #
+#     - Boolean keywords accept: YES / ON / TRUE / 1  = enabled             #
+#       anything else (NO / OFF / FALSE / 0 / absent) = disabled            #
+#     - A keyword that is absent uses its default (shown as "Default:")     #
+#                                                                           
+#############################################################################
+
+
+#===========================================================================#
+#  IDENTITY                                                                 #
+#===========================================================================#
+
+# SYSOP -- Your full name. Used as the From: name on messages you write,
+#          and to decide (in replies) whether the original message was
+#          addressed to you (see ATTRIBSELF / ATTRIBOTHER below)
+# Default: Sysop
+SYSOP Tanausu M.
+
+# AKA -- One FTN address you use. Repeat the keyword for additional AKAs;
+#        the first AKA is the main one, used when an area has no specific
+#        AKA of its own. At least one AKA is required for normal use
+# Default: (none)
+AKA 2:341/207
+#AKA 21:1/101
+#AKA 39:190/101.2
+
+
+#===========================================================================#
+#  ORIGIN / TEARLINE / TEMPLATES                                            #
+#===========================================================================#
+
+# ORIGIN -- The text placed in the " * Origin:" line of echomail you write
+#           The address is appended automatically by the tosser
+# Default: (empty -- no origin text)
+ORIGIN Citrick BBS citlmbbs.synchro.net
+
+# TEARLINE -- Custom tearline text (the "---" line). If empty, crashedit
+#             uses its own default tearline
+# Default: (empty)
+#TEARLINE My Custom Tearline
+
+# TAGLINEFILE -- Path to a file of random taglines. One
+#                tagline is picked per message. If unset, no tagline
+# Default: (empty)
+#TAGLINEFILE work:fido/etc/taglines.txt
+
+# TEMPLATEFILE -- Path to a message template file loaded into
+#            the editor body when composing. NOTE: if set, the template
+#            is loaded AFTER the greeting/signature feature below and
+#            will overwrite it -- use one approach or the other, not
+#            both at once.
+# Default: (empty)
+#TEMPLATEFILE work:fido/etc/template.txt
+
+
+#===========================================================================#
+#  GREETING / ATTRIBUTION / SIGNATURE                                       #
+#                                                                           #
+#  Optional message "framing" that mimics GoldED+. Everything here is      #
+#  OFF by default, so leaving this whole section out changes nothing       #
+#                                                                           #
+#  Text tokens (expanded automatically):
+#     %t  = recipient first name  (To: of the message you are writing)
+#     %f  = your first name       (your From: name -- for the signature)
+#     %n  = first name of the ORIGINAL message's AUTHOR
+#           (the person who wrote to you -- reply only)
+#     %o  = recipient of the ORIGINAL message   (reply only)
+#     %d  = date/time of the ORIGINAL message    (reply only),
+#           formatted like the reader header, e.g. "21 Feb 26 17:19"
+#     %%  = a literal percent sign
+#  An unknown %x token is left untouched
+#
+#  NOTE: in the attribution the quoted person is the ORIGINAL author,
+#  so use %n there -- NOT %f. %f is YOU and is meant for the signature
+#  %o is the original message's recipient AS STORED IN ITS HEADER: for
+#  echomail that is normally "All", which is correct
+#===========================================================================
+
+# GREETING -- Emit a greeting line at the top of the body (both new
+#              messages and replies)
+# Default: NO
+GREETING YES
+
+# GREETINGTEXT -- The greeting line. Followed by a blank line
+# Default: Hello %t!
+GREETINGTEXT Hello %t!
+
+# ATTRIBUTION -- Emit an attribution line in REPLIES only (placed below
+#                the greeting and above the quoted text)
+# Default: NO
+ATTRIBUTION YES
+
+# ATTRIBSELF -- Attribution text used when the ORIGINAL message was
+#               addressed to YOU (its To: matches your SYSOP name)
+# Default: %d, you wrote to me:
+ATTRIBSELF %d, you wrote to me:
+
+# ATTRIBOTHER -- Attribution text used when the original message was
+#                addressed to someone else (e.g. "All" or a third
+#                party). Use %n (original author) and %o (original
+#                recipient). This default matches GoldED+, e.g
+#                  "07 Feb 25 14:31, Blabla wrote to All:"
+# Default: %d, %n wrote to %o:
+ATTRIBOTHER %d, %n wrote to %o:
+# Long form alternative (uncomment this and comment the line above):
+# ATTRIBOTHER Replying to a msg dated %d, from %n to %o
+
+# SIGNATURE -- Emit a signature line below the body (both new messages
+#              and replies), placed before the tearline
+# Default: NO
+SIGNATURE YES
+
+# SIGNATURETEXT -- The signature line (usually just your first name)
+# Default: %f
+SIGNATURETEXT %f
+
+
+#===========================================================================
+#  ADDRESSING / NETMAIL
+#===========================================================================
+
+# FORCEINTL -- Controls the INTL kludge in netmail:
+#                0 = auto (add INTL only when zones differ)
+#                1 = always add INTL
+#                2 = never add INTL
+# Default: 0
+FORCEINTL 0
+
+
+#===========================================================================
+#  TEXT WRAPPING
+#===========================================================================
+
+# AUTOWRAP -- Visual wrap column while typing. 0 disables
+#            Values 1..19 are treated as 75. By default crashedit uses
+#            SOFT wrap (visual only, no carriage returns stored), which
+#            is the FTN-correct behaviour -- readers reflow the text
+# Default: 75
+#AUTOWRAP 75
+
+# HARDWRAP -- YES makes wrapping insert a real carriage
+#            return at the wrap column (old-style hard wrap). NO keeps
+#            soft wrap (recommended; nothing is altered in the stored
+#            message). HARDWRAP and HARDRETURN are synonyms
+# Default: NO  (soft-wrap)
+#HARDWRAP NO
+
+# QUOTEMARGIN -- Column at which quoted lines are wrapped
+#            when replying in HARD-wrap mode. 0 disables. Values 1..19
+#            are treated as 75. In soft-wrap mode quotes are not
+#            physically wrapped (the reader reflows them)
+# Default: 75
+#QUOTEMARGIN 75
+
+# UNDOLEVELS -- Size of the editor undo stack. Clamped to
+#            the range 1..1000.
+# Default: 50
+#UNDOLEVELS 1000
+
+
+#===========================================================================
+#  PATHS
+#===========================================================================
+
+# AREAFILE -- Path to the areas file exported from crashmail
+#             Generate it with:
+#               crashexport crashmail.conf areas.golded golded
+# Default: areas.golded
+AREAFILE work:fido/etc/areas.golded
+
+
+#===========================================================================
+#  CHARSETS
+#===========================================================================
+
+# CHARSET -- Charset used for OUTGOING messages you write
+#            Options: CP437  CP850  CP865  CP866  LATIN-1  UTF-8
+#            CP437=IBMPC/DOS US, CP850=DOS multilingual, CP865=Nordic,
+#            CP866=Cyrillic, LATIN-1=Western European, UTF-8=Unicode
+# Default: (build default, normally LATIN-1)
+CHARSET LATIN-1
+
+
+#===========================================================================
+#  MESSAGE READER / LIST DISPLAY
+#===========================================================================
+
+# VIEWHIDDEN -- Show SEEN-BY / Via / PATH control lines in the reader
+# Default: NO
+VIEWHIDDEN YES
+
+# VIEWKLUDGE -- Show ^A kludge lines (MSGID, PID, TZUTC, ...) in the
+#               reader
+# Default: NO
+VIEWKLUDGE YES
+
+# VIEWANSI -- Render messages containing ANSI escape sequences as
+#            coloured text/art. YES enables ANSI rendering, NO treats
+#            ANSI sequences as plain text (may look garbled)
+# Default: YES
+#VIEWANSI YES
+
+# ANSISIZE -- Font size for ANSI box-drawing characters on Windows.
+#            8x8 uses 8x8 pixel BIOS font, 8x16 uses 8x16 pixel VGA font.
+#            Only affects Windows platform when VIEWANSI is enabled.
+# Default: 8x16
+#ANSISIZE 8x16
+
+# MSGLISTFIRST -- Skip the area list on startup and go straight to the
+#                 message list of the first/selected area
+# Default: NO
+MSGLISTFIRST YES
+
+# MSGLISTFAST -- Do not render the (expensive) decorated message-list
+#                header; faster on slow machines
+# Default: NO
+MSGLISTFAST YES
+
+# MSGLISTHEADER -- Draw the coloured header bar in the message list
+# Default: YES
+MSGLISTHEADER YES
+
+# SHOWDELETED -- Show messages marked as deleted
+# Default: NO
+SHOWDELETED NO
+
+# MSGLISTMAX -- Maximum number of messages to load into the message list
+#               (the last N messages are shown). 0 means no limit (load all)
+#               Useful on slow machines (e.g. Amiga) with large areas
+# Default: 0
+#MSGLISTMAX 200
+
+
+#===========================================================================
+#  AREA LIST
+#===========================================================================
+
+# AREALISTSORT -- Sort specification for the area list. Each letter is a
+#                 sort key:
+#                   A  Sort by AKA
+#                   B  Sort by board number (original index)
+#                   D  Sort by description
+#                   E  Sort by echoid (name)
+#                   F  Fuzzy search matches first
+#                   G  Sort by group (if any)
+#                   M  Sort by marked areas (not tracked)
+#                   O  Sort by original order
+#                   P  Sort by personal mail (not tracked)
+#                   T  Sort by type (net, echo, local)
+#                   U  Sort by unread messages count
+#                   X  Sort by msgbase type (always JAM)
+#                   Y  Sort by areas with new mail first
+#                   Z  Sort by msgbase path
+#                 A '-' before a key reverses it; '+' restores ascending
+#                 Uppercase/lowercase matters for U/u/Y/y:
+#                   U = unread count (descending), u = has unread (boolean)
+#                   Y = has new (descending), y = same as Y
+# Default: FYTUE
+AREALISTSORT FYT+U+GE
+
+# AREALISTFORMAT -- Columns shown in the area list, as a quoted string
+#                 Each letter is a field:
+#                   A  Area number
+#                   M  Marked
+#                   D  Description
+#                   C  Number of messages
+#                   P  Personal mail mark ('+')
+#                   U  Number of unread/new messages
+#                   N  Changed since last scan mark ('*')
+#                   E  Echoid
+#                   G  Groupid
+# Default: "AM D CPUN E G"
+AREALISTFORMAT "A E PNU C D G"
+
+
+#===========================================================================
+#  COLORS
+#===========================================================================
+
+# COLORMAP -- Redefine color name to number mapping. Syntax: COLORMAP <color> <number>
+#             This changes what number each color name points to. Use this to
+#             customize your palette. Once you define at least one COLORMAP,
+#             the custom mapping is enabled for all color operations
+#             <color> is one of: black, red, green, yellow, blue, magenta, cyan, white
+#             <number> is the target number (0..255, typically 0..7)
+# Default: standard mapping (black=0, red=1, green=2, yellow=3, blue=4, magenta=5, cyan=6, white=7)
+#COLORMAP red 5      # Make "red" point to number 5 instead of 1
+#COLORMAP blue 1     # Make "blue" point to number 1 instead of 4
+#COLORMAP green 3    # Make "green" point to number 3 instead of 2
+#COLORMAP yellow 2   # Make "yellow" point to number 2 instead of 3
+
+# COLOR -- Customize color pairs. Syntax: COLOR <pair> <fg> <bg>
+#          <pair> is one of: NORMAL, SELECTED, HEADER, STATUS, MENU,
+#          MENUHOT, BORDER, QUOTE1, QUOTE2, QUOTE3, QUOTE4, KLUDGE,
+#          TEAR, ORIGIN, SEENBY, VIA, UNREAD, DELETED, POPUP, POPUPSEL,
+#          ERROR, TAGLINE
+#          <fg> and <bg> are color names: black, red, green, yellow,
+#          blue, magenta, cyan, white (these will use your COLORMAP if defined)
+# Default: built-in palette (see below for defaults)
+#COLOR TAGLINE cyan black
+#COLOR QUOTE1 green black
+#COLOR STATUS black white
+
+# CURSORCOLOR -- Cursor color. Accepts:
+#               - Color name (e.g. red, cyan)
+#               - Number 0..255 (Amiga pen / ncurses color index)
+#               - #RRGGBB (RGB hex string for Linux OSC 12)
+# Default: -1 (terminal default)
+#CURSORCOLOR cyan
+
+#-------------------------------------------------------------------------
+#  AMIGA-SPECIFIC OPTIONS (ignored on other platforms)
+#-------------------------------------------------------------------------
+
+# DEFAULT_BG_COLOR -- Default background color for COLOR_PAIR(0)
+#                     Accepts color name or number 0..7
+# Default: 0 (black)
+#DEFAULT_BG_COLOR 0
+
+# FONT -- UI font name (platform-specific)
+#         On Amiga: monospaced font (e.g. topaz.font)
+#         On Windows: monospaced font (e.g. Consolas, Lucida Console)
+# Default: topaz.font (Amiga), Consolas (Windows)
+#FONT hyperansi.font
+
+# Built-in default color palette (these are used if you do not override):
+#   NORMAL    white on black
+#   SELECTED  black on cyan
+#   HEADER    yellow on blue
+#   STATUS    black on white
+#   MENU      black on white
+#   MENUHOT   red on white
+#   BORDER    cyan on black
+#   QUOTE1-4  green on black
+#   KLUDGE    cyan on black
+#   TEAR      yellow on black
+#   ORIGIN    yellow on black
+#   SEENBY    magenta on black
+#   VIA       blue on black
+#   UNREAD    yellow on black
+#   DELETED   red on black
+#   POPUP     white on blue
+#   POPUPSEL  black on cyan
+#   ERROR     white on red
+#   TAGLINE   cyan on black
+
+
+#===========================================================================
+#  TIME
+#===========================================================================
+
+# TIMEZONE -- Your local offset from UTC, in MINUTES (e.g. +60 = UTC+1,
+#             -300 = UTC-5). Used for showing message times in the
+#             local timezone.
+# Default: (auto-detected)
+#TIMEZONE 60
+

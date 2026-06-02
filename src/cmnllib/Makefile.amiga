@@ -1,0 +1,17 @@
+INCDIR = ../
+
+CC = m68k-amigaos-gcc -noixemul -mcpu=68020 -DPLATFORM_AMIGA -I $(INCDIR) -Wall
+AR = m68k-amigaos-ar -ru
+RM = rm -f
+
+OBJS    = cmnllib.o
+
+cmnllib.a : $(OBJS) 
+	$(AR) cmnllib.a $(OBJS)
+	
+cmnllib.o: cmnllib.c
+	$(CC) -c cmnllib.c -o cmnllib.o
+
+clean :
+	$(RM) *.o *.a
+	

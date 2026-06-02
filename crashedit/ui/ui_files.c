@@ -1,0 +1,1066 @@
+/*
+ * crashedit - Message area editor for AmigaOS
+ *
+ * This file is part of the crashedit project.
+ *
+ * Copyright (C) 2026 Tanausú M. 39:190/101@amiganet 2:341/207@fidonet
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ *
+ * This program uses JAMLIB, which is licensed under the GNU Lesser
+ * General Public License v2.1. See src/jamlib/LICENSE for details.
+ */
+
+/* ui_files.c -- Directory browser */
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include "ui_internal.h"
+#include "ui_files.h"
+#include "../core/keys.h"
+
+/* Per-platform directory listing */
+#ifdef PLATFORM_WIN32
+#include <windows.h>
+#elif defined(PLATFORM_AMIGA)
+#include <exec/types.h>
+#include <dos/dos.h>
+#include <proto/exec.h>
+#include <proto/dos.h>
+#else
+#include <dirent.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#endif
+
+/* Bounded path/entry sizes (AmigaOS supports long paths, cap at 1024 for stack) */
+#define UI_FILES_PATH_MAX 1024
+#define UI_FILES_MAX_ENTRIES 4096
+
+/* One directory entry: name + is-directory flag */
+typedef struct
+{
+    char *name;
+    int is_dir;
+} FileEnt;
+
+/* Free name strings and the array itself */
+static void free_entries(FileEnt *ents, int n)
+{
+    int i;
+
+    if (!ents)
+        return;
+
+    for (i = 0; i < n; i++)
+        free(ents[i].name);
+
+    free(ents);
+}
+
+/* Read dir into malloc'd FileEnt[], *out_n = count (NULL on error/empty, dirs first, alpha sorted) */
+static FileEnt *load_dir(const char *dir, int *out_n)
+{
+#ifdef PLATFORM_WIN32
+    WIN32_FIND_DATAA fd;
+    HANDLE h;
+    char pattern[UI_FILES_PATH_MAX];
+#elif defined(PLATFORM_AMIGA)
+    BPTR lock;
+    struct FileInfoBlock *fib;
+#else
+    DIR *dp;
+    struct dirent *e;
+    struct stat st;
+    char full[UI_FILES_PATH_MAX];
+#endif
+    FileEnt *ents = NULL;
+    int n = 0, cap = 0;
+    int i, j;
+    int at_root;
+    const char *colon;
+
+    *out_n = 0;
+
+#ifdef PLATFORM_WIN32
+    snprintf(pattern, sizeof(pattern), "%s\\*", dir);
+    h = FindFirstFileA(pattern, &fd);
+
+    if (h == INVALID_HANDLE_VALUE)
+        return NULL;
+
+    /* Always prepend a ".." entry so the user can navigate up, unless
+     * we're already at the root (bare drive "C:\" or "C:/") */
+    int dlen = (int)strlen(dir);
+    at_root = (dlen <= 3); /* "C:\" or "C:/" */
+
+    if (!at_root)
+    {
+        FileEnt *nb = (FileEnt *)realloc(ents, sizeof(FileEnt));
+
+        if (nb)
+        {
+            ents = nb;
+            cap = 1;
+
+            ents[0].name = strdup("..");
+            ents[0].is_dir = 1;
+
+            n = ents[0].name ? 1 : 0;
+        }
+    }
+
+    while (n < UI_FILES_MAX_ENTRIES)
+    {
+        /* Skip "." and ".." from FindFirstFile -- we already added our
+         * own ".." above, and "." (current dir) is never useful */
+        if (strcmp(fd.cFileName, ".") == 0 || strcmp(fd.cFileName, "..") == 0)
+        {
+            if (!FindNextFileA(h, &fd))
+                break;
+
+            continue;
+        }
+
+        if (n >= cap)
+        {
+            int nc = cap ? cap * 2 : 32;
+            FileEnt *nb = (FileEnt *)realloc(ents, (size_t)nc * sizeof(FileEnt));
+
+            if (!nb)
+                break;
+
+            ents = nb;
+            cap = nc;
+        }
+
+        ents[n].name = NULL;
+        ents[n].is_dir = (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) ? 1 : 0;
+
+        ents[n].name = strdup(fd.cFileName);
+
+        if (!ents[n].name)
+            break;
+
+        n++;
+
+        if (!FindNextFileA(h, &fd))
+            break;
+    }
+
+    FindClose(h);
+#elif defined(PLATFORM_AMIGA)
+    /* AmigaDOS dir walk: Lock() opens path, Examine() inits FIB, ExNext() iterates
+     * fib_DirEntryType >0 = directory, <0 = file */
+    lock = Lock((STRPTR)(dir && dir[0] ? dir : ""), ACCESS_READ);
+
+    if (!lock)
+        return NULL;
+
+    fib = (struct FileInfoBlock *)AllocDosObject(DOS_FIB, NULL);
+
+    if (!fib)
+    {
+        UnLock(lock);
+        return NULL;
+    }
+
+    /* Examine the directory itself first — required before ExNext(),
+     * and lets us bail early if the path isn't actually a directory */
+    if (!Examine(lock, fib) || fib->fib_DirEntryType <= 0)
+    {
+        FreeDosObject(DOS_FIB, fib);
+        UnLock(lock);
+        return NULL;
+    }
+
+    /* Prepend ".." entry unless at volume root (path ends with colon, e.g., "Work:"). */
+    colon = strchr(dir, ':');
+    at_root = 0;
+
+    if (!colon)
+    {
+        /* No colon — relative path ("" or "subdir")
+         * Treat as not-root so the user can still navigate up */
+        at_root = 0;
+    }
+    else
+    {
+        /* Skip the colon and any trailing slashes */
+        const char *after = colon + 1;
+
+        while (*after == '/')
+            after++;
+
+        at_root = (*after == '\0');
+    }
+
+    if (!at_root)
+    {
+        FileEnt *nb = (FileEnt *)realloc(ents, sizeof(FileEnt));
+
+        if (nb)
+        {
+            ents = nb;
+            cap = 1;
+
+            ents[0].name = strdup("..");
+            ents[0].is_dir = 1;
+
+            n = ents[0].name ? 1 : 0;
+        }
+    }
+
+    while (ExNext(lock, fib) && n < UI_FILES_MAX_ENTRIES)
+    {
+        if (n >= cap)
+        {
+            int nc = cap ? cap * 2 : 32;
+
+            FileEnt *nb = (FileEnt *)realloc(ents, (size_t)nc * sizeof(FileEnt));
+
+            if (!nb)
+                break;
+
+            ents = nb;
+            cap = nc;
+        }
+
+        ents[n].is_dir = (fib->fib_DirEntryType > 0) ? 1 : 0;
+        ents[n].name = strdup(fib->fib_FileName);
+
+        if (!ents[n].name)
+            break;
+
+        n++;
+    }
+
+    FreeDosObject(DOS_FIB, fib);
+    UnLock(lock);
+#else
+    dp = opendir(dir);
+
+    if (!dp)
+        return NULL;
+
+    /* Prepend a synthetic ".." entry so the user can navigate up,
+     * unless we're already at the filesystem root "/" */
+    at_root = (strcmp(dir, "/") == 0);
+
+    if (!at_root)
+    {
+        FileEnt *nb = (FileEnt *)realloc(ents, sizeof(FileEnt));
+        if (nb)
+        {
+            ents = nb;
+            cap = 1;
+            ents[0].name = strdup("..");
+            ents[0].is_dir = 1;
+            n = ents[0].name ? 1 : 0;
+        }
+    }
+
+    while ((e = readdir(dp)) != NULL && n < UI_FILES_MAX_ENTRIES)
+    {
+        if (strcmp(e->d_name, ".") == 0 || strcmp(e->d_name, "..") == 0)
+            continue;
+
+        if (n >= cap)
+        {
+            int nc = cap ? cap * 2 : 32;
+            FileEnt *nb = (FileEnt *)realloc(ents, (size_t)nc * sizeof(FileEnt));
+
+            if (!nb)
+                break;
+
+            ents = nb;
+            cap = nc;
+        }
+
+        ents[n].name = NULL;
+        ents[n].is_dir = 0;
+
+        snprintf(full, sizeof(full), "%s/%s", dir, e->d_name);
+
+        if (stat(full, &st) == 0 && S_ISDIR(st.st_mode))
+            ents[n].is_dir = 1;
+
+        ents[n].name = strdup(e->d_name);
+
+        if (!ents[n].name)
+            break;
+
+        n++;
+    }
+
+    closedir(dp);
+#endif
+
+    /* Bubble sort: dirs first (by name), then files (by name), O(N^2) but N small */
+    for (i = 0; i < n; i++)
+    {
+        for (j = i + 1; j < n; j++)
+        {
+            int swap = 0;
+
+            if (ents[i].is_dir != ents[j].is_dir)
+            {
+                if (ents[j].is_dir && !ents[i].is_dir)
+                    swap = 1;
+            }
+            else if (strcmp(ents[i].name, ents[j].name) > 0)
+            {
+                swap = 1;
+            }
+
+            if (swap)
+            {
+                FileEnt tmp = ents[i];
+                ents[i] = ents[j];
+                ents[j] = tmp;
+            }
+        }
+    }
+
+    *out_n = n;
+
+    return ents;
+}
+
+/* Navigate to parent directory in-place; handles Windows/POSIX/Amiga paths */
+static void path_go_parent(char *path)
+{
+    int len, i;
+
+    if (!path || !path[0])
+        return;
+
+    len = (int)strlen(path);
+
+    /* Strip trailing separator first (e.g. "C:\foo\" -> "C:\foo") */
+    while (len > 1 && (path[len - 1] == '/' || path[len - 1] == '\\'))
+        path[--len] = '\0';
+
+    /* Scan back for the last separator or Amiga volume colon */
+    for (i = len - 1; i >= 0; i--)
+    {
+        if (path[i] == '/' || path[i] == '\\')
+        {
+            if (i == 0)
+            {
+                path[1] = '\0'; /* POSIX root "/" */
+            }
+            else if (i == 2 && path[1] == ':')
+            {
+                path[i] = '\\'; /* keep "C:\" */
+                path[i + 1] = '\0';
+            }
+            else
+            {
+                path[i] = '\0';
+            }
+
+            return;
+        }
+
+        if (path[i] == ':')
+        {
+            path[i + 1] = '\0'; /* Amiga: "Work:sub" -> "Work:" */
+            return;
+        }
+    }
+}
+
+/* Append /name to base in-place (0=ok, -1=too long) */
+static int path_append(char *base, int basesz, const char *name)
+{
+    int bl = (int)strlen(base);
+    int nl = (int)strlen(name);
+    char sep;
+    int need_sep;
+
+#ifdef PLATFORM_WIN32
+    /* Windows: backslash separator, treat '/' as existing sep too, ':' is boundary */
+    sep = '\\';
+    need_sep = (bl > 0 && base[bl - 1] != '\\' && base[bl - 1] != '/' && base[bl - 1] != ':');
+#else
+    /* POSIX/Amiga: '/' separator, ':' is volume boundary */
+    sep = '/';
+    need_sep = (bl > 0 && base[bl - 1] != '/' && base[bl - 1] != ':');
+#endif
+
+    if (bl + (need_sep ? 1 : 0) + nl + 1 > basesz)
+        return -1;
+
+    if (need_sep)
+    {
+        base[bl++] = sep;
+        base[bl] = '\0';
+    }
+
+    memcpy(base + bl, name, (size_t)nl + 1);
+
+    return 0;
+}
+
+/* Minimal frame painter: clears interior, draws box, optional title
+ * (avoids public draw_popup_frame) */
+static void draw_frame(int y, int x, int h, int w, const char *title)
+{
+    int i, j;
+
+    attron(COLOR_PAIR(COL_POPUP));
+
+    for (i = 0; i < h; i++)
+    {
+        move(y + i, x);
+
+        for (j = 0; j < w; j++)
+            addch(' ');
+    }
+
+    ui_box(y, x, h, w);
+
+    if (title && title[0])
+    {
+        int tl = (int)strlen(title);
+        int tx = x + (w - tl - 2) / 2;
+
+        if (tx < x + 1)
+            tx = x + 1;
+
+        mvaddch(y, tx - 1, ' ');
+        mvaddnstr(y, tx, title, tl);
+        mvaddch(y, tx + tl, ' ');
+    }
+
+    attroff(COLOR_PAIR(COL_POPUP));
+}
+
+int ui_files_pick(const char *title, const char *start_dir, char *out_path, int out_path_sz)
+{
+    char dir_input[UI_FILES_PATH_MAX];
+    int dir_cursor;
+    int edit_dir = 0;
+    int sel = 0, top = 0;
+    FileEnt *ents = NULL;
+    int nents = 0;
+    int y, x, h, w, visible;
+    int key;
+    int rc = -1;
+    int should_exit = 0;
+
+    if (!out_path || out_path_sz < 2)
+        return -2;
+
+    if (start_dir && start_dir[0])
+    {
+        strncpy(dir_input, start_dir, sizeof(dir_input) - 1);
+        dir_input[sizeof(dir_input) - 1] = '\0';
+    }
+    else
+    {
+#ifdef PLATFORM_WIN32
+        if (!GetCurrentDirectoryA(sizeof(dir_input), dir_input))
+        {
+            dir_input[0] = '.';
+            dir_input[1] = '\0';
+        }
+#elif defined(PLATFORM_AMIGA)
+        /* AmigaDOS: no POSIX getcwd; use Lock("") + NameFromLock(), fallback to "" */
+        BPTR cur = Lock((STRPTR) "", ACCESS_READ);
+
+        dir_input[0] = '\0';
+
+        if (cur)
+        {
+            if (!NameFromLock(cur, (STRPTR)dir_input, (LONG)sizeof(dir_input)))
+                dir_input[0] = '\0';
+
+            UnLock(cur);
+        }
+
+#else
+        if (!getcwd(dir_input, sizeof(dir_input)))
+        {
+            dir_input[0] = '.';
+            dir_input[1] = '\0';
+        }
+#endif
+    }
+
+    dir_cursor = (int)strlen(dir_input);
+
+    for (;;)
+    {
+        ents = load_dir(dir_input, &nents);
+
+        if (!ents)
+        {
+            /* Directory unreadable: force edit mode so user can fix path */
+            edit_dir = 1;
+            nents = 0;
+        }
+
+        if (sel >= nents)
+            sel = nents - 1;
+
+        if (sel < 0)
+            sel = 0;
+
+        ui_popup_center(20, 60, &y, &x, &h, &w);
+        visible = h - 6; /* row 2 = dir input, 4..h-3 = list, h-2 = hint */
+
+        for (;;)
+        {
+            int i;
+
+            draw_frame(y, x, h, w, title ? title : "Select file");
+            attron(COLOR_PAIR(COL_POPUP));
+
+            /* Dir input line */
+            mvaddnstr(y + 2, x + 2, "Dir: ", w - 4);
+
+            if (edit_dir)
+                attron(COLOR_PAIR(COL_POPUP_SEL));
+
+            mvaddnstr(y + 2, x + 7, dir_input, w - 9);
+
+            if (edit_dir)
+                attroff(COLOR_PAIR(COL_POPUP_SEL));
+
+            /* List */
+            for (i = 0; i < visible && top + i < nents; i++)
+            {
+                int idx = top + i;
+                const FileEnt *en = &ents[idx];
+                char line[256];
+
+                if (idx == sel && !edit_dir)
+                    attron(COLOR_PAIR(COL_POPUP_SEL));
+                else
+                    attron(COLOR_PAIR(COL_POPUP));
+
+                if (en->is_dir)
+                    snprintf(line, sizeof(line), "[%s]", en->name);
+                else
+                    snprintf(line, sizeof(line), " %s ", en->name);
+
+                mvaddnstr(y + 4 + i, x + 2, line, w - 4);
+                attroff(COLOR_PAIR(COL_POPUP_SEL));
+            }
+
+            attron(COLOR_PAIR(COL_POPUP));
+            mvaddnstr(y + h - 2, x + 2, "TAB=edit dir  Up/Down=move  Enter=open  ESC=cancel", w - 4);
+            attroff(COLOR_PAIR(COL_POPUP));
+            refresh();
+
+            key = wrapper_getch();
+
+            if (key == 27)
+            {
+                rc = -1;
+                should_exit = 1;
+                break;
+            }
+
+            if (key == '\t')
+            {
+                edit_dir = !edit_dir;
+                dir_cursor = (int)strlen(dir_input);
+                continue;
+            }
+
+            if (edit_dir)
+            {
+                if (key == KEY_BACKSPACE || key == 127 || key == 8)
+                {
+                    if (dir_cursor > 0)
+                    {
+                        dir_cursor--;
+                        dir_input[dir_cursor] = '\0';
+                    }
+                }
+                else if (key == '\n' || key == '\r' || key == KEY_ENTER)
+                {
+                    if (dir_input[0])
+                    {
+                        sel = 0;
+                        top = 0;
+                        edit_dir = 0;
+                        break; /* reload outer */
+                    }
+                }
+                else if (key >= 32 && key < 127 && dir_cursor + 1 < (int)sizeof(dir_input))
+                {
+                    dir_input[dir_cursor++] = (char)key;
+                    dir_input[dir_cursor] = '\0';
+                }
+
+                continue;
+            }
+
+            /* List-navigation state */
+            if (key == KEY_BACKSPACE || key == 127 || key == 8)
+            {
+                /* Backspace when not editing = go to parent directory */
+                path_go_parent(dir_input);
+                sel = 0;
+                top = 0;
+                break; /* reload outer */
+            }
+            else if (key == KEY_UP)
+            {
+                if (sel > 0)
+                {
+                    sel--;
+                    if (sel < top)
+                        top = sel;
+                }
+            }
+            else if (key == KEY_DOWN)
+            {
+                if (sel < nents - 1)
+                {
+                    sel++;
+
+                    if (sel >= top + visible)
+                        top = sel - visible + 1;
+                }
+            }
+            else if (key == KEY_PPAGE || key == CTRL('U'))
+            {
+                sel -= visible;
+
+                if (sel < 0)
+                    sel = 0;
+
+                if (sel < top)
+                    top = sel;
+            }
+            else if (key == KEY_NPAGE || key == CTRL('D'))
+            {
+                sel += visible;
+
+                if (sel >= nents)
+                    sel = nents - 1;
+
+                if (sel >= top + visible)
+                    top = sel - visible + 1;
+            }
+            else if (key == KEY_HOME || key == CTRL('B'))
+            {
+                sel = 0;
+                top = 0;
+            }
+            else if (key == KEY_END || key == CTRL('E'))
+            {
+                sel = nents - 1;
+                top = sel - visible + 1;
+
+                if (top < 0)
+                    top = 0;
+            }
+            else if (key == '\n' || key == '\r' || key == KEY_ENTER)
+            {
+                if (nents == 0)
+                    continue;
+
+                if (ents[sel].is_dir)
+                {
+                    if (strcmp(ents[sel].name, "..") == 0)
+                    {
+                        /* Navigate to parent directory */
+                        path_go_parent(dir_input);
+                        sel = 0;
+                        top = 0;
+
+                        break; /* reload outer */
+                    }
+                    else if (path_append(dir_input, sizeof(dir_input), ents[sel].name) == 0)
+                    {
+                        sel = 0;
+                        top = 0;
+
+                        break; /* reload outer */
+                    }
+                }
+                else
+                {
+                    /* Compose final path */
+                    char tmp[UI_FILES_PATH_MAX];
+
+                    strncpy(tmp, dir_input, sizeof(tmp) - 1);
+                    tmp[sizeof(tmp) - 1] = '\0';
+
+                    if (path_append(tmp, sizeof(tmp), ents[sel].name) == 0)
+                    {
+                        strncpy(out_path, tmp, (size_t)(out_path_sz - 1));
+                        out_path[out_path_sz - 1] = '\0';
+                        rc = 0;
+                    }
+                    else
+                    {
+                        rc = -2;
+                    }
+
+                    should_exit = 1;
+                    break;
+                }
+            }
+        }
+
+        if (should_exit)
+            break;
+
+        /* Outer reload point */
+        free_entries(ents, nents);
+        ents = NULL;
+        nents = 0;
+    }
+
+    free_entries(ents, nents);
+
+    return rc;
+}
+
+int ui_files_save(const char *title, const char *start_dir, const char *init_name, char *out_path, int out_path_sz)
+{
+    char dir_input[UI_FILES_PATH_MAX];
+    char name_input[256];
+    int dir_cursor, name_cursor;
+    int edit_dir = 0;
+    int edit_name = 0;
+    int sel = 0, top = 0;
+    FileEnt *ents = NULL;
+    int nents = 0;
+    int y, x, h, w, visible;
+    int key;
+    int rc = -1;
+    int should_exit = 0;
+
+    if (!out_path || out_path_sz < 2)
+        return -2;
+
+    /* Init dir */
+    if (start_dir && start_dir[0])
+    {
+        strncpy(dir_input, start_dir, sizeof(dir_input) - 1);
+        dir_input[sizeof(dir_input) - 1] = '\0';
+    }
+    else
+    {
+#ifdef PLATFORM_WIN32
+        if (!GetCurrentDirectoryA(sizeof(dir_input), dir_input))
+        {
+            dir_input[0] = '.';
+            dir_input[1] = '\0';
+        }
+#elif defined(PLATFORM_AMIGA)
+        {
+            BPTR cur = Lock((STRPTR) "", ACCESS_READ);
+            dir_input[0] = '\0';
+            if (cur)
+            {
+                NameFromLock(cur, (STRPTR)dir_input, (LONG)sizeof(dir_input));
+                UnLock(cur);
+            }
+        }
+#else
+        if (!getcwd(dir_input, sizeof(dir_input)))
+        {
+            dir_input[0] = '.';
+            dir_input[1] = '\0';
+        }
+#endif
+    }
+
+    dir_cursor = (int)strlen(dir_input);
+
+    /* Init name */
+    if (init_name && init_name[0])
+    {
+        strncpy(name_input, init_name, sizeof(name_input) - 1);
+        name_input[sizeof(name_input) - 1] = '\0';
+    }
+    else
+        name_input[0] = '\0';
+
+    name_cursor = (int)strlen(name_input);
+
+    for (;;)
+    {
+        ents = load_dir(dir_input, &nents);
+
+        if (!ents)
+        {
+            edit_dir = 1;
+            nents = 0;
+        }
+
+        if (sel >= nents)
+            sel = nents > 0 ? nents - 1 : 0;
+
+        if (sel < 0)
+            sel = 0;
+
+        ui_popup_center(22, 62, &y, &x, &h, &w);
+        visible = h - 8; /* dir=2, name=4, list=5..h-3, hint=h-2 */
+
+        for (;;)
+        {
+            int i;
+
+            draw_frame(y, x, h, w, title ? title : "Save as");
+            attron(COLOR_PAIR(COL_POPUP));
+
+            /* Dir line - highlight label too when active */
+            if (edit_dir)
+                attron(COLOR_PAIR(COL_POPUP_SEL));
+
+            mvaddnstr(y + 2, x + 2, "Dir:  ", 6);
+            mvaddnstr(y + 2, x + 8, dir_input, w - 10);
+
+            if (edit_dir)
+            {
+                attroff(COLOR_PAIR(COL_POPUP_SEL));
+
+                /* Draw cursor indicator */
+                if (dir_cursor < w - 10)
+                    mvaddch(y + 2, x + 8 + dir_cursor, '_');
+            }
+
+            /* Name line - highlight label too when active */
+            if (edit_name)
+                attron(COLOR_PAIR(COL_POPUP_SEL));
+
+            mvaddnstr(y + 3, x + 2, "Name: ", 6);
+            mvaddnstr(y + 3, x + 8, name_input, w - 10);
+
+            if (edit_name)
+            {
+                attroff(COLOR_PAIR(COL_POPUP_SEL));
+
+                /* Draw cursor indicator */
+                if (name_cursor < w - 10)
+                    mvaddch(y + 3, x + 8 + name_cursor, '_');
+            }
+
+            /* File list */
+            for (i = 0; i < visible && top + i < nents; i++)
+            {
+                int idx = top + i;
+                const FileEnt *en = &ents[idx];
+                char line[256];
+
+                if (idx == sel && !edit_dir && !edit_name)
+                    attron(COLOR_PAIR(COL_POPUP_SEL));
+                else
+                    attron(COLOR_PAIR(COL_POPUP));
+
+                if (en->is_dir)
+                    snprintf(line, sizeof(line), "[%s]", en->name);
+                else
+                    snprintf(line, sizeof(line), " %s ", en->name);
+
+                mvaddnstr(y + 5 + i, x + 2, line, w - 4);
+                attroff(COLOR_PAIR(COL_POPUP_SEL));
+            }
+
+            attron(COLOR_PAIR(COL_POPUP));
+            mvaddnstr(y + h - 2, x + 2, "TAB=switch field  Enter=select/save  ESC=cancel", w - 4);
+            attroff(COLOR_PAIR(COL_POPUP));
+            refresh();
+
+            key = wrapper_getch();
+
+            if (key == 27)
+            {
+                rc = -1;
+                should_exit = 1;
+                break;
+            }
+
+            if (key == '\t')
+            {
+                /* Cycle: list -> dir -> name -> list */
+                if (!edit_dir && !edit_name)
+                {
+                    edit_dir = 1;
+                    dir_cursor = (int)strlen(dir_input);
+                }
+                else if (edit_dir)
+                {
+                    edit_dir = 0;
+                    edit_name = 1;
+                    name_cursor = (int)strlen(name_input);
+                }
+                else
+                {
+                    edit_name = 0;
+                }
+                continue;
+            }
+
+            /* Dir edit mode */
+            if (edit_dir)
+            {
+                if (key == KEY_BACKSPACE || key == 127 || key == 8)
+                {
+                    if (dir_cursor > 0)
+                        dir_input[--dir_cursor] = '\0';
+                }
+                else if (key == '\n' || key == '\r' || key == KEY_ENTER)
+                {
+                    edit_dir = 0;
+                    sel = 0;
+                    top = 0;
+                    break;
+                }
+                else if (key >= 32 && key < 127 && dir_cursor + 1 < (int)sizeof(dir_input))
+                {
+                    dir_input[dir_cursor++] = (char)key;
+                    dir_input[dir_cursor] = '\0';
+                }
+
+                continue;
+            }
+
+            /* Name edit mode */
+            if (edit_name)
+            {
+                if (key == KEY_BACKSPACE || key == 127 || key == 8)
+                {
+                    if (name_cursor > 0)
+                        name_input[--name_cursor] = '\0';
+                }
+                else if (key == '\n' || key == '\r' || key == KEY_ENTER)
+                {
+                    /* Save with typed name */
+                    if (name_input[0])
+                    {
+                        char tmp[UI_FILES_PATH_MAX];
+                        strncpy(tmp, dir_input, sizeof(tmp) - 1);
+                        tmp[sizeof(tmp) - 1] = '\0';
+
+                        if (path_append(tmp, sizeof(tmp), name_input) == 0)
+                        {
+                            strncpy(out_path, tmp, (size_t)(out_path_sz - 1));
+                            out_path[out_path_sz - 1] = '\0';
+                            rc = 0;
+                        }
+                        else
+                            rc = -2;
+
+                        should_exit = 1;
+
+                        break;
+                    }
+                }
+                else if (key >= 32 && key < 127 && name_cursor + 1 < (int)sizeof(name_input))
+                {
+                    name_input[name_cursor++] = (char)key;
+                    name_input[name_cursor] = '\0';
+                }
+                continue;
+            }
+
+            /* List navigation */
+            if (key == KEY_BACKSPACE || key == 127 || key == 8)
+            {
+                path_go_parent(dir_input);
+
+                sel = 0;
+                top = 0;
+                break;
+            }
+            else if (key == KEY_UP)
+            {
+                if (sel > 0)
+                {
+                    sel--;
+
+                    if (sel < top)
+                        top = sel;
+                }
+            }
+            else if (key == KEY_DOWN)
+            {
+                if (sel < nents - 1)
+                {
+                    sel++;
+
+                    if (sel >= top + visible)
+                        top = sel - visible + 1;
+                }
+            }
+            else if (key == KEY_PPAGE || key == CTRL('U'))
+            {
+                sel -= visible;
+
+                if (sel < 0)
+                    sel = 0;
+
+                if (sel < top)
+                    top = sel;
+            }
+            else if (key == KEY_NPAGE || key == CTRL('D'))
+            {
+                sel += visible;
+
+                if (sel >= nents)
+                    sel = nents - 1;
+
+                if (sel >= top + visible)
+                    top = sel - visible + 1;
+            }
+            else if (key == '\n' || key == '\r' || key == KEY_ENTER)
+            {
+                if (nents == 0)
+                    continue;
+
+                if (ents[sel].is_dir)
+                {
+                    if (strcmp(ents[sel].name, "..") == 0)
+                        path_go_parent(dir_input);
+                    else
+                        path_append(dir_input, sizeof(dir_input), ents[sel].name);
+
+                    sel = 0;
+                    top = 0;
+                    break;
+                }
+                else
+                {
+                    /* Clicking a file copies its name to the name field */
+                    strncpy(name_input, ents[sel].name, sizeof(name_input) - 1);
+                    name_input[sizeof(name_input) - 1] = '\0';
+                    name_cursor = (int)strlen(name_input);
+                    edit_name = 1;
+                }
+            }
+        }
+
+        if (should_exit)
+            break;
+
+        free_entries(ents, nents);
+        ents = NULL;
+        nents = 0;
+    }
+
+    free_entries(ents, nents);
+
+    return rc;
+}

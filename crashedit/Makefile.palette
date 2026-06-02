@@ -1,0 +1,55 @@
+#
+# crashedit - Message area editor for AmigaOS
+#
+# This file is part of the crashedit project.
+#
+# Copyright (C) 2026 Tanausú M. 39:190/101@amiganet 2:341/207@fidonet
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 2 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+#
+# Makefile.palette -- Build palette_test (Workbench palette test program)
+#
+# Position-independent: paths anchored to the directory containing this
+# Makefile, so it works from any CWD (e.g. `make -f path/to/Makefile.palette`).
+
+# Directory of this Makefile (with trailing slash)
+HERE := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
+
+CC = m68k-amigaos-gcc -noixemul -mcpu=68020 -DPLATFORM_AMIGA
+CFLAGS = -Wall -std=gnu89 -O2
+LIBS = -lamiga -lm
+
+TARGET = palette_test
+SOURCE = $(HERE)palette_test.c
+PALETTE = $(HERE)../bin/palette_test
+
+# Default target
+all: $(PALETTE)
+
+$(PALETTE): $(SOURCE)
+	$(CC) $(CFLAGS) -o $(PALETTE) $(SOURCE) $(LIBS)
+
+# Clean build files
+clean:
+	rm -f $(PALETTE)
+
+# Show help
+help:
+	@echo "Usage:"
+	@echo "  make       - Build palette_test"
+	@echo "  make clean - Remove build files"
+	@echo ""
+	@echo "Displays 16 Workbench palette colors with indices for config.txt"
+
+.PHONY: all clean help

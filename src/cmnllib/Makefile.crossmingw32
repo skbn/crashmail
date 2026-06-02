@@ -1,0 +1,28 @@
+# Makefile.crossmingw32 for cmnllib
+# Cross-compile from Linux to Windows using MinGW
+
+# Architecture selection (default: win64)
+ARCH?=win64
+
+ifeq ($(ARCH),win32)
+CC=i686-w64-mingw32-gcc
+CFLAGS= -m32 -pipe -Wall -O2
+else
+CC=x86_64-w64-mingw32-gcc
+CFLAGS= -m64 -pipe -Wall -O2
+endif
+
+INCDIR = ../
+AR = ar -ru
+RM = rm -f
+
+OBJS = cmnllib.o
+
+cmnllib.a : $(OBJS) 
+	$(AR) cmnllib.a $(OBJS)
+	
+cmnllib.o: cmnllib.c
+	$(CC) $(CFLAGS) -DPLATFORM_WIN32 -DNO_TYPEDEF_BOOL -I $(INCDIR) -c cmnllib.c -o cmnllib.o
+
+clean :
+	$(RM) *.o *.a

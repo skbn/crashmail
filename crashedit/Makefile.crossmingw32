@@ -1,0 +1,207 @@
+#
+# crashedit - Message area editor for AmigaOS
+#
+# This file is part of the crashedit project.
+#
+# Copyright (C) 2026 Tanausú M. 39:190/101@amiganet 2:341/207@fidonet
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 2 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+#
+# Makefile.crossmingw32 -- Build libwrapper.a + crashedit for Windows (cross-compiled from Linux)
+#
+# Usage: make -f Makefile.crossmingw32 [ARCH=win64|win32] [DEBUG=1]
+#
+# Position-independent: anchored to the directory containing this Makefile
+
+# Directory of this Makefile (with trailing slash)
+HERE := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
+
+# Architecture selection (default: win64)
+ARCH?=win64
+
+ifeq ($(ARCH),win32)
+CC=i686-w64-mingw32-gcc
+WINDRES=i686-w64-mingw32-windres
+CFLAGS= -m32 -pipe -Wall -Wextra -std=gnu89 -O2
+LFLAGS= -m32
+LDFLAGS=
+OBJDIR_SUFFIX=objs.win32
+ARCH_SUFFIX=x32
+else
+CC=x86_64-w64-mingw32-gcc
+WINDRES=x86_64-w64-mingw32-windres
+CFLAGS= -m64 -pipe -Wall -Wextra -std=gnu89 -O2
+LFLAGS= -m64
+LDFLAGS=
+OBJDIR_SUFFIX=objs.win64
+ARCH_SUFFIX=x64
+endif
+
+AR = ar
+TARGET = $(HERE)libwrapper-windows-$(ARCH_SUFFIX).a
+
+# Directories
+OBJDIR = $(HERE)$(OBJDIR_SUFFIX)
+COREDIR = $(HERE)core
+COMPDIR = $(HERE)components
+UIDIR = $(HERE)ui
+
+# Platform-specific defines
+CDEFS = -DPLATFORM_WIN32 -D_WINDOWS
+
+# Object files in objs/
+CORE_OBJS = $(OBJDIR)/jam_wrap.o $(OBJDIR)/utf8.o $(OBJDIR)/charset.o \
+            $(OBJDIR)/ftn.o $(OBJDIR)/msghdr.o $(OBJDIR)/wrapper_io.o \
+            $(OBJDIR)/clipboard.o $(OBJDIR)/attach.o $(OBJDIR)/freq.o $(OBJDIR)/keys.o \
+            $(OBJDIR)/ansi.o $(OBJDIR)/ncursesw_win32.o $(OBJDIR)/search.o
+COMP_OBJS = $(OBJDIR)/editor.o $(OBJDIR)/reader.o $(OBJDIR)/areafile.o $(OBJDIR)/config.o
+UI_OBJS   = $(OBJDIR)/ui_app.o \
+            $(OBJDIR)/ui_session.o $(OBJDIR)/ui_popup.o $(OBJDIR)/ui_arealist.o \
+            $(OBJDIR)/ui_arealist_layout.o \
+            $(OBJDIR)/ui_msglist.o $(OBJDIR)/ui_reader.o $(OBJDIR)/ui_editor.o \
+            $(OBJDIR)/ui_editor_prep.o $(OBJDIR)/ui_editor_popups.o \
+            $(OBJDIR)/ui_aka.o $(OBJDIR)/ui_attr.o $(OBJDIR)/ui_files.o \
+            $(OBJDIR)/ui_popup_attach.o $(OBJDIR)/ui_popup_freq.o $(OBJDIR)/ui_setup.o \
+            $(OBJDIR)/ui_search.o
+ALL_OBJS = $(CORE_OBJS) $(COMP_OBJS)
+
+all: $(TARGET) crashedit
+
+$(TARGET): $(ALL_OBJS)
+	$(AR) rcs $@ $(ALL_OBJS)
+
+# Create obj directory
+$(OBJDIR):
+	mkdir -p $(OBJDIR)
+
+# Core library objects
+$(OBJDIR)/jam_wrap.o: $(COREDIR)/jam_wrap.c $(COREDIR)/jam_wrap.h $(HERE)../src/jamlib/jam.h | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
+$(OBJDIR)/utf8.o: $(COREDIR)/utf8.c $(COREDIR)/utf8.h | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
+$(OBJDIR)/charset.o: $(COREDIR)/charset.c $(COREDIR)/charset.h $(COREDIR)/utf8.h | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
+$(OBJDIR)/keys.o: $(COREDIR)/keys.c $(COREDIR)/keys.h | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
+$(OBJDIR)/ftn.o: $(COREDIR)/ftn.c $(COREDIR)/ftn.h $(COREDIR)/jam_wrap.h $(COREDIR)/charset.h | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
+$(OBJDIR)/config.o: $(COMPDIR)/config.c $(COMPDIR)/config.h $(COREDIR)/charset.h | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
+$(OBJDIR)/msghdr.o: $(COREDIR)/msghdr.c $(COREDIR)/msghdr.h $(COREDIR)/jam_wrap.h $(COREDIR)/utf8.h | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
+$(OBJDIR)/wrapper_io.o: $(COREDIR)/wrapper_io.c $(COREDIR)/wrapper_io.h $(COREDIR)/jam_wrap.h $(COREDIR)/utf8.h $(COREDIR)/charset.h $(COREDIR)/ftn.h | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
+$(OBJDIR)/clipboard.o: $(COREDIR)/clipboard.c $(COREDIR)/clipboard.h | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
+$(OBJDIR)/attach.o: $(COREDIR)/attach.c $(COREDIR)/attach.h | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
+$(OBJDIR)/freq.o: $(COREDIR)/freq.c $(COREDIR)/freq.h | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
+$(OBJDIR)/search.o: $(COREDIR)/search.c $(COREDIR)/search.h $(COREDIR)/jam_wrap.h $(COMPDIR)/areafile.h | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
+$(OBJDIR)/ansi.o: $(COREDIR)/ansi.c $(COREDIR)/ansi.h $(COREDIR)/utf8.h | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
+$(OBJDIR)/ncursesw_win32.o: $(HERE)ncursesw_win32.c $(HERE)ncursesw_win32.h | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
+# Component objects
+$(OBJDIR)/areafile.o: $(COMPDIR)/areafile.c $(COMPDIR)/areafile.h | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
+$(OBJDIR)/editor.o: $(COMPDIR)/editor.c $(COMPDIR)/editor.h | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
+$(OBJDIR)/reader.o: $(COMPDIR)/reader.c $(COMPDIR)/reader.h $(COREDIR)/ftn.h | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
+# UI objects (ui/)
+$(OBJDIR)/ui_app.o: $(UIDIR)/ui_app.c $(UIDIR)/ui.h $(UIDIR)/ui_internal.h | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
+$(OBJDIR)/ui_session.o: $(UIDIR)/ui_session.c $(UIDIR)/ui_internal.h | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
+$(OBJDIR)/ui_popup.o: $(UIDIR)/ui_popup.c $(UIDIR)/ui_internal.h $(UIDIR)/ui_aka.h | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
+$(OBJDIR)/ui_arealist.o: $(UIDIR)/ui_arealist.c $(UIDIR)/ui_internal.h $(UIDIR)/ui_arealist_layout.h | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
+$(OBJDIR)/ui_arealist_layout.o: $(UIDIR)/ui_arealist_layout.c $(UIDIR)/ui_arealist_layout.h | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
+$(OBJDIR)/ui_msglist.o: $(UIDIR)/ui_msglist.c $(UIDIR)/ui_internal.h | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
+$(OBJDIR)/ui_reader.o: $(UIDIR)/ui_reader.c $(UIDIR)/ui_internal.h $(UIDIR)/ui_attr.h | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
+$(OBJDIR)/ui_editor.o: $(UIDIR)/ui_editor.c $(UIDIR)/ui_editor_internal.h $(UIDIR)/ui_aka.h $(UIDIR)/ui_attr.h | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
+$(OBJDIR)/ui_editor_prep.o: $(UIDIR)/ui_editor_prep.c $(UIDIR)/ui_editor_internal.h $(UIDIR)/ui_aka.h | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
+$(OBJDIR)/ui_editor_popups.o: $(UIDIR)/ui_editor_popups.c $(UIDIR)/ui_editor_internal.h | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
+# Shared helpers
+$(OBJDIR)/ui_aka.o: $(UIDIR)/ui_aka.c $(UIDIR)/ui_aka.h | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
+$(OBJDIR)/ui_attr.o: $(UIDIR)/ui_attr.c $(UIDIR)/ui_attr.h | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
+$(OBJDIR)/ui_files.o: $(UIDIR)/ui_files.c $(UIDIR)/ui_files.h $(UIDIR)/ui_internal.h | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
+$(OBJDIR)/ui_popup_attach.o: $(UIDIR)/ui_popup_attach.c $(UIDIR)/ui_internal.h $(UIDIR)/ui_files.h | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
+$(OBJDIR)/ui_popup_freq.o: $(UIDIR)/ui_popup_freq.c $(UIDIR)/ui_internal.h $(COREDIR)/freq.h $(COMPDIR)/config.h | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
+$(OBJDIR)/ui_setup.o: $(UIDIR)/ui_setup.c $(UIDIR)/ui_internal.h $(COMPDIR)/config.h $(COREDIR)/freq.h | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
+$(OBJDIR)/ui_search.o: $(UIDIR)/ui_search.c $(UIDIR)/ui_search.h $(UIDIR)/ui_internal.h $(COREDIR)/search.h | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
+# Application
+JAMLIB = $(HERE)../src/jamlib/jamlib.a
+CRASHEDIT = $(HERE)../bin/crashedit-$(ARCH_SUFFIX).exe
+
+crashedit: $(CRASHEDIT)
+
+$(CRASHEDIT): $(HERE)main_ui.c $(TARGET) $(UI_OBJS) $(JAMLIB)
+	$(CC) $(CFLAGS) $(LFLAGS) $(CDEFS) $(HERE)main_ui.c $(UI_OBJS) $(JAMLIB) \
+	      -o $@ $(LDFLAGS) -lws2_32 -lkernel32 -luser32 -lgdi32
+
+clean:
+	rm -rf $(OBJDIR) $(TARGET) $(CRASHEDIT)
+
+.PHONY: all clean
