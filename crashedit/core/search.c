@@ -3,30 +3,23 @@
  *
  * This file is part of the crashedit project.
  *
- * Copyright (C) 2026 Tanausú M.
+ * Copyright (C) 2026 Tanausú M. 39:190/101@amiganet 2:341/207@fidonet
  *
- * Released under the GNU GPL v2 or later.
- */
-
-/* search.c -- motor for the selective full-text search.
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 2 of the License, or
+ * (at your option) any later version.
  *
- * Header-only matching uses the already-decoded subject/from/to/msgid
- * strings that jam_load_headers stuffs into JamMsgInfo — these are
- * small and they live in RAM only for the duration of the area scan,
- * so no streaming work is needed there.
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  *
- * Body matching does need streaming. jam_read_body() returns the full
- * body as a single malloc, which is the path of least resistance and
- * keeps us out of the JAM library's internals. Peak RAM is one body
- * at a time — typically a few KB, rarely above 64 KB. We free it
- * before reading the next, so the actual cost is "size of the
- * single largest message we scan", not "sum of all bodies".
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  *
- * The pattern matcher is a tiny case-insensitive substring search
- * (ASCII-fold for the !case_sensitive case). For the message sizes
- * crashedit deals with, naive O(n*m) is fine; Boyer-Moore would be
- * a couple hundred lines for ~no observable win below a megabyte
- * per message.
+ * This program uses JAMLIB, which is licensed under the GNU Lesser
+ * General Public License v2.1. See src/jamlib/LICENSE for details.
  */
 
 #include <stdio.h>

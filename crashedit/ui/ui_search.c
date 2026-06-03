@@ -3,9 +3,23 @@
  *
  * This file is part of the crashedit project.
  *
- * Copyright (C) 2026 Tanausú M.
+ * Copyright (C) 2026 Tanausú M. 39:190/101@amiganet 2:341/207@fidonet
  *
- * Released under the GNU GPL v2 or later.
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ *
+ * This program uses JAMLIB, which is licensed under the GNU Lesser
+ * General Public License v2.1. See src/jamlib/LICENSE for details.
  */
 
 /* ui_search.c -- popup + result browser for selective search */
@@ -565,12 +579,7 @@ UiView ui_search_results_run(UiApp *app)
 
         if (mode == 0)
         {
-            snprintf(hdr, sizeof(hdr),
-                     " Search results -- %d hits in %d areas%s   pattern: \"%s\"",
-                     ss->n_hits, n_runs,
-                     ss->hit_limit_reached ? " (LIMIT REACHED)" : "",
-                     ss->pattern);
-
+            snprintf(hdr, sizeof(hdr), " Search results -- %d hits in %d areas%s   pattern: \"%s\"", ss->n_hits, n_runs, ss->hit_limit_reached ? " (LIMIT REACHED)" : "", ss->pattern);
             mvaddnstr(0, 0, hdr, COLS - 1);
         }
         else
