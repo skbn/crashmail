@@ -589,7 +589,10 @@ UiApp *ui_init(CrashEditCfg *cfg, AreaList *areas)
 
     raw();
     noecho();
-    nonl();
+
+	/* fix with paste text */
+    /*nonl();*/ /* Disable carriage return to newline translation */
+
     keypad(stdscr, TRUE);
     curs_set(0);
     setup_colors(cfg);
