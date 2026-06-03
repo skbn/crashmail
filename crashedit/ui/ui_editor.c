@@ -89,10 +89,10 @@ static const char *EDITOR_HELP[] =
         "  Search / nav:",
         "    F5, /           Search (show all matches)",
         "    Ctrl-R          Find & replace",
-        "    Ctrl-G          Goto line",
+        "    Ctrl-J          Goto line",
         "    Alt+G           Clear search highlights",
-        "    Ctrl+<          Go to start of document",
-        "    Alt+>           Go to end of document",
+        "    Ctrl-G          Go to start of document",
+        "    Ctrl-K          Go to end of document",
         "    F7, Alt+O       Insert file",
         "    F8, Alt+K       Kludges (Enter del)",
         "",
@@ -2008,8 +2008,8 @@ UiView ui_editor_run(UiApp *app)
             continue;
         }
 
-        /* Ctrl-G: goto line */
-        if (ch == CTRL('G'))
+        /* Ctrl-J: goto line */
+        if (ch == CTRL('J'))
         {
             char buf[16];
             buf[0] = '\0';
@@ -2464,7 +2464,6 @@ UiView ui_editor_run(UiApp *app)
                 else
                     ed_move_pgdn(app->editor, 0);
                 break;
-            case CTRL('K'): /* Ctrl+K: delete line */
             case CTRL('Y'): /* Ctrl+Y: delete line (GoldED+) */
                 ed_save_undo(app->editor);
                 ed_delete_line(app->editor);
@@ -2490,11 +2489,11 @@ UiView ui_editor_run(UiApp *app)
             case CTRL('L'): /* Ctrl+L: List attachments */
                 ui_popup_attach_list(app);
                 break;
-            case CTRL('<'): /* Go to start of document */
+            case CTRL('G'): /* Go to start of document */
                 ed_set_pos(app->editor, 0, 0);
                 ed_ensure_visible(app->editor);
                 break;
-            case KEY_ALT('>'): /* Go to end of document */
+            case CTRL('K'): /* Go to end of document */
             {
                 EdInfo info;
                 ed_get_info(app->editor, &info);

@@ -203,6 +203,7 @@ static int search_params_popup(UiApp *app, char *pattern, int patternsz, int *op
 
         if (field == 0)
             attroff(COLOR_PAIR(COL_POPUP_SEL));
+
         attron(COLOR_PAIR(COL_POPUP));
 
         /* Header checkbox */
@@ -276,8 +277,10 @@ static int search_params_popup(UiApp *app, char *pattern, int patternsz, int *op
         if (field == 0)
         {
             cx = x + 12 + (int)strlen(inbuf);
+
             if (cx >= x + w - 2)
                 cx = x + w - 3;
+
             move(y + 2, cx);
             curs_set(1);
         }
@@ -501,10 +504,13 @@ static const char *flag_letters(uint16_t flags)
 {
     if ((flags & SEARCH_HIT_HEADER) && (flags & SEARCH_HIT_BODY))
         return "HB";
+
     if (flags & SEARCH_HIT_HEADER)
         return "H ";
+
     if (flags & SEARCH_HIT_BODY)
         return "B ";
+
     return "  ";
 }
 
@@ -826,6 +832,7 @@ UiView ui_search_results_run(UiApp *app)
     /* ESC path: persist nothing, free the session entirely */
     next_view = app->search_from_view;
     ui_search_cleanup(app);
+
     return next_view;
 }
 

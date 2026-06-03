@@ -66,7 +66,10 @@ static const char *READER_HELP[] =
         "  n, Ins         New message (in current area)",
         "  l, L           Show message list overlay (ESC returns here)",
         "  g              Goto message number",
+        "  Ctrl+H         Scroll to top of message",
+        "  Ctrl+K         Scroll to bottom of message",
         "  Ctrl+G         Goto line number",
+        "  Ctrl+J         Follow reply chain to original",
         "  Alt+G          Clear search highlights",
         "  F5, /          Search in message body",
         "  w, F7          Write message to text file",
@@ -816,6 +819,7 @@ UiView ui_reader_run(UiApp *app)
     for (;;)
     {
         erase();
+
         ui_draw_menubar(app, "Reader");
         draw_header_bar(app);
         draw_body(app);
@@ -888,7 +892,7 @@ UiView ui_reader_run(UiApp *app)
             }
             break;
 
-        case '<':
+        case CTRL('H'):
             /* Scroll to top of message */
             rd_set_page(app->reader, LINES - 8);
 
@@ -897,7 +901,7 @@ UiView ui_reader_run(UiApp *app)
 
             break;
 
-        case '>':
+        case CTRL('K'):
             /* Scroll to bottom of message */
             rd_set_page(app->reader, LINES - 8);
 
@@ -1411,8 +1415,10 @@ UiView ui_reader_run(UiApp *app)
             }
 
             reader_save_lastread(app);
+
             /* reader_save_lastread() already updates area counts; skip redundant call */
             app->cfg->viewansi = saved_viewansi;
+
             return reader_exit_view(app);
 
             break;
@@ -1435,6 +1441,7 @@ UiView ui_reader_run(UiApp *app)
             update_area_counts_in_memory(app);
             app->cfg->viewansi = saved_viewansi;
             app->msglist_overlay_from_reader = 1;
+
             return VIEW_MSGLIST;
 
         case 27:
