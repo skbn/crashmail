@@ -69,7 +69,7 @@ static const char *READER_HELP[] =
         "  Ctrl+H         Scroll to top of message",
         "  Ctrl+K         Scroll to bottom of message",
         "  Ctrl+G         Goto line number",
-        "  Ctrl+J         Follow reply chain to original",
+        "  Alt+J         Follow reply chain to original",
         "  Alt+G          Clear search highlights",
         "  F5, /          Search in message body",
         "  w, F7          Write message to text file",
@@ -770,8 +770,13 @@ static void draw_body(UiApp *app)
 static int reader_goto_raw(UiApp *app, int raw_idx)
 {
     UiSession *s = &app->sess;
-    uint32_t target_mn = s->msgs[raw_idx].msgnum;
+    uint32_t target_mn;
     int i;
+
+    if (raw_idx < 0 || raw_idx >= s->msg_count)
+        return -1; /* invalid index */
+
+    target_mn = s->msgs[raw_idx].msgnum;
 
     for (i = 0; i < s->order_count; i++)
     {
@@ -784,7 +789,7 @@ static int reader_goto_raw(UiApp *app, int raw_idx)
         }
     }
 
-    return -2; /* hidden by filter */
+    return -2;
 }
 
 /* Main loop */
@@ -933,7 +938,7 @@ UiView ui_reader_run(UiApp *app)
                     ui_status(app, "Cannot load last");
             }
             break;
-        case CTRL('J'): /* Follow REPLY chain to original */
+        case KEY_ALT('J'): /* Follow REPLY chain to original */
         case KEY_CLEFT:
         {
             int idx = jam_find_by_msgnum(s->msgs, s->msg_count, app->cur_msgnum);
@@ -942,8 +947,13 @@ UiView ui_reader_run(UiApp *app)
             /* Fallback: search by MSGID string from REPLY kludge */
             if (orig < 0 && app->cur_reply[0])
                 orig = ftn_find_original_by_msgid(s->msgs, s->msg_count, app->cur_reply);
+
             if (orig < 0)
                 ui_status(app, "No original message in this area");
+            else if (orig >= s->msg_count)
+                ui_status(app, "Invalid original message index");
+            else if (s->msgs[orig].from[0] == '\0' || s->msgs[orig].subject[0] == '\0')
+                ui_status(app, "Original message is empty or corrupted");
             else
             {
                 int rc = reader_goto_raw(app, orig);
@@ -953,9 +963,9 @@ UiView ui_reader_run(UiApp *app)
                 else if (rc != 0)
                     ui_status(app, "Cannot load original");
             }
+
             break;
         }
-
         case KEY_CRIGHT: /* Follow thread to reply (with picker if branched) */
         {
 #define MAX_REPLIES 256
@@ -1240,6 +1250,7 @@ UiView ui_reader_run(UiApp *app)
             return VIEW_EDITOR;
 
         case '\r':
+        case '\n':
         case KEY_ENTER:
             /* Page down or advance to next message at bottom */
             if (rd_top(app->reader) + rd_visible(app->reader) >= rd_total(app->reader))
