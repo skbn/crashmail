@@ -56,9 +56,9 @@ static const char *AREALIST_HELP[] =
         "  PgUp/PgDn      Page up/down",
         "  Home/End       First / last area",
 #endif
-        "  Enter          Open selected area (message list)",
+        "  Enter          Open selected area",
         "  /              Search (fuzzy match)",
-        "  G              Goto area by name (cursor jump)",
+        "  G              Goto area by name",
         "  s              Change sort order",
         "  Alt+C, C       Catch-up (Y=this area, A=ALL areas)",
         "  Alt+S, R       Rescan all areas",
