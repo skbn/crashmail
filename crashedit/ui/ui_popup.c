@@ -51,13 +51,13 @@ typedef struct
 static const char *sort_preset_specs[] =
     {
         "_DEFAULT_",
-	"FYT-U+GE", /* default */
-        "E",                     /* by echoid */
-        "+U+E",                  /* unread desc, then echoid */
-        "-T+E",                  /* type desc, echoid */
-        "O",                     /* original order */
-        "Y+U+E",                 /* new first, unread desc, echoid */
-        "M+E",                   /* marked first, echoid */
+        "FYT-U+GE", /* default */
+        "E",        /* by echoid */
+        "+U+E",     /* unread desc, then echoid */
+        "-T+E",     /* type desc, echoid */
+        "O",        /* original order */
+        "Y+U+E",    /* new first, unread desc, echoid */
+        "M+E",      /* marked first, echoid */
         "_CUSTOM_"};
 
 static const char *sort_preset_labels[] =
@@ -278,6 +278,7 @@ int ui_popup_list(const char *title, const char **items, int count, int initial)
         if (top < 0)
             top = 0;
 
+        standend(); /* Clear any residual attributes from previous iteration */
         draw_popup_frame(y, x, h, w, title ? title : "Select");
         attron(COLOR_PAIR(COL_POPUP));
 
@@ -482,6 +483,7 @@ int ui_popup_charset_pair(const char *view_in, const char *output_in, const char
         const char *labels[2] = {"View charset:  ", "Save charset:  "};
         const char *cur_label;
 
+        standend(); /* Clear any residual attributes from previous iteration */
         draw_popup_frame(y, x, h, w, "Charsets");
         attron(COLOR_PAIR(COL_POPUP));
 
@@ -819,6 +821,7 @@ static int popup_input_core(const char *title, const char *prompt, wchar_t *wbuf
 
         /* Use modular input_draw */
         input_draw(&state, y + 3, x + 2, w - 4, 1);
+        standend(); /* Clear attributes after input_draw */
 
         attroff(COLOR_PAIR(COL_POPUP));
 
@@ -1019,6 +1022,7 @@ int ui_popup_search_results(const char *title, const int *line_nums, const char 
 
     for (;;)
     {
+        standend(); /* Clear any residual attributes from previous iteration */
         draw_popup_frame(y, x, h, w, title ? title : "Search Results");
         attron(COLOR_PAIR(COL_POPUP));
 
@@ -1196,6 +1200,7 @@ void ui_popup_help(const char *title, const char *const *lines, int n)
     {
         int ch;
 
+        standend(); /* Clear any residual attributes from previous iteration */
         draw_popup_frame(y, x, h, w, title ? title : "Help");
         attron(COLOR_PAIR(COL_POPUP));
 
@@ -1310,6 +1315,7 @@ int ui_popup_replace(const wchar_t *search_in, const wchar_t *replace_in, wchar_
         int field_start = 15;
         int i;
 
+        standend(); /* Clear any residual attributes from previous iteration */
         draw_popup_frame(y, x, h, w, "Find & Replace");
         attron(COLOR_PAIR(COL_POPUP));
 
@@ -1328,6 +1334,7 @@ int ui_popup_replace(const wchar_t *search_in, const wchar_t *replace_in, wchar_
             attroff(COLOR_PAIR(COL_POPUP_SEL));
 
         input_draw(&search_state, y + 2, x + field_start, w - field_start - 3, field == 0);
+        standend(); /* Clear attributes after input_draw */
 
         /* Draw replace field */
         attron(COLOR_PAIR(COL_POPUP));
@@ -1344,6 +1351,7 @@ int ui_popup_replace(const wchar_t *search_in, const wchar_t *replace_in, wchar_
             attroff(COLOR_PAIR(COL_POPUP_SEL));
 
         input_draw(&replace_state, y + 3, x + field_start, w - field_start - 3, field == 1);
+        standend(); /* Clear attributes after input_draw */
 
         /* Draw checkboxes */
         attron(COLOR_PAIR(COL_POPUP));
@@ -1376,6 +1384,8 @@ int ui_popup_replace(const wchar_t *search_in, const wchar_t *replace_in, wchar_
         if (field == 3)
             attroff(COLOR_PAIR(COL_POPUP_SEL));
 
+        standend(); /* Clear attributes after checkbox */
+
         /* Status bar */
         attron(COLOR_PAIR(COL_STATUS));
 
@@ -1401,6 +1411,7 @@ int ui_popup_replace(const wchar_t *search_in, const wchar_t *replace_in, wchar_
 
         if (ch == 27)
         {
+            standend();
             curs_set(0);
             refresh();
             return -1;
@@ -1408,6 +1419,7 @@ int ui_popup_replace(const wchar_t *search_in, const wchar_t *replace_in, wchar_
 
         if (ch == '\n' || ch == '\r' || ch == KEY_ENTER)
         {
+            standend();
             curs_set(0);
             refresh();
 
