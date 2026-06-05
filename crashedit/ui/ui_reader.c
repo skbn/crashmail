@@ -69,9 +69,11 @@ static const char *READER_HELP[] =
         "  Ctrl+H         Scroll to top of message",
         "  Ctrl+K         Scroll to bottom of message",
         "  Ctrl+G         Goto line number",
-        "  Alt+J         Follow reply chain to original",
+        "  Alt+J          Follow reply chain to original",
         "  Alt+G          Clear search highlights",
         "  F5, /          Search in message body",
+        "  F3 Alt+P       Previous match (search mode)",
+        "  F4 Alt+N       Next match (search mode)",
         "  w, F7          Write message to text file",
         "  d, Del         Delete this message",
         "  Ctrl+F         File request",
@@ -404,6 +406,7 @@ static int load_msg(UiApp *app, uint32_t msgnum)
         {
             /* Extract address from MSGID (format: "addr serial") */
             int i;
+
             addr[0] = '\0';
 
             for (i = 0; app->cur_msgid[i] && app->cur_msgid[i] != ' ' && app->cur_msgid[i] != '\t' && i < (int)sizeof(addr) - 1; i++)
@@ -605,23 +608,29 @@ static int wc_to_utf8_bytes(wchar_t wc, char *buf)
         buf[0] = (char)cp;
         return 1;
     }
+
     if (cp < 0x800)
     {
         buf[0] = (char)(0xC0 | (cp >> 6));
         buf[1] = (char)(0x80 | (cp & 0x3F));
+
         return 2;
     }
+
     if (cp < 0x10000)
     {
         buf[0] = (char)(0xE0 | (cp >> 12));
         buf[1] = (char)(0x80 | ((cp >> 6) & 0x3F));
         buf[2] = (char)(0x80 | (cp & 0x3F));
+
         return 3;
     }
+
     buf[0] = (char)(0xF0 | (cp >> 18));
     buf[1] = (char)(0x80 | ((cp >> 12) & 0x3F));
     buf[2] = (char)(0x80 | ((cp >> 6) & 0x3F));
     buf[3] = (char)(0x80 | (cp & 0x3F));
+
     return 4;
 }
 
@@ -728,22 +737,6 @@ static void draw_body(UiApp *app)
         else
         {
             col = ui_color_for_type(type);
-
-            /* Check if this line is a search match */
-            if (app->reader_search_matches && app->reader_search_match_count > 0)
-            {
-                int i;
-
-                for (i = 0; i < app->reader_search_match_count; i++)
-                {
-                    if (app->reader_search_matches[i] == vi)
-                    {
-                        col = COL_SEARCH_MATCH;
-                        break;
-                    }
-                }
-            }
-
             attron(COLOR_PAIR(col));
             ansi_attrs = 0;
         }
@@ -762,8 +755,64 @@ static void draw_body(UiApp *app)
         if (ln && lnlen > 0)
             mvaddnwstr(row_y, 0, ln, lnlen);
 
+        /* Highlight search matches (word-level) */
+        if (app->reader_search.rows && app->reader_search.cols && app->reader_search.match_count > 0)
+        {
+            int line_idx = rd_get_line_idx(app->reader, vi);
+            int j;
+
+            if (line_idx >= 0)
+            {
+                for (j = 0; j < app->reader_search.match_count; j++)
+                {
+                    if (app->reader_search.rows[j] == line_idx)
+                    {
+                        int match_col = app->reader_search.cols[j];
+                        int match_len = (int)wcslen(app->reader_search.query);
+
+                        if (match_col >= 0 && match_col + match_len <= lnlen)
+                        {
+                            if (j == app->reader_search.current_match)
+                                attron(COLOR_PAIR(COL_SEARCH_MATCH) | A_REVERSE);
+                            else
+                                attron(COLOR_PAIR(COL_SEARCH_MATCH));
+
+                            mvaddnwstr(row_y, match_col, &ln[match_col], match_len);
+
+                            if (j == app->reader_search.current_match)
+                                attroff(COLOR_PAIR(COL_SEARCH_MATCH) | A_REVERSE);
+                            else
+                                attroff(COLOR_PAIR(COL_SEARCH_MATCH));
+                        }
+                    }
+                }
+            }
+        }
+
         attroff(COLOR_PAIR(col) | ansi_attrs);
     }
+}
+
+/* Clear search state in reader */
+static void reader_clear_search(UiApp *app)
+{
+    if (app->reader_search.rows)
+    {
+        free(app->reader_search.rows);
+        app->reader_search.rows = NULL;
+    }
+
+    if (app->reader_search.cols)
+    {
+        free(app->reader_search.cols);
+        app->reader_search.cols = NULL;
+    }
+
+    app->reader_search.match_count = 0;
+    app->reader_search.is_mode = 0;
+    app->reader_search.only_mode = 0;
+    app->reader_search.current_match = 0;
+    app->reader_search.match_current = 0;
 }
 
 /* Navigate to a raw msgs[] index, honouring the current sort order */
@@ -816,6 +865,7 @@ UiView ui_reader_run(UiApp *app)
     if (app->cfg->viewansi != rd_ansi_visible(app->reader))
     {
         rd_toggle_ansi(app->reader);
+
 #ifdef PLATFORM_AMIGA
         amiga_change_font(rd_ansi_visible(app->reader));
 #endif
@@ -898,6 +948,7 @@ UiView ui_reader_run(UiApp *app)
             break;
 
         case CTRL('H'):
+        case '<':
             /* Scroll to top of message */
             rd_set_page(app->reader, LINES - 8);
 
@@ -907,6 +958,7 @@ UiView ui_reader_run(UiApp *app)
             break;
 
         case CTRL('K'):
+        case '>':
             /* Scroll to bottom of message */
             rd_set_page(app->reader, LINES - 8);
 
@@ -1047,12 +1099,14 @@ UiView ui_reader_run(UiApp *app)
         }
 
         case 'k':
+        case 'K':
             rd_toggle_kludges(app->reader);
             app->cfg->viewkludge = rd_kludges_visible(app->reader);
             ui_status(app, "Kludges %s", rd_kludges_visible(app->reader) ? "visible" : "hidden");
             break;
 
         case 'v':
+        case 'V':
             rd_toggle_hiddklud(app->reader);
             app->cfg->viewkludge = rd_kludges_visible(app->reader);
             ui_status(app, "Hidden+Kludges %s", rd_kludges_visible(app->reader) ? "visible" : "hidden");
@@ -1062,32 +1116,26 @@ UiView ui_reader_run(UiApp *app)
         case '/':
         {
             wchar_t tmp[64];
-            int *matches = NULL;
+            int *rows = NULL, *cols = NULL;
             int match_count;
             int i;
             const char **contexts = NULL;
             char **context_bufs = NULL;
             int *line_nums = NULL;
 
-            wcsncpy(tmp, app->reader_search, 63);
+            wcsncpy(tmp, app->reader_search.query, 63);
             tmp[63] = L'\0';
 
-            if (ui_popup_input_wcs("Search", "Text:", tmp, 64) == 0 && tmp[0])
+            if (ui_popup_input("Search", "Text:", tmp, 64) == 0 && tmp[0])
             {
-                wcsncpy(app->reader_search, tmp, 63);
-                app->reader_search[63] = L'\0';
+                wcsncpy(app->reader_search.query, tmp, 63);
+                app->reader_search.query[63] = L'\0';
 
-                /* Find all matches in visible lines (no limit) */
-                match_count = rd_search_all(app->reader, app->reader_search, &matches);
+                /* Find all matches in all lines (no limit) */
+                match_count = rd_search_all(app->reader, app->reader_search.query, &rows, &cols);
 
                 /* Free previous search matches */
-                if (app->reader_search_matches)
-                {
-                    free(app->reader_search_matches);
-                    app->reader_search_matches = NULL;
-                }
-
-                app->reader_search_match_count = 0;
+                reader_clear_search(app);
 
                 if (match_count == 0)
                 {
@@ -1098,16 +1146,20 @@ UiView ui_reader_run(UiApp *app)
                     /* Single match: scroll to it */
                     rd_set_page(app->reader, LINES - 8);
 
-                    if (matches[0] < rd_top(app->reader))
-                        rd_scroll_up(app->reader, rd_top(app->reader) - matches[0]);
-                    else if (matches[0] >= rd_top(app->reader) + rd_visible(app->reader))
-                        rd_scroll_down(app->reader, matches[0] - (rd_top(app->reader) + rd_visible(app->reader)) + 1);
+                    if (rows[0] < rd_top(app->reader))
+                        rd_scroll_up(app->reader, rd_top(app->reader) - rows[0]);
+                    else if (rows[0] >= rd_top(app->reader) + rd_visible(app->reader))
+                        rd_scroll_down(app->reader, rows[0] - (rd_top(app->reader) + rd_visible(app->reader)) + 1);
 
-                    ui_status(app, "Found at line %d", matches[0] + 1);
+                    ui_status(app, "Found at line %d", rows[0] + 1);
 
-                    /* Save matches for highlighting */
-                    app->reader_search_matches = matches;
-                    app->reader_search_match_count = match_count;
+                    /* Save matches for highlighting and activate search mode */
+                    app->reader_search.rows = rows;
+                    app->reader_search.cols = cols;
+                    app->reader_search.match_count = match_count;
+                    app->reader_search.only_mode = 1;
+                    app->reader_search.current_match = 0;
+                    app->reader_search.match_current = 1;
 
                     continue; /* Force redraw */
                 }
@@ -1129,7 +1181,8 @@ UiView ui_reader_run(UiApp *app)
                         if (line_nums)
                             free(line_nums);
 
-                        free(matches);
+                        free(rows);
+                        free(cols);
                         ui_status(app, "Memory error");
 
                         break;
@@ -1138,14 +1191,15 @@ UiView ui_reader_run(UiApp *app)
                     /* Multiple matches: show list */
                     for (i = 0; i < match_count; i++)
                     {
-                        const wchar_t *line = rd_get_line(app->reader, matches[i]);
-                        int line_len = rd_get_len(app->reader, matches[i]);
+                        const wchar_t *line = rd_get_line(app->reader, rows[i]);
+                        int line_len = rd_get_len(app->reader, rows[i]);
 
                         context_bufs[i] = (char *)malloc(128);
 
                         if (!context_bufs[i])
                         {
-                            context_bufs[i][0] = '\0';
+                            context_bufs[i] = NULL;
+                            contexts[i] = "";
                         }
                         else
                         {
@@ -1176,7 +1230,7 @@ UiView ui_reader_run(UiApp *app)
                         }
 
                         contexts[i] = context_bufs[i];
-                        line_nums[i] = matches[i] + 1; /* 1-based for display */
+                        line_nums[i] = rows[i] + 1; /* 1-based for display */
                     }
 
                     /* Show popup with results */
@@ -1186,12 +1240,14 @@ UiView ui_reader_run(UiApp *app)
                     {
                         rd_set_page(app->reader, LINES - 8);
 
-                        if (matches[choice] < rd_top(app->reader))
-                            rd_scroll_up(app->reader, rd_top(app->reader) - matches[choice]);
-                        else if (matches[choice] >= rd_top(app->reader) + rd_visible(app->reader))
-                            rd_scroll_down(app->reader, matches[choice] - (rd_top(app->reader) + rd_visible(app->reader)) + 1);
+                        if (rows[choice] < rd_top(app->reader))
+                            rd_scroll_up(app->reader, rd_top(app->reader) - rows[choice]);
+                        else if (rows[choice] >= rd_top(app->reader) + rd_visible(app->reader))
+                            rd_scroll_down(app->reader, rows[choice] - (rd_top(app->reader) + rd_visible(app->reader)) + 1);
 
-                        ui_status(app, "Jumped to line %d", matches[choice] + 1);
+                        app->reader_search.current_match = choice;
+                        app->reader_search.match_current = choice + 1;
+                        ui_status(app, "Jumped to line %d", rows[choice] + 1);
                     }
                     else
                     {
@@ -1209,9 +1265,13 @@ UiView ui_reader_run(UiApp *app)
                     free(contexts);
                     free(line_nums);
 
-                    /* Save matches for highlighting (don't free matches) */
-                    app->reader_search_matches = matches;
-                    app->reader_search_match_count = match_count;
+                    /* Save matches for highlighting and activate search mode (don't free rows/cols) */
+                    app->reader_search.rows = rows;
+                    app->reader_search.cols = cols;
+                    app->reader_search.match_count = match_count;
+                    app->reader_search.only_mode = 1;
+                    app->reader_search.current_match = 0;
+                    app->reader_search.match_current = 1;
 
                     continue; /* Force redraw */
                 }
@@ -1233,18 +1293,21 @@ UiView ui_reader_run(UiApp *app)
 
         case 'r':
         case 'R':
+            reader_clear_search(app);
             app->edit_return_view = VIEW_READER;
             ui_editor_prep_reply(app, app->cur_msgnum);
             return VIEW_EDITOR;
 
         case 'e':
         case 'E':
+            reader_clear_search(app);
             app->edit_return_view = VIEW_READER;
             ui_editor_prep_edit(app, app->cur_msgnum);
             return VIEW_EDITOR;
 
         case 'N':
         case KEY_IC: /* New message */
+            reader_clear_search(app);
             app->edit_return_view = VIEW_READER;
             ui_editor_prep_new(app);
             return VIEW_EDITOR;
@@ -1275,13 +1338,22 @@ UiView ui_reader_run(UiApp *app)
 
         case CTRL('G'): /* Goto line number */
         {
-            char buf[16];
-            buf[0] = '\0';
+            wchar_t wbuf[16];
+            wbuf[0] = L'\0';
 
-            if (ui_popup_input("Goto", "Line number:", buf, sizeof(buf)) == 0 && buf[0])
+            if (ui_popup_input("Goto", "Line number:", wbuf, 16) == 0 && wbuf[0])
             {
-                long line_num = strtol(buf, NULL, 10);
-                int target_line = (int)(line_num - 1); /* Convert to 0-based */
+                char *u = wcs_to_utf8(wbuf, (int)wcslen(wbuf));
+                long line_num = 0;
+                int target_line;
+
+                if (u)
+                {
+                    line_num = strtol(u, NULL, 10);
+                    free(u);
+                }
+
+                target_line = (int)(line_num - 1); /* Convert to 0-based */
 
                 if (target_line >= 0 && target_line < rd_total(app->reader))
                 {
@@ -1305,27 +1377,91 @@ UiView ui_reader_run(UiApp *app)
 
         case KEY_ALT('G'): /* Clear search highlights */
         {
-            if (app->reader_search_matches)
-            {
-                free(app->reader_search_matches);
-                app->reader_search_matches = NULL;
-            }
-
-            app->reader_search_match_count = 0;
+            reader_clear_search(app);
             ui_status(app, "Search highlights cleared");
 
             continue; /* Force redraw */
         }
 
+        /* Navigate to previous match in reader */
+        case KEY_F(3):
+        case KEY_ALT('P'):
+        {
+            if (app->reader_search.rows && app->reader_search.match_count > 0)
+            {
+                int match_line;
+                int visible_lines = rd_visible(app->reader);
+                int center_offset = visible_lines / 2;
+
+                app->reader_search.current_match = (app->reader_search.current_match - 1 + app->reader_search.match_count) % app->reader_search.match_count;
+                app->reader_search.match_current = app->reader_search.current_match + 1;
+                match_line = app->reader_search.rows[app->reader_search.current_match];
+
+                /* Center the match on screen (always ensure visible like te) */
+                int target_top = match_line - center_offset;
+
+                if (target_top < 0)
+                    target_top = 0;
+
+                if (target_top > rd_top(app->reader))
+                    rd_scroll_down(app->reader, target_top - rd_top(app->reader));
+                else
+                    rd_scroll_up(app->reader, rd_top(app->reader) - target_top);
+
+                continue; /* Force redraw */
+            }
+
+            break;
+        }
+
+        /* Navigate to next match in reader */
+        case KEY_F(4):
+        case KEY_ALT('N'):
+        {
+            if (app->reader_search.rows && app->reader_search.match_count > 0)
+            {
+                int match_line;
+                int visible_lines = rd_visible(app->reader);
+                int center_offset = visible_lines / 2;
+
+                app->reader_search.current_match = (app->reader_search.current_match + 1) % app->reader_search.match_count;
+                app->reader_search.match_current = app->reader_search.current_match + 1;
+                match_line = app->reader_search.rows[app->reader_search.current_match];
+
+                /* Center the match on screen (always ensure visible like te) */
+                int target_top = match_line - center_offset;
+
+                if (target_top < 0)
+                    target_top = 0;
+
+                if (target_top > rd_top(app->reader))
+                    rd_scroll_down(app->reader, target_top - rd_top(app->reader));
+                else
+                    rd_scroll_up(app->reader, rd_top(app->reader) - target_top);
+
+                continue; /* Force redraw */
+            }
+
+            break;
+        }
+
         case 'g': /* Goto message number */
         case 'G':
         {
-            char buf[16];
-            buf[0] = '\0';
+            wchar_t wbuf[16];
+            wbuf[0] = L'\0';
 
-            if (ui_popup_input("Goto", "Message number:", buf, sizeof(buf)) == 0 && buf[0])
+            if (ui_popup_input("Goto", "Message number:", wbuf, 16) == 0 && wbuf[0])
             {
-                long mn = strtol(buf, NULL, 10);
+                char *u = wcs_to_utf8(wbuf, (int)wcslen(wbuf));
+                long mn = 0;
+
+                if (u)
+                {
+                    mn = strtol(u, NULL, 10);
+                    free(u);
+                }
+
                 int i, found = -1;
 
                 for (i = 0; i < s->order_count; i++)
@@ -1348,6 +1484,7 @@ UiView ui_reader_run(UiApp *app)
                 else
                     ui_status(app, "No such message in this view");
             }
+
             break;
         }
 
@@ -1444,18 +1581,30 @@ UiView ui_reader_run(UiApp *app)
             /* Show msglist overlay; from search go to search browser instead */
             if (app->from_search)
             {
+                reader_clear_search(app);
                 app->cfg->viewansi = saved_viewansi;
                 return VIEW_SEARCH_RESULTS;
             }
 
+            reader_clear_search(app);
             reader_save_lastread(app);
             update_area_counts_in_memory(app);
+
             app->cfg->viewansi = saved_viewansi;
             app->msglist_overlay_from_reader = 1;
 
             return VIEW_MSGLIST;
 
         case 27:
+            /* ESC: exit search mode first, otherwise quit */
+            if (app->reader_search.only_mode)
+            {
+                reader_clear_search(app);
+                ui_status(app, "Search mode exited");
+
+                continue; /* Force redraw */
+            }
+            /* Fall through to quit */
         case 'q':
         case 'Q':
             reader_save_lastread(app);
@@ -1463,14 +1612,7 @@ UiView ui_reader_run(UiApp *app)
             app->cfg->viewansi = saved_viewansi;
             app->msglist_overlay_from_reader = 0;
 
-            /* Free search matches */
-            if (app->reader_search_matches)
-            {
-                free(app->reader_search_matches);
-                app->reader_search_matches = NULL;
-            }
-
-            app->reader_search_match_count = 0;
+            reader_clear_search(app);
 
             return reader_exit_view(app);
 

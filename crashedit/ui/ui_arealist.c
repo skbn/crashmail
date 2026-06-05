@@ -850,7 +850,7 @@ UiView ui_arealist_run(UiApp *app)
             wcsncpy(tmp, app->area_search, 63);
             tmp[63] = L'\0';
 
-            if (ui_popup_input_wcs("Search areas", "Substring (empty to clear):", tmp, 64) == 0)
+            if (ui_popup_input("Search areas", "Substring (empty to clear):", tmp, 64) == 0)
             {
                 wcsncpy(app->area_search, tmp, 63);
 

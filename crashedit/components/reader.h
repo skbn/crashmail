@@ -69,6 +69,7 @@ int rd_percent(const Reader *rd);
 const wchar_t *rd_get_line(const Reader *rd, int vis_idx); /* wchar_t line */
 int rd_get_len(const Reader *rd, int vis_idx);             /* character count */
 int rd_get_type(const Reader *rd, int vis_idx);            /* FTN_LT_* */
+int rd_get_line_idx(const Reader *rd, int vis_idx);        /* message line index from visible index */
 
 /* Convenience: get line as UTF-8 into caller buffer */
 int rd_line_utf8(const Reader *rd, int vis_idx, char *buf, int bufsz);
@@ -85,8 +86,8 @@ const struct AnsiCell *rd_get_ansi_cells(const Reader *rd, int vis_idx);
 /* Export the message currently loaded in 'src' to a text file */
 int rd_export_to_file(const Reader *src, const char *body_utf8, const char *path, const char *charset_out);
 
-/* Search: find all matches of needle in visible lines, returns count
- * and malloc'd array of line indices (caller must free) */
-int rd_search_all(const Reader *rd, const wchar_t *needle, int **out_matches);
+/* Search: find all matches of needle in all lines, returns count
+ * and malloc'd arrays of row and col indices (caller must free) */
+int rd_search_all(const Reader *rd, const wchar_t *needle, int **out_rows, int **out_cols);
 
 #endif

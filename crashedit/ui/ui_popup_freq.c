@@ -71,11 +71,13 @@ static int freq_pick_mode()
         }
 
         ui_box(y, x, h, w);
+
         mvaddnstr(y, x + 2, " Outbound layout ", 17);
         mvaddnstr(y + 2, x + 2, "(A) ASO flat", w - 4);
         mvaddnstr(y + 3, x + 2, "(B) BSO BinkleyStyle", w - 4);
         mvaddnstr(y + 4, x + 2, "(E) BSO + zone extension", w - 4);
         mvaddnstr(y + h - 2, x + 2, "Pick a layout, ESC to cancel", w - 4);
+
         attroff(COLOR_PAIR(COL_POPUP));
         refresh();
 
@@ -124,7 +126,7 @@ int ui_popup_freq(UiApp *app)
     /* OUTBOUND must be configured; warn and bail if missing */
     if (!app->cfg->freq_outbound[0])
     {
-        ui_status(app, "File request needs OUTBOUND in config (e.g. 'OUTBOUND /fido/out')");
+        ui_popup_message("Error", "File request needs OUTBOUND configured in config");
         return 0;
     }
 
@@ -240,8 +242,10 @@ int ui_popup_freq(UiApp *app)
         }
 
         attron(COLOR_PAIR(COL_POPUP));
+
         snprintf(foot, sizeof(foot), "TAB pane  A add  D del  P pass  M mode  W write(%d)  ESC", nfiles);
         mvaddnstr(y + h - 2, x + 2, foot, w - 4);
+
         attroff(COLOR_PAIR(COL_POPUP));
 
         /* Cursor positioning must be last; drawing calls move it */
@@ -259,7 +263,7 @@ int ui_popup_freq(UiApp *app)
 
         key = wrapper_getch();
 
-        /* Keys common to both panes */
+        /* Keys common to both panels */
         if (key == 27)
             break;
 
@@ -275,9 +279,31 @@ int ui_popup_freq(UiApp *app)
 
         if (key == 'p' || key == 'P')
         {
-            int iy = y + (h - 7) / 2;
-            int ix = x + (w - 50) / 2;
-            ui_popup_input_at(iy, ix, 7, 50, "Request password", "Password (blank = none):", password, sizeof(password));
+            wchar_t wpassword[64];
+            wchar_t *w_initial;
+
+            w_initial = utf8_to_wcs(password, NULL);
+            wpassword[0] = L'\0';
+
+            if (w_initial)
+            {
+                wcsncpy(wpassword, w_initial, 63);
+                wpassword[63] = L'\0';
+                free(w_initial);
+            }
+
+            if (ui_popup_input("Request password", "Password (blank = none):", wpassword, 64) == 0)
+            {
+                char *u = wcs_to_utf8(wpassword, (int)wcslen(wpassword));
+
+                if (u)
+                {
+                    strncpy(password, u, sizeof(password) - 1);
+                    password[sizeof(password) - 1] = '\0';
+                    free(u);
+                }
+            }
+
             continue;
         }
 
@@ -329,7 +355,6 @@ int ui_popup_freq(UiApp *app)
         }
 
         /* Address pane: in-place editing */
-
         if (focus == FREQ_FOCUS_ADDR)
         {
             if ((key == KEY_BACKSPACE || key == 127 || key == 8) && addr_len > 0)
@@ -351,11 +376,9 @@ int ui_popup_freq(UiApp *app)
         /* List panel: manage files */
         if (key == 'a' || key == 'A')
         {
-            int iy = y + (h - 7) / 2;
-            int ix = x + (w - 50) / 2;
-
+            wchar_t wname[FREQ_UI_NAME_MAX];
             char name[FREQ_UI_NAME_MAX];
-            name[0] = '\0';
+            wname[0] = L'\0';
 
             if (nfiles >= FREQ_UI_MAX_FILES)
             {
@@ -363,16 +386,25 @@ int ui_popup_freq(UiApp *app)
                 continue;
             }
 
-            if (ui_popup_input_at(iy, ix, 7, 50, "Add file to request", "Remote filename:", name, sizeof(name)) == 0 && name[0])
+            if (ui_popup_input("Add file to request", "Remote filename:", wname, FREQ_UI_NAME_MAX) == 0 && wname[0])
             {
-                size_t nl = strlen(name);
+                char *u = wcs_to_utf8(wname, (int)wcslen(wname));
 
-                if (nl >= FREQ_UI_NAME_MAX)
-                    nl = FREQ_UI_NAME_MAX - 1;
+                if (u)
+                {
+                    strncpy(name, u, sizeof(name) - 1);
+                    name[sizeof(name) - 1] = '\0';
+                    free(u);
 
-                memcpy(files[nfiles], name, nl);
-                files[nfiles][nl] = '\0';
-                nfiles++;
+                    size_t nl = strlen(name);
+
+                    if (nl >= FREQ_UI_NAME_MAX)
+                        nl = FREQ_UI_NAME_MAX - 1;
+
+                    memcpy(files[nfiles], name, nl);
+                    files[nfiles][nl] = '\0';
+                    nfiles++;
+                }
             }
 
             continue;

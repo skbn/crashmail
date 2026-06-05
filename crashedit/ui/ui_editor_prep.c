@@ -56,6 +56,24 @@ void editor_reset_state(UiApp *app)
         app->saved_kludges = NULL;
     }
 
+    if (app->edit_search.rows)
+    {
+        free(app->edit_search.rows);
+        app->edit_search.rows = NULL;
+    }
+
+    if (app->edit_search.cols)
+    {
+        free(app->edit_search.cols);
+        app->edit_search.cols = NULL;
+    }
+
+    app->edit_search.match_count = 0;
+    app->edit_search.is_mode = 0;
+    app->edit_search.only_mode = 0;
+    app->edit_search.current_match = 0;
+    app->edit_search.match_current = 0;
+
     app->edit_is_new = 0;
     app->edit_is_reply = 0;
     app->edit_reply_to_msgnum = 0;
@@ -122,6 +140,7 @@ static void expand_tokens(const char *tmpl, const char *to_first, const char *fr
             {
                 out[o++] = '%';
                 p += 2;
+
                 continue;
             }
 
@@ -131,6 +150,7 @@ static void expand_tokens(const char *tmpl, const char *to_first, const char *fr
                     out[o++] = *ins++;
 
                 p += 2;
+
                 continue;
             }
         }
@@ -203,9 +223,7 @@ static char *build_header_frame(const CrashEditCfg *cfg, const char *to_name, co
                 char *np = (char *)realloc(out, len + ll + 3);
 
                 if (!np)
-                {
                     return out;
-                }
 
                 out = np;
                 cap = len + ll + 3;
@@ -362,8 +380,7 @@ char *editor_build_kludge_block(const CrashEditCfg *cfg, const char *oaddr, cons
     return out;
 }
 
-/* Load <path> as UTF-8 text up to <max> bytes, call ed_load() on success
- * (TEMPLATE feature) */
+/* Load <path> as UTF-8 text up to <max> bytes, call ed_load() on success (TEMPLATE feature) */
 static void load_template_if_any(Ed *editor, const char *path)
 {
     FILE *f;
@@ -402,8 +419,7 @@ static void load_template_if_any(Ed *editor, const char *path)
     fclose(f);
 }
 
-/* Extract MSGID kludge value from body into out[] (strips \r/\n, 0=ok,
- * -1=missing) */
+/* Extract MSGID kludge value from body into out[] (strips \r/\n, 0=ok, -1=missing) */
 static int extract_msgid(const char *body_utf8, char *out, int outsz)
 {
     const char *mid;
@@ -446,8 +462,7 @@ void ui_editor_prep_new(UiApp *app)
     ae = &app->areas->entries[app->sess.area_idx];
     area_tag = ae->name ? ae->name : "";
 
-    /* Pick origin AKA: echo/local locks to area's AKA, netmail uses selected AKA
-     */
+    /* Pick origin AKA: echo/local locks to area's AKA, netmail uses selected AKA */
     if (ae->type == AREATYPE_NETMAIL)
     {
         const char *picked = ui_aka_at(app->areas, app->cfg, app->edit_aka_idx);
@@ -473,6 +488,7 @@ void ui_editor_prep_new(UiApp *app)
 
     /* Initialize charset tracking for new messages */
     strncpy(app->edit_charset_saved, app->edit_charset, sizeof(app->edit_charset_saved) - 1);
+
     app->edit_charset_saved[sizeof(app->edit_charset_saved) - 1] = '\0';
     app->edit_charset_manually_changed = 0;
 
@@ -702,6 +718,7 @@ void ui_editor_prep_reply(UiApp *app, uint32_t orig_msgnum)
 
     /* Save original edit_charset before auto-detection */
     strncpy(app->edit_charset_saved, app->edit_charset, sizeof(app->edit_charset_saved) - 1);
+
     app->edit_charset_saved[sizeof(app->edit_charset_saved) - 1] = '\0';
     app->edit_charset_manually_changed = 0;
 

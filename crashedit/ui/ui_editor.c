@@ -47,8 +47,8 @@ static const char *EDITOR_HELP[] =
         "Editor - Key Bindings:",
         "",
         "  Navigation / fields:",
-        "    TAB/Ctrl+N      Next field",
-        "    S-TAB/Ctrl+P    Previous field",
+        "    TAB Ctrl+N      Next field",
+        "    S-TAB Ctrl+P    Previous field",
         "    Arrows          Move cursor",
 #ifdef PLATFORM_AMIGA
         "    Ctrl+B/E        Home / End",
@@ -60,7 +60,7 @@ static const char *EDITOR_HELP[] =
         "    (Fields cycle: From, To, Subj, Body)",
         "",
         "  Edit:",
-        "    Ctrl-K/Y        Delete line",
+        "    Ctrl-Y          Delete line",
         "    Ctrl-Z          Undo",
         "    Alt+Z           Redo",
         "    Ctrl-T          Del word right",
@@ -74,10 +74,10 @@ static const char *EDITOR_HELP[] =
         "    Ctrl+Left/Right Word movement",
         "",
         "  Block (selection):",
-        "    F6, Alt+B       Mark/unmark block at cursor",
+        "    F6 Alt+B        Mark/unmark block at cursor",
         "    Ctrl-C          Copy block",
         "    Ctrl-X          Cut block",
-        "    BS/Del          Delete block (no clipboard)",
+        "    BS Del          Delete block (no clipboard)",
         "    Ctrl-O          Export block",
 #ifdef PLATFORM_AMIGA
         "    Ctrl-V          Paste from system clipboard",
@@ -87,14 +87,16 @@ static const char *EDITOR_HELP[] =
 #endif
         "",
         "  Search / nav:",
-        "    F5, /           Search (show all matches)",
+        "    F5 Alt+S        Search (show all matches)",
         "    Ctrl-R          Find & replace",
-        "    Ctrl-J          Goto line",
+        "    F3 Alt+P        Prev match (search mode)",
+        "    F4 Alt+N        Next match (search mode)",
+        "    Alt+M           Goto line",
         "    Alt+G           Clear search highlights",
         "    Ctrl-G          Go to start of document",
         "    Ctrl-K          Go to end of document",
-        "    F7, Alt+O       Insert file",
-        "    F8, Alt+K       Kludges (Enter del)",
+        "    F7 Alt+O        Insert file",
+        "    F8 Alt+K        Kludges (Enter del)",
         "",
         "  Attachments:",
         "    Ctrl+F          Add attachment (file)",
@@ -106,7 +108,7 @@ static const char *EDITOR_HELP[] =
         "    F2 Ctrl-S       Save",
         "    F3 ALT-C        Charset",
         "    F4 Ctrl-A       AKA (netmail)",
-        "    F9, Alt+A       Attr (Priv/Crash/Hold)",
+        "    F9 Alt+A        Attr (Priv/Crash/Hold)",
         "    ESC F10         Cancel (confirm)",
         "    F1 ?            This help"};
 #define EDITOR_HELP_N ((int)(sizeof(EDITOR_HELP) / sizeof(EDITOR_HELP[0])))
@@ -264,22 +266,262 @@ static void draw_edit_header(UiApp *app)
 /* Editor body drawing and soft-wrap helpers */
 static void soft_cursor_vpos(UiApp *app, int width, int *out_vrow, int *out_vcol);
 
-/* Clear search highlights when text is modified */
-static void clear_search_highlights(UiApp *app)
+/* Reset search state in editor */
+static void reset_search(UiApp *app)
 {
-    if (app->edit_search_rows)
+    if (app->edit_search.rows)
     {
-        free(app->edit_search_rows);
-        app->edit_search_rows = NULL;
+        free(app->edit_search.rows);
+        app->edit_search.rows = NULL;
     }
 
-    if (app->edit_search_cols)
+    if (app->edit_search.cols)
     {
-        free(app->edit_search_cols);
-        app->edit_search_cols = NULL;
+        free(app->edit_search.cols);
+        app->edit_search.cols = NULL;
     }
 
-    app->edit_search_match_count = 0;
+    app->edit_search.match_count = 0;
+    app->edit_search.is_mode = 0;
+    app->edit_search.only_mode = 0;
+    app->edit_search.current_match = 0;
+    app->edit_search.match_current = 0;
+}
+
+/* Navigate to previous match in editor */
+static int search_prev_editor(UiApp *app)
+{
+    int match_row;
+    int match_col;
+
+    if (!app->edit_search.rows || app->edit_search.match_count == 0)
+        return 0;
+
+    app->edit_search.current_match = (app->edit_search.current_match - 1 + app->edit_search.match_count) % app->edit_search.match_count;
+    app->edit_search.match_current = app->edit_search.current_match + 1;
+
+    match_row = app->edit_search.rows[app->edit_search.current_match];
+    match_col = app->edit_search.cols[app->edit_search.current_match];
+
+    ed_set_pos(app->editor, match_row, match_col);
+    ed_ensure_visible(app->editor);
+
+    return 1;
+}
+
+/* Navigate to next match in editor */
+static int search_next_editor(UiApp *app)
+{
+    int match_row;
+    int match_col;
+
+    if (!app->edit_search.rows || app->edit_search.match_count == 0)
+        return 0;
+
+    app->edit_search.current_match = (app->edit_search.current_match + 1) % app->edit_search.match_count;
+    app->edit_search.match_current = app->edit_search.current_match + 1;
+
+    match_row = app->edit_search.rows[app->edit_search.current_match];
+    match_col = app->edit_search.cols[app->edit_search.current_match];
+
+    ed_set_pos(app->editor, match_row, match_col);
+    ed_ensure_visible(app->editor);
+
+    return 1;
+}
+
+/* Helper: replace all occurrences of needle with repl (for replace_all) */
+static int do_replace(UiApp *app, const wchar_t *needle, const wchar_t *repl)
+{
+    int count = 0;
+    int nlen = (int)wcslen(needle);
+    int rlen = (int)wcslen(repl);
+    int *rows = NULL, *cols = NULL;
+    int match_count, i;
+
+    /* Find all matches with current case-sensitive and whole-word options */
+    match_count = ed_search_all_custom(app->editor, needle, app->edit_search.case_sensitive, app->edit_search.whole_word, &rows, &cols);
+
+    if (match_count == 0)
+        return 0;
+
+    /* Replace from end to start to avoid position shifts */
+    for (i = match_count - 1; i >= 0; i--)
+    {
+        int j;
+
+        ed_set_pos(app->editor, rows[i], cols[i]);
+
+        /* Delete needle */
+        for (j = 0; j < nlen; j++)
+            ed_delete(app->editor);
+
+        /* Insert replacement */
+        for (j = 0; j < rlen; j++)
+            ed_insert_char(app->editor, repl[j]);
+
+        count++;
+    }
+
+    free(rows);
+    free(cols);
+
+    return count;
+}
+
+/* Interactive replace - uses ui_popup_replace with case/whole-word options */
+static int replace(UiApp *app)
+{
+    wchar_t needle[64], repl[64];
+    int case_sensitive = app->edit_search.case_sensitive;
+    int whole_word = app->edit_search.whole_word;
+    int *rows = NULL, *cols = NULL;
+    int match_count;
+
+    wcsncpy(needle, app->edit_search.query, 63);
+    needle[63] = L'\0';
+    wcsncpy(repl, app->edit_search.last_replace, 63);
+    repl[63] = L'\0';
+
+    if (ui_popup_replace(needle, repl, needle, 64, repl, 64, &case_sensitive, &whole_word) != 0 || !needle[0])
+        return 1;
+
+    wcsncpy(app->edit_search.query, needle, 63);
+    app->edit_search.query[63] = L'\0';
+    wcsncpy(app->edit_search.last_replace, repl, 63);
+    app->edit_search.last_replace[63] = L'\0';
+    app->edit_search.case_sensitive = case_sensitive;
+    app->edit_search.whole_word = whole_word;
+
+    /* Perform search and highlight matches */
+    match_count = ed_search_all_custom(app->editor, app->edit_search.query, case_sensitive, whole_word, &rows, &cols);
+
+    reset_search(app);
+
+    if (match_count > 0)
+    {
+        app->edit_search.rows = rows;
+        app->edit_search.cols = cols;
+        app->edit_search.match_count = match_count;
+        app->edit_search.is_mode = 1;
+        app->edit_search.current_match = 0;
+        app->edit_search.match_current = 1;
+
+        /* Move cursor to first match and ensure it's visible */
+        ed_set_pos(app->editor, rows[0], cols[0]);
+        ed_ensure_visible(app->editor);
+    }
+    else
+    {
+        free(rows);
+        free(cols);
+        app->edit_search.is_mode = 0;
+        ui_status(app, "No matches found");
+    }
+
+    return 1;
+}
+
+/* Replace current match - uses last replacement text without popup */
+static int replace_current(UiApp *app)
+{
+    if (app->edit_search.last_replace[0] != L'\0')
+    {
+        /* Use the last replacement text - no popup */
+        wchar_t repl[64];
+        wcsncpy(repl, app->edit_search.last_replace, 63);
+        repl[63] = L'\0';
+
+        /* Move cursor to current match position */
+        if (!app->edit_search.rows || app->edit_search.match_count == 0)
+            return 0;
+
+        int match_row = app->edit_search.rows[app->edit_search.current_match];
+        int match_col = app->edit_search.cols[app->edit_search.current_match];
+        ed_set_pos(app->editor, match_row, match_col);
+
+        /* Save undo state */
+        ed_save_undo(app->editor);
+
+        /* Replace the current occurrence */
+        int nlen = (int)wcslen(app->edit_search.query);
+        int rlen = (int)wcslen(repl);
+        int i;
+
+        /* Delete the search text */
+        for (i = 0; i < nlen; i++)
+            ed_delete(app->editor);
+
+        /* Insert replacement */
+        for (i = 0; i < rlen; i++)
+            ed_insert_char(app->editor, repl[i]);
+
+        /* Update search results since text changed */
+        free(app->edit_search.rows);
+        free(app->edit_search.cols);
+        app->edit_search.rows = NULL;
+        app->edit_search.cols = NULL;
+        app->edit_search.match_count = 0;
+
+        /* Re-run search to find remaining matches */
+        int *new_rows = NULL, *new_cols = NULL;
+        int new_match_count = ed_search_all_custom(app->editor, app->edit_search.query, app->edit_search.case_sensitive, app->edit_search.whole_word, &new_rows, &new_cols);
+
+        if (new_match_count > 0)
+        {
+            app->edit_search.rows = new_rows;
+            app->edit_search.cols = new_cols;
+            app->edit_search.match_count = new_match_count;
+            app->edit_search.current_match = 0;
+            app->edit_search.match_current = 1;
+
+            /* Move cursor to first remaining match */
+            ed_set_pos(app->editor, new_rows[0], new_cols[0]);
+            ed_ensure_visible(app->editor);
+            ui_status(app, "Replaced. %d match(es) remaining", new_match_count);
+        }
+        else
+        {
+            free(new_rows);
+            free(new_cols);
+            app->edit_search.is_mode = 0;
+
+            ui_status(app, "Replaced 1 occurrence (no more matches)");
+        }
+        return 1;
+    }
+
+    if (app->edit_search.last_replace[0] == L'\0')
+        ui_status(app, "No replacement text set (use Ctrl+R first)");
+
+    return 0;
+}
+
+/* Replace all matches - uses last replacement text with Yes/No confirmation */
+static int replace_all(UiApp *app)
+{
+    if (app->edit_search.is_mode && app->edit_search.match_count > 0)
+    {
+        char msg[128];
+        int n;
+
+        snprintf(msg, sizeof(msg), "Replace all %d occurrences?", app->edit_search.match_count);
+
+        if (ui_popup_confirm("Replace All", msg) == 1)
+        {
+            ed_save_undo(app->editor);
+            n = do_replace(app, app->edit_search.query, app->edit_search.last_replace);
+            reset_search(app);
+            app->edit_search.is_mode = 0;
+            ui_status(app, "Replaced %d occurrence(s)", n);
+        }
+        else
+        {
+            ui_status(app, "Replace All cancelled");
+        }
+        return 1;
+    }
+    return 0;
 }
 
 /* Position cursor in active field after status bar redraw */
@@ -864,16 +1106,16 @@ static void draw_edit_body(UiApp *app)
                 mvaddnwstr(start_row + i, 0, wl, line_len);
 
             /* Highlight search matches */
-            if (app->edit_search_rows && app->edit_search_match_count > 0)
+            if (app->edit_search.rows && app->edit_search.match_count > 0)
             {
                 int j;
 
-                for (j = 0; j < app->edit_search_match_count; j++)
+                for (j = 0; j < app->edit_search.match_count; j++)
                 {
-                    if (app->edit_search_rows[j] == line_idx)
+                    if (app->edit_search.rows[j] == line_idx)
                     {
-                        int match_col = app->edit_search_cols[j];
-                        int match_len = (int)wcslen(app->edit_search);
+                        int match_col = app->edit_search.cols[j];
+                        int match_len = (int)wcslen(app->edit_search.query);
 
                         if (match_col >= 0 && match_col + match_len <= line_len)
                         {
@@ -980,16 +1222,16 @@ static void draw_edit_body(UiApp *app)
                     mvaddnwstr(start_row + sr, 0, &l[seg_start], seg_len);
 
                 /* Highlight search matches in softwrap */
-                if (app->edit_search_rows && app->edit_search_match_count > 0)
+                if (app->edit_search.rows && app->edit_search.match_count > 0)
                 {
                     int j;
 
-                    for (j = 0; j < app->edit_search_match_count; j++)
+                    for (j = 0; j < app->edit_search.match_count; j++)
                     {
-                        if (app->edit_search_rows[j] == li)
+                        if (app->edit_search.rows[j] == li)
                         {
-                            int match_col = app->edit_search_cols[j];
-                            int match_len = (int)wcslen(app->edit_search);
+                            int match_col = app->edit_search.cols[j];
+                            int match_len = (int)wcslen(app->edit_search.query);
                             int match_end = match_col + match_len;
 
                             /* Check if match is within this segment */
@@ -1012,6 +1254,7 @@ static void draw_edit_body(UiApp *app)
                             {
                                 /* Match ends in this segment, started in previous */
                                 int partial_len = match_end - seg_start;
+
                                 attron(COLOR_PAIR(COL_SEARCH_MATCH));
                                 mvaddnwstr(start_row + sr, 0, &l[seg_start], partial_len);
                                 attroff(COLOR_PAIR(COL_SEARCH_MATCH));
@@ -1077,103 +1320,6 @@ static void draw_edit_body(UiApp *app)
         curs_set(1);
     }
 }
-
-/* Interactive find-and-replace (Ctrl-R), case-insensitive, returns replacement count */
-static int editor_replace_interactive(UiApp *app, const wchar_t *needle, const wchar_t *repl)
-{
-    Ed *ed = app->editor;
-    int nlen, rlen;
-    int replacements = 0;
-    int replace_all = 0;
-    int ch;
-    char prompt[160];
-
-    if (!ed || !needle || !needle[0])
-        return 0;
-
-    nlen = (int)wcslen(needle);
-    rlen = (int)wcslen(repl);
-
-    /* Position at start so first search finds the first occurrence */
-    ed_set_pos(ed, 0, 0);
-
-    while (ed_search_forward(ed, needle))
-    {
-        EdInfo info;
-        int k;
-        ed_get_info(ed, &info);
-
-        if (!replace_all)
-        {
-            /* Show context in the status bar */
-            char nbuf[40], rbuf[40];
-            char *u;
-
-            u = wcs_to_utf8(needle, nlen);
-            snprintf(nbuf, sizeof(nbuf), "%s", u ? u : "");
-
-            free(u);
-
-            u = wcs_to_utf8(repl, rlen);
-            snprintf(rbuf, sizeof(rbuf), "%s", u ? u : "");
-
-            free(u);
-
-            snprintf(prompt, sizeof(prompt), "Replace '%s' -> '%s' ?  Y=yes N=no A=all Q=quit", nbuf, rbuf);
-            ui_status(app, "%s", prompt);
-            ui_draw_statusbar(app);
-            refresh();
-
-            ch = wrapper_getch();
-
-            if (ch == 'q' || ch == 'Q' || ch == 27)
-                break;
-
-            if (ch == 'a' || ch == 'A')
-                replace_all = 1;
-            else if (ch != 'y' && ch != 'Y' && ch != '\n' && ch != '\r')
-            {
-                /* skip: advance cursor past match */
-                ed_set_pos(ed, info.row, info.col + 1);
-                continue;
-            }
-        }
-
-        /* Delete nlen chars at cursor */
-        ed_save_undo(ed);
-
-        for (k = 0; k < nlen; k++)
-            ed_delete(ed);
-
-        /* Insert replacement */
-        for (k = 0; k < rlen; k++)
-            ed_insert_char(ed, repl[k]);
-
-        clear_search_highlights(app);
-        replacements++;
-    }
-
-    return replacements;
-}
-
-/* Main loop */
-#ifndef PLATFORM_AMIGA
-#define BRACKET_PASTE_ON()            \
-    do                                \
-    {                                 \
-        fputs("\033[?2004h", stdout); \
-        fflush(stdout);               \
-    } while (0)
-#define BRACKET_PASTE_OFF()           \
-    do                                \
-    {                                 \
-        fputs("\033[?2004l", stdout); \
-        fflush(stdout);               \
-    } while (0)
-#else
-#define BRACKET_PASTE_ON() ((void)0)
-#define BRACKET_PASTE_OFF() ((void)0)
-#endif
 
 /* Word-wrap UTF-8 paste to col columns, preserving newlines. No hard-breaks for URLs/code */
 static int paste_char_width(wchar_t c)
@@ -1321,7 +1467,7 @@ static void deliver_paste(UiApp *app, const char *utf8)
         }
 
         ed_paste_text(app->editor, to_insert);
-        clear_search_highlights(app);
+        reset_search(app);
         reported_len = (int)strlen(to_insert);
 
         if (wrapped)
@@ -1522,6 +1668,9 @@ UiView ui_editor_run(UiApp *app)
 
         wrc = wrapper_read_key(&wch);
 
+        if (wrc == ERR)
+            continue;
+
         ch = (int)wch;
 
         /* Distinguish special key codes (KEY_CODE_YES) from printable chars. Without guard, codepoint matching KEY_F(5) would trigger F5 */
@@ -1552,19 +1701,7 @@ UiView ui_editor_run(UiApp *app)
                 }
 
                 /* Free search matches */
-                if (app->edit_search_rows)
-                {
-                    free(app->edit_search_rows);
-                    app->edit_search_rows = NULL;
-                }
-
-                if (app->edit_search_cols)
-                {
-                    free(app->edit_search_cols);
-                    app->edit_search_cols = NULL;
-                }
-
-                app->edit_search_match_count = 0;
+                reset_search(app);
 
                 curs_set(0);
                 BRACKET_PASTE_OFF();
@@ -1574,117 +1711,139 @@ UiView ui_editor_run(UiApp *app)
             continue;
         }
 
-        if ((is_key && ch == KEY_F(3)) || (is_key && ch == KEY_ALT('C')))
+        if (is_key && ch == KEY_ALT('F'))
+            ui_popup_freq(app);
+
+        if ((is_key && ch == KEY_F(3)) || (is_key && ch == KEY_ALT('C')) || (is_key && ch == KEY_ALT('P')))
         {
-            char new_view[32], new_out[32];
-
-            new_view[0] = '\0';
-            new_out[0] = '\0';
-
-            if (ui_popup_charset_pair(app->view_charset,
-                                      app->edit_charset,
-                                      CHARSET_READ_DEFAULT,
-                                      app->cfg->charset,
-                                      new_view, sizeof(new_view),
-                                      new_out, sizeof(new_out)) == 0)
+            /* F3/Alt+P: previous match in search mode, otherwise charset */
+            if (app->edit_search.is_mode || app->edit_search.only_mode)
             {
-                strncpy(app->view_charset, new_view, sizeof(app->view_charset) - 1);
-                app->view_charset[sizeof(app->view_charset) - 1] = '\0';
+                if (search_prev_editor(app))
+                    continue;
 
-                strncpy(app->edit_charset, new_out, sizeof(app->edit_charset) - 1);
-                app->edit_charset[sizeof(app->edit_charset) - 1] = '\0';
-
-                /* Mark that user manually changed charset - only if NOT Auto */
-                if (new_out[0] != '\0')
-                    app->edit_charset_manually_changed = 1;
+                break;
             }
+            else
+            {
+                /* Alt+C: charset picker */
+                char new_view[32], new_out[32];
 
-            continue;
+                new_view[0] = '\0';
+                new_out[0] = '\0';
+
+                if (ui_popup_charset_pair(app->view_charset, app->edit_charset, CHARSET_READ_DEFAULT, app->cfg->charset, new_view, sizeof(new_view), new_out, sizeof(new_out)) == 0)
+                {
+                    strncpy(app->view_charset, new_view, sizeof(app->view_charset) - 1);
+                    app->view_charset[sizeof(app->view_charset) - 1] = '\0';
+
+                    strncpy(app->edit_charset, new_out, sizeof(app->edit_charset) - 1);
+                    app->edit_charset[sizeof(app->edit_charset) - 1] = '\0';
+
+                    /* Mark that user manually changed charset - only if NOT Auto */
+                    if (new_out[0] != '\0')
+                        app->edit_charset_manually_changed = 1;
+                }
+
+                continue;
+            }
         }
 
         /* F4/Ctrl+A: AKA picker (netmail/local only; echo locks AKA to area) */
-        if ((is_key && ch == KEY_F(4)) || (!is_key && ch == CTRL('A') /* Ctrl+A */))
+        if ((is_key && ch == KEY_F(4)) || (!is_key && ch == CTRL('A')) || (is_key && ch == KEY_ALT('N')))
         {
-            int sel;
-            char aka_buf[CFG_AKA_MAX];
-            const char *picked;
-            char reply_msgid[200];
-            const char *daddr_aka;
-            AreaEntry *ae = &app->areas->entries[app->sess.area_idx];
-
-            /* Echo areas lock AKA to area configuration */
-            if (ae->type == AREATYPE_ECHO)
+            /* F4/Alt+N: next match in search mode, otherwise AKA picker */
+            if ((is_key && ch == KEY_ALT('N')) || (is_key && ch == KEY_F(4)) && app->edit_search.is_mode || app->edit_search.only_mode)
             {
-                ui_status(app, "AKA is locked by area configuration");
-                continue;
+                if (search_next_editor(app))
+                    continue;
+
+                break;
             }
-
-            sel = ui_popup_aka(app, app->edit_aka_idx);
-
-            if (sel < 0)
-                continue;
-
-            picked = ui_aka_at(app->areas, app->cfg, sel);
-
-            if (!picked)
-                continue;
-
-            strncpy(aka_buf, picked, CFG_AKA_MAX - 1);
-            aka_buf[CFG_AKA_MAX - 1] = '\0';
-
-            app->edit_aka_idx = sel;
-            msghdr_set_utf8(app->edit_hdr, HDR_OADDR, aka_buf);
-
-            /* Regenerate kludges with new AKA; re-read MSGID for replies */
-            if (app->saved_kludges)
+            else
             {
-                free(app->saved_kludges);
-                app->saved_kludges = NULL;
-            }
+                /* Ctrl+A: AKA picker */
+                int sel;
+                char aka_buf[CFG_AKA_MAX];
+                const char *picked;
+                char reply_msgid[200];
+                const char *daddr_aka;
+                AreaEntry *ae = &app->areas->entries[app->sess.area_idx];
 
-            reply_msgid[0] = '\0';
-
-            if (app->edit_is_reply && app->edit_reply_to_msgnum > 0)
-            {
-                UiSession *s = &app->sess;
-                /* Use a temp buffer for the detected charset so we
-                 * don't clobber the user-chosen edit_charset every time
-                 * the AKA is changed (this is just re-reading the orig
-                 * message to extract its MSGID, not changing the user's
-                 * save-charset preference) */
-                char detected[CHARSET_NAME_MAX];
-                char *body_utf8;
-
-                detected[0] = '\0';
-                body_utf8 = wrapper_read_utf8_ex(&s->jam, app->edit_reply_to_msgnum, app->view_charset[0] ? app->view_charset : NULL, NULL, detected, sizeof(detected));
-
-                if (body_utf8)
+                /* Echo areas lock AKA to area configuration */
+                if (ae->type == AREATYPE_ECHO)
                 {
-                    const char *mid = ftn_find_msgid(body_utf8);
+                    ui_status(app, "AKA is locked by area configuration");
+                    continue;
+                }
 
-                    if (mid)
+                sel = ui_popup_aka(app, app->edit_aka_idx);
+
+                if (sel < 0)
+                    continue;
+
+                picked = ui_aka_at(app->areas, app->cfg, sel);
+
+                if (!picked)
+                    continue;
+
+                strncpy(aka_buf, picked, CFG_AKA_MAX - 1);
+                aka_buf[CFG_AKA_MAX - 1] = '\0';
+
+                app->edit_aka_idx = sel;
+                msghdr_set_utf8(app->edit_hdr, HDR_OADDR, aka_buf);
+
+                /* Regenerate kludges with new AKA; re-read MSGID for replies */
+                if (app->saved_kludges)
+                {
+                    free(app->saved_kludges);
+                    app->saved_kludges = NULL;
+                }
+
+                reply_msgid[0] = '\0';
+
+                if (app->edit_is_reply && app->edit_reply_to_msgnum > 0)
+                {
+                    UiSession *s = &app->sess;
+                    /* Use a temp buffer for the detected charset so we
+                     * don't clobber the user-chosen edit_charset every time
+                     * the AKA is changed (this is just re-reading the orig
+                     * message to extract its MSGID, not changing the user's
+                     * save-charset preference) */
+                    char detected[CHARSET_NAME_MAX];
+                    char *body_utf8;
+
+                    detected[0] = '\0';
+                    body_utf8 = wrapper_read_utf8_ex(&s->jam, app->edit_reply_to_msgnum, app->view_charset[0] ? app->view_charset : NULL, NULL, detected, sizeof(detected));
+
+                    if (body_utf8)
                     {
-                        int i = 0;
+                        const char *mid = ftn_find_msgid(body_utf8);
 
-                        while (mid[i] && mid[i] != '\r' && mid[i] != '\n' && i < (int)sizeof(reply_msgid) - 1)
+                        if (mid)
                         {
-                            reply_msgid[i] = mid[i];
-                            i++;
+                            int i = 0;
+
+                            while (mid[i] && mid[i] != '\r' && mid[i] != '\n' && i < (int)sizeof(reply_msgid) - 1)
+                            {
+                                reply_msgid[i] = mid[i];
+                                i++;
+                            }
+
+                            reply_msgid[i] = '\0';
                         }
 
-                        reply_msgid[i] = '\0';
+                        free(body_utf8);
                     }
-
-                    free(body_utf8);
                 }
+
+                daddr_aka = editor_daddr_for_intl(app, msghdr_get_utf8_tmp(app->edit_hdr, HDR_DADDR));
+                app->saved_kludges = editor_build_kludge_block(app->cfg, aka_buf, daddr_aka, msghdr_get_utf8_tmp(app->edit_hdr, HDR_DADDR), reply_msgid[0] ? reply_msgid : NULL, ae->type == AREATYPE_NETMAIL);
+                ui_status(app, "AKA set to %s", aka_buf);
+
+                continue;
             }
-
-            daddr_aka = editor_daddr_for_intl(app, msghdr_get_utf8_tmp(app->edit_hdr, HDR_DADDR));
-            app->saved_kludges = editor_build_kludge_block(app->cfg, aka_buf, daddr_aka, msghdr_get_utf8_tmp(app->edit_hdr, HDR_DADDR), reply_msgid[0] ? reply_msgid : NULL, ae->type == AREATYPE_NETMAIL);
-            ui_status(app, "AKA set to %s", aka_buf);
-
-            continue;
-        }
+        } /* end F4 / Ctrl+A handler */
 
         /* ESC in header: jump to body. ESC in body / F10: confirm quit */
         if ((!is_key && ch == 27) || (is_key && ch == KEY_F(10)))
@@ -1694,6 +1853,14 @@ UiView ui_editor_run(UiApp *app)
             if (!is_key && ch == 27 && app->edit_active_field != EF_BODY)
             {
                 app->edit_active_field = EF_BODY;
+                continue;
+            }
+
+            /* Exit search mode first before confirming quit */
+            if (app->edit_search.is_mode || app->edit_search.only_mode)
+            {
+                reset_search(app);
+                ui_status(app, "Search mode exited");
                 continue;
             }
 
@@ -1714,19 +1881,7 @@ UiView ui_editor_run(UiApp *app)
             }
 
             /* Free search matches */
-            if (app->edit_search_rows)
-            {
-                free(app->edit_search_rows);
-                app->edit_search_rows = NULL;
-            }
-
-            if (app->edit_search_cols)
-            {
-                free(app->edit_search_cols);
-                app->edit_search_cols = NULL;
-            }
-
-            app->edit_search_match_count = 0;
+            reset_search(app);
 
             curs_set(0);
             BRACKET_PASTE_OFF();
@@ -1760,7 +1915,7 @@ UiView ui_editor_run(UiApp *app)
             /* Try internal block (filled by Ctrl+C/X) first */
             if (app->edit_active_field == EF_BODY && ed_block_paste(app->editor) == 0)
             {
-                clear_search_highlights(app);
+                reset_search(app);
                 ui_status(app, "Pasted");
                 continue;
             }
@@ -1796,173 +1951,185 @@ UiView ui_editor_run(UiApp *app)
             continue;
         }
 
-        /* F5 and / : forward search with results list (case-insensitive) */
-        if ((is_key && ch == KEY_F(5)) || (!is_key && ch == '/'))
+        /* F5 and Alt+S : forward search with results list (case-insensitive) */
+        if ((is_key && ch == KEY_F(5)) || (is_key && ch == KEY_ALT('S')))
         {
-            wchar_t tmp[64];
-            int *rows = NULL, *cols = NULL;
-            int match_count;
-            int i;
-            const char **contexts = NULL;
-            char **context_bufs = NULL;
-            int *line_nums = NULL;
-
-            wcsncpy(tmp, app->edit_search, 63);
-            tmp[63] = L'\0';
-
-            if (ui_popup_input_wcs("Search", "Text:", tmp, 64) == 0 && tmp[0])
+            if (app->edit_search.is_mode)
             {
-                wcsncpy(app->edit_search, tmp, 63);
-                app->edit_search[63] = L'\0';
+                replace_current(app);
+                continue;
+            }
+            else
+            {
+                wchar_t tmp[64];
+                int *rows = NULL, *cols = NULL;
+                int match_count;
+                int i;
+                const char **contexts = NULL;
+                char **context_bufs = NULL;
+                int *line_nums = NULL;
 
-                /* Find all matches (no limit) */
-                match_count = ed_search_all(app->editor, app->edit_search, &rows, &cols);
+                wcsncpy(tmp, app->edit_search.query, 63);
+                tmp[63] = L'\0';
 
-                /* Free previous search matches */
-                if (app->edit_search_rows)
+                if (ui_popup_input("Search", "Text:", tmp, 64) == 0 && tmp[0])
                 {
-                    free(app->edit_search_rows);
-                    app->edit_search_rows = NULL;
-                }
+                    wcsncpy(app->edit_search.query, tmp, 63);
+                    app->edit_search.query[63] = L'\0';
 
-                if (app->edit_search_cols)
-                {
-                    free(app->edit_search_cols);
-                    app->edit_search_cols = NULL;
-                }
+                    /* Find all matches (no limit) */
+                    match_count = ed_search_all(app->editor, app->edit_search.query, &rows, &cols);
 
-                app->edit_search_match_count = 0;
+                    /* Free previous search matches */
+                    reset_search(app);
 
-                if (match_count == 0)
-                {
-                    ui_status(app, "Not found");
-                }
-                else if (match_count == 1)
-                {
-                    /* Single match: jump directly */
-                    ed_set_pos(app->editor, rows[0], cols[0]);
-                    ed_ensure_visible(app->editor);
-                    ui_status(app, "Found at line %d", rows[0] + 1);
-
-                    /* Save matches for highlighting */
-                    app->edit_search_rows = rows;
-                    app->edit_search_cols = cols;
-                    app->edit_search_match_count = match_count;
-                }
-                else
-                {
-                    /* Allocate arrays for display */
-                    contexts = (const char **)malloc((size_t)match_count * sizeof(const char *));
-                    context_bufs = (char **)malloc((size_t)match_count * sizeof(char *));
-                    line_nums = (int *)malloc((size_t)match_count * sizeof(int));
-
-                    if (!contexts || !context_bufs || !line_nums)
+                    if (match_count == 0)
                     {
-                        if (contexts)
-                            free(contexts);
-
-                        if (context_bufs)
-                            free(context_bufs);
-
-                        if (line_nums)
-                            free(line_nums);
-
-                        free(rows);
-                        free(cols);
-                        ui_status(app, "Memory error");
-
-                        continue;
+                        ui_status(app, "Not found");
                     }
-
-                    /* Multiple matches: show list */
-                    for (i = 0; i < match_count; i++)
+                    else if (match_count == 1)
                     {
-                        const wchar_t *line = ed_line_wcs(app->editor, rows[i]);
-                        int line_len = ed_line_len(app->editor, rows[i]);
-                        int context_len = line_len - cols[i];
-                        int copy_len = context_len;
+                        /* Single match: jump directly */
+                        ed_set_pos(app->editor, rows[0], cols[0]);
+                        ed_ensure_visible(app->editor);
+                        ui_status(app, "Found at line %d", rows[0] + 1);
 
-                        if (copy_len > 60)
-                            copy_len = 60;
+                        /* Save matches for highlighting and activate search mode */
+                        app->edit_search.rows = rows;
+                        app->edit_search.cols = cols;
+                        app->edit_search.match_count = match_count;
+                        app->edit_search.only_mode = 1;
+                        app->edit_search.current_match = 0;
+                        app->edit_search.match_current = 1;
+                    }
+                    else
+                    {
+                        /* Allocate arrays for display */
+                        contexts = (const char **)malloc((size_t)match_count * sizeof(const char *));
+                        context_bufs = (char **)malloc((size_t)match_count * sizeof(char *));
+                        line_nums = (int *)malloc((size_t)match_count * sizeof(int));
 
-                        if (copy_len < 0)
-                            copy_len = 0;
-
-                        context_bufs[i] = (char *)malloc(128);
-
-                        if (!context_bufs[i])
+                        if (!contexts || !context_bufs || !line_nums)
                         {
-                            context_bufs[i] = NULL;
-                            contexts[i] = "";
+                            if (contexts)
+                                free(contexts);
+
+                            if (context_bufs)
+                                free(context_bufs);
+
+                            if (line_nums)
+                                free(line_nums);
+
+                            free(rows);
+                            free(cols);
+                            ui_status(app, "Memory error");
+
+                            continue;
                         }
-                        else
-                        {
-                            /* Convert context to UTF-8 for display */
-                            if (line && copy_len > 0)
-                            {
-                                char *utf8 = wcs_to_utf8(&line[cols[i]], copy_len);
 
-                                if (utf8)
+                        /* Multiple matches: show list */
+                        for (i = 0; i < match_count; i++)
+                        {
+                            const wchar_t *line = ed_line_wcs(app->editor, rows[i]);
+                            int line_len = ed_line_len(app->editor, rows[i]);
+                            int context_len = line_len - cols[i];
+                            int copy_len = context_len;
+
+                            if (copy_len > 60)
+                                copy_len = 60;
+
+                            if (copy_len < 0)
+                                copy_len = 0;
+
+                            context_bufs[i] = (char *)malloc(128);
+
+                            if (!context_bufs[i])
+                            {
+                                context_bufs[i] = NULL;
+                                contexts[i] = "";
+                            }
+                            else
+                            {
+                                /* Convert context to UTF-8 for display */
+                                if (line && copy_len > 0)
                                 {
-                                    snprintf(context_bufs[i], 128, "%s", utf8);
-                                    free(utf8);
+                                    char *utf8 = wcs_to_utf8(&line[cols[i]], copy_len);
+
+                                    if (utf8)
+                                    {
+                                        snprintf(context_bufs[i], 128, "%s", utf8);
+                                        free(utf8);
+                                    }
+                                    else
+                                    {
+                                        context_bufs[i][0] = '\0';
+                                    }
                                 }
                                 else
                                 {
                                     context_bufs[i][0] = '\0';
                                 }
-                            }
-                            else
-                            {
-                                context_bufs[i][0] = '\0';
+
+                                contexts[i] = context_bufs[i];
                             }
 
-                            contexts[i] = context_bufs[i];
+                            line_nums[i] = rows[i] + 1; /* 1-based for display */
                         }
 
-                        line_nums[i] = rows[i] + 1; /* 1-based for display */
+                        /* Show popup with results */
+                        int choice = ui_popup_search_results("Search Results", line_nums, contexts, match_count, 0);
+
+                        if (choice >= 0)
+                        {
+                            ed_set_pos(app->editor, rows[choice], cols[choice]);
+                            ed_ensure_visible(app->editor);
+                            app->edit_search.current_match = choice;
+                            app->edit_search.match_current = choice + 1;
+                            ui_status(app, "Jumped to line %d", rows[choice] + 1);
+                        }
+                        else
+                        {
+                            ui_status(app, "Search cancelled");
+                        }
+
+                        /* Free allocated memory */
+                        for (i = 0; i < match_count; i++)
+                        {
+                            if (context_bufs[i])
+                                free(context_bufs[i]);
+                        }
+
+                        free(context_bufs);
+                        free(contexts);
+                        free(line_nums);
+
+                        /* Save matches for highlighting and activate search mode (don't free rows/cols) */
+                        app->edit_search.rows = rows;
+                        app->edit_search.cols = cols;
+                        app->edit_search.match_count = match_count;
+                        app->edit_search.only_mode = 1;
+                        app->edit_search.current_match = 0;
+                        app->edit_search.match_current = 1;
                     }
-
-                    /* Show popup with results */
-                    int choice = ui_popup_search_results("Search Results", line_nums, contexts, match_count, 0);
-
-                    if (choice >= 0)
-                    {
-                        ed_set_pos(app->editor, rows[choice], cols[choice]);
-                        ed_ensure_visible(app->editor);
-                        ui_status(app, "Jumped to line %d", rows[choice] + 1);
-                    }
-                    else
-                    {
-                        ui_status(app, "Search cancelled");
-                    }
-
-                    /* Free allocated memory */
-                    for (i = 0; i < match_count; i++)
-                    {
-                        if (context_bufs[i])
-                            free(context_bufs[i]);
-                    }
-
-                    free(context_bufs);
-                    free(contexts);
-                    free(line_nums);
-
-                    /* Save matches for highlighting (don't free rows/cols) */
-                    app->edit_search_rows = rows;
-                    app->edit_search_cols = cols;
-                    app->edit_search_match_count = match_count;
                 }
-            }
 
-            continue;
+                continue;
+            }
         }
 
         /* F6: toggle block anchor at cursor */
         if ((is_key && ch == KEY_F(6)) || (ch == KEY_ALT('B')))
         {
-            ed_block_anchor(app->editor);
-            continue;
+            if (app->edit_search.is_mode)
+            {
+                replace_all(app);
+                continue;
+            }
+            else
+            {
+                ed_block_anchor(app->editor);
+                continue;
+            }
         }
 
         /* F7: insert file at cursor. Uses file browser (ui_files_pick)
@@ -1985,7 +2152,7 @@ UiView ui_editor_run(UiApp *app)
 
             if (ed_load_file_at_cursor(app->editor, path, in_cs[0] ? in_cs : NULL) == 0)
             {
-                clear_search_highlights(app);
+                reset_search(app);
                 ui_status(app, "Inserted %s (%s)", path, in_cs[0] ? in_cs : "UTF-8");
             }
             else
@@ -2008,15 +2175,22 @@ UiView ui_editor_run(UiApp *app)
             continue;
         }
 
-        /* Ctrl-J: goto line */
-        if (ch == CTRL('J'))
+        /* Alt-M: goto line */
+        if (ch == KEY_ALT('M'))
         {
-            char buf[16];
-            buf[0] = '\0';
+            wchar_t wbuf[16];
+            wbuf[0] = L'\0';
 
-            if (ui_popup_input("Goto line", "Line number (1..):", buf, sizeof(buf)) == 0 && buf[0])
+            if (ui_popup_input("Goto line", "Line number (1..):", wbuf, 16) == 0 && wbuf[0])
             {
-                int n = atoi(buf);
+                char *u = wcs_to_utf8(wbuf, (int)wcslen(wbuf));
+                int n = 0;
+
+                if (u)
+                {
+                    n = atoi(u);
+                    free(u);
+                }
 
                 if (n >= 1)
                     ed_goto_line(app->editor, n - 1);
@@ -2028,22 +2202,22 @@ UiView ui_editor_run(UiApp *app)
         /* Alt-G: clear search highlights */
         if (ch == KEY_ALT('G'))
         {
-            if (app->edit_search_rows)
-            {
-                free(app->edit_search_rows);
-                app->edit_search_rows = NULL;
-            }
-
-            if (app->edit_search_cols)
-            {
-                free(app->edit_search_cols);
-                app->edit_search_cols = NULL;
-            }
-
-            app->edit_search_match_count = 0;
+            reset_search(app);
             ui_status(app, "Search highlights cleared");
 
             continue;
+        }
+
+        /* ESC: exit search mode */
+        if (ch == 27)
+        {
+            if (app->edit_search.is_mode || app->edit_search.only_mode)
+            {
+                reset_search(app);
+                ui_status(app, "Search mode exited");
+                continue;
+            }
+            break;
         }
 
         /* Ctrl-C: block copy */
@@ -2085,7 +2259,7 @@ UiView ui_editor_run(UiApp *app)
 
                 if (ed_block_cut(app->editor) == 0)
                 {
-                    clear_search_highlights(app);
+                    reset_search(app);
 
                     if (block_utf8)
                     {
@@ -2109,37 +2283,17 @@ UiView ui_editor_run(UiApp *app)
 
             if (ed_rewrap_paragraph(app->editor, app->cfg->autowrap_col > 0 ? app->cfg->autowrap_col : 75) == 0)
             {
-                clear_search_highlights(app);
+                reset_search(app);
                 ui_status(app, "Paragraph rewrapped");
             }
 
             continue;
         }
 
-        /* Ctrl-R: interactive find-and-replace */
+        /* Ctrl-R: interactive find-and-replace with case/whole-word options */
         if (ch == CTRL('R'))
         {
-            wchar_t needle[64];
-            wchar_t repl[64];
-            int n;
-
-            needle[0] = L'\0';
-            repl[0] = L'\0';
-            wcsncpy(needle, app->edit_search, 63);
-            needle[63] = L'\0';
-
-            if (ui_popup_input_wcs("Replace", "Search:", needle, 64) != 0 || !needle[0])
-                continue;
-
-            wcsncpy(app->edit_search, needle, 63);
-            app->edit_search[63] = L'\0';
-
-            if (ui_popup_input_wcs("Replace", "Replace with:", repl, 64) != 0)
-                continue;
-
-            n = editor_replace_interactive(app, needle, repl);
-            ui_status(app, "%d replacement(s) made", n);
-
+            replace(app);
             continue;
         }
 
@@ -2347,7 +2501,7 @@ UiView ui_editor_run(UiApp *app)
             case KEY_ENTER:
                 ed_save_undo(app->editor);
                 ed_enter(app->editor);
-                clear_search_highlights(app);
+                reset_search(app);
                 break;
             case KEY_BACKSPACE:
             {
@@ -2359,7 +2513,7 @@ UiView ui_editor_run(UiApp *app)
                     /* Delete selected block (no clipboard copy) */
                     ed_save_undo(app->editor);
                     ed_block_delete(app->editor);
-                    clear_search_highlights(app);
+                    reset_search(app);
                     ui_status(app, "Block deleted");
                 }
                 else
@@ -2367,7 +2521,7 @@ UiView ui_editor_run(UiApp *app)
                     /* Backspace single character */
                     ed_save_undo(app->editor);
                     ed_backspace(app->editor);
-                    clear_search_highlights(app);
+                    reset_search(app);
                 }
 
                 break;
@@ -2382,7 +2536,7 @@ UiView ui_editor_run(UiApp *app)
                     /* Delete selected block (no clipboard copy) */
                     ed_save_undo(app->editor);
                     ed_block_delete(app->editor);
-                    clear_search_highlights(app);
+                    reset_search(app);
                     ui_status(app, "Block deleted");
                 }
                 else
@@ -2390,7 +2544,7 @@ UiView ui_editor_run(UiApp *app)
                     /* Delete single character */
                     ed_save_undo(app->editor);
                     ed_delete(app->editor);
-                    clear_search_highlights(app);
+                    reset_search(app);
                 }
 
                 break;
@@ -2412,7 +2566,7 @@ UiView ui_editor_run(UiApp *app)
             case KEY_ALT('Z'): /* Alt+Z: redo */
                 ui_status(app, "Alt+Z detected - trying redo");
                 ed_redo(app->editor);
-                clear_search_highlights(app);
+                reset_search(app);
                 break;
             default:
                 break;
@@ -2426,13 +2580,13 @@ UiView ui_editor_run(UiApp *app)
             case '\r':
                 ed_save_undo(app->editor);
                 ed_enter(app->editor);
-                clear_search_highlights(app);
+                reset_search(app);
                 break;
             case 8:
             case 127:
                 ed_save_undo(app->editor);
                 ed_backspace(app->editor);
-                clear_search_highlights(app);
+                reset_search(app);
                 break;
             case CTRL('B'): /* Ctrl+B: Home (Amiga compatibility) */
                 if (soft_active)
@@ -2464,24 +2618,24 @@ UiView ui_editor_run(UiApp *app)
                 else
                     ed_move_pgdn(app->editor, 0);
                 break;
-            case CTRL('Y'): /* Ctrl+Y: delete line (GoldED+) */
+            case CTRL('Y'): /* Ctrl+Y: delete line */
                 ed_save_undo(app->editor);
                 ed_delete_line(app->editor);
-                clear_search_highlights(app);
+                reset_search(app);
                 break;
             case CTRL('Z'): /* Ctrl+Z: undo */
                 ed_undo(app->editor);
-                clear_search_highlights(app);
+                reset_search(app);
                 break;
-            case CTRL('T'): /* Ctrl+T: delete word right (GoldED+ ^T/^F6) */
+            case CTRL('T'): /* Ctrl+T: delete word right */
                 ed_save_undo(app->editor);
                 ed_delete_word_right(app->editor);
-                clear_search_highlights(app);
+                reset_search(app);
                 break;
-            case CTRL('_'): /* Ctrl+_: delete word left (GoldED+ ^F5/^W) */
+            case CTRL('_'): /* Ctrl+_: delete word left */
                 ed_save_undo(app->editor);
                 ed_delete_word_left(app->editor);
-                clear_search_highlights(app);
+                reset_search(app);
                 break;
             case CTRL('Q'): /* Ctrl+Q: Remove attachment */
                 ui_popup_attach_remove(app);
@@ -2513,7 +2667,7 @@ UiView ui_editor_run(UiApp *app)
             case '\t':
                 ed_save_undo(app->editor);
                 ed_insert_tab(app->editor, 4);
-                clear_search_highlights(app);
+                reset_search(app);
                 break;
             default:
                 /* Printable wide character: insert into body */
@@ -2563,7 +2717,7 @@ UiView ui_editor_run(UiApp *app)
                     }
 
                     ed_insert_char(app->editor, (wchar_t)wch);
-                    clear_search_highlights(app);
+                    reset_search(app);
 
                     /* HARD-WRAP only: insert CR at wrap col; soft-wrap leaves line intact */
                     if (app->cfg && app->cfg->hard_wrap && eff_wrap > 0)
@@ -2601,7 +2755,7 @@ UiView ui_editor_run(UiApp *app)
                             {
                                 ed_backspace(app->editor); /* replace trailing space with newline */
                                 ed_enter(app->editor);
-                                clear_search_highlights(app);
+                                reset_search(app);
                             }
                             else if (brk >= 0)
                             {
@@ -2610,7 +2764,7 @@ UiView ui_editor_run(UiApp *app)
                                 ed_set_pos(app->editor, wi.row, brk);
                                 ed_delete(app->editor);
                                 ed_enter(app->editor);
-                                clear_search_highlights(app);
+                                reset_search(app);
                                 ed_set_pos(app->editor, wi.row + 1, tail);
                             }
                         }

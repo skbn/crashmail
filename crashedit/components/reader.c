@@ -634,6 +634,14 @@ int rd_get_type(const Reader *rd, int vi)
     return rd->lines[r].type;
 }
 
+int rd_get_line_idx(const Reader *rd, int vi)
+{
+    if (!rd || !rd->vis || vi < 0 || vi >= rd->vis_count)
+        return -1;
+
+    return rd->vis[vi];
+}
+
 int rd_get_ansi_color(const Reader *rd, int vi)
 {
     int r;
@@ -772,10 +780,7 @@ int rd_export_to_file(const Reader *src, const char *body_utf8, const char *path
         return -1;
 
     /* If it's null, auto, or detects utf8, it's passed directly; otherwise, it's converted */
-    needs_conv = charset_out && charset_out[0] &&
-                 strcasecmp(charset_out, "AUTO") != 0 &&
-                 strcasecmp(charset_out, "UTF-8") != 0 &&
-                 strcasecmp(charset_out, "UTF8") != 0;
+    needs_conv = charset_out && charset_out[0] && strcasecmp(charset_out, "AUTO") != 0 && strcasecmp(charset_out, "UTF-8") != 0 && strcasecmp(charset_out, "UTF8") != 0;
 
     f = fopen(path, "wb");
 
@@ -843,32 +848,31 @@ int rd_export_to_file(const Reader *src, const char *body_utf8, const char *path
     return written;
 }
 
-/* Search: find all matches of needle in visible lines, case-insensitive */
-int rd_search_all(const Reader *rd, const wchar_t *needle, int **out_matches)
+/* Search: find all matches of needle in all lines, case-insensitive */
+int rd_search_all(const Reader *rd, const wchar_t *needle, int **out_rows, int **out_cols)
 {
     int count = 0;
     int i, j;
     int nlen;
     const wchar_t *line;
     int line_len;
-    int *matches = NULL;
+    int *rows = NULL;
+    int *cols = NULL;
 
-    if (!rd || !needle || !needle[0] || !out_matches)
+    if (!rd || !needle || !needle[0] || !out_rows || !out_cols)
         return 0;
 
     nlen = (int)wcslen(needle);
 
     /* First pass: count matches */
-    for (i = 0; i < rd->vis_count; i++)
+    for (i = 0; i < rd->count; i++)
     {
-        int r = rd->vis[i];
+        line = rd->lines[i].wcs;
+        line_len = rd->lines[i].len;
 
-        /* Skip separator lines (-1) */
-        if (r < 0 || r >= rd->count)
+        /* Skip kludge lines (start with ^A) */
+        if (line_len > 0 && line[0] == 0x01)
             continue;
-
-        line = rd->lines[r].wcs;
-        line_len = rd->lines[r].len;
 
         /* Search for needle in this line */
         for (j = 0; j + nlen <= line_len; j++)
@@ -898,38 +902,45 @@ int rd_search_all(const Reader *rd, const wchar_t *needle, int **out_matches)
             if (match)
             {
                 count++;
-                break; /* Only count once per line */
             }
         }
     }
 
     if (count == 0)
     {
-        *out_matches = NULL;
+        *out_rows = NULL;
+        *out_cols = NULL;
         return 0;
     }
 
-    /* Allocate array for matches */
-    matches = (int *)malloc((size_t)count * sizeof(int));
+    /* Allocate arrays for matches */
+    rows = (int *)malloc((size_t)count * sizeof(int));
+    cols = (int *)malloc((size_t)count * sizeof(int));
 
-    if (!matches)
+    if (!rows || !cols)
     {
-        *out_matches = NULL;
+        if (rows)
+            free(rows);
+
+        if (cols)
+            free(cols);
+
+        *out_rows = NULL;
+        *out_cols = NULL;
+
         return 0;
     }
 
-    /* Second pass: fill array */
+    /* Second pass: fill arrays */
     count = 0;
-    for (i = 0; i < rd->vis_count; i++)
+    for (i = 0; i < rd->count; i++)
     {
-        int r = rd->vis[i];
+        line = rd->lines[i].wcs;
+        line_len = rd->lines[i].len;
 
-        /* Skip separator lines (-1) */
-        if (r < 0 || r >= rd->count)
+        /* Skip kludge lines (start with ^A) */
+        if (line_len > 0 && line[0] == 0x01)
             continue;
-
-        line = rd->lines[r].wcs;
-        line_len = rd->lines[r].len;
 
         /* Search for needle in this line */
         for (j = 0; j + nlen <= line_len; j++)
@@ -958,13 +969,15 @@ int rd_search_all(const Reader *rd, const wchar_t *needle, int **out_matches)
 
             if (match)
             {
-                matches[count++] = i; /* Store visible line index */
-                break;                /* Only count once per line */
+                rows[count] = i;
+                cols[count] = j;
+                count++;
             }
         }
     }
 
-    *out_matches = matches;
+    *out_rows = rows;
+    *out_cols = cols;
 
     return count;
 }

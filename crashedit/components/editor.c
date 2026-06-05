@@ -33,7 +33,6 @@
 #include "../core/charset.h" /* for charset_body_from_utf8 in block export */
 
 /* Line: dynamic wchar_t array */
-
 typedef struct
 {
     wchar_t *wcs; /* malloc'd, always NUL-terminated */
@@ -2026,10 +2025,7 @@ int ed_load_file_at_cursor(Ed *ed, const char *path, const char *charset_in)
         return -1;
 
     /* If it's null, auto, or detects utf8, it's passed directly; otherwise, it's converted */
-    needs_conv = charset_in && charset_in[0] &&
-                 strcasecmp(charset_in, "AUTO") != 0 &&
-                 strcasecmp(charset_in, "UTF-8") != 0 &&
-                 strcasecmp(charset_in, "UTF8") != 0;
+    needs_conv = charset_in && charset_in[0] && strcasecmp(charset_in, "AUTO") != 0 && strcasecmp(charset_in, "UTF-8") != 0 && strcasecmp(charset_in, "UTF8") != 0;
 
     f = fopen(path, "rb");
 
@@ -2075,8 +2071,8 @@ int ed_load_file_at_cursor(Ed *ed, const char *path, const char *charset_in)
             return -1;
         }
 
-        wrote = charset_body_to_utf8(charset_in, buf, (int)r, out,
-                                     (int)outsz);
+        wrote = charset_body_to_utf8(charset_in, buf, (int)r, out, (int)outsz);
+
         free(buf);
 
         if (wrote < 0 || wrote >= (int)outsz)
@@ -2088,12 +2084,14 @@ int ed_load_file_at_cursor(Ed *ed, const char *path, const char *charset_in)
         out[wrote] = '\0';
         ed_save_undo(ed);
         ed_paste_text(ed, out);
+
         free(out);
     }
     else
     {
         ed_save_undo(ed);
         ed_paste_text(ed, buf);
+
         free(buf);
     }
 
@@ -2113,10 +2111,7 @@ int ed_export_block_to_file(Ed *ed, const char *path, const char *charset_out)
         return -1;
 
     /* If it's null, auto, or detects utf8, it's passed directly; otherwise, it's converted */
-    needs_conv = charset_out && charset_out[0] &&
-                 strcasecmp(charset_out, "AUTO") != 0 &&
-                 strcasecmp(charset_out, "UTF-8") != 0 &&
-                 strcasecmp(charset_out, "UTF8") != 0;
+    needs_conv = charset_out && charset_out[0] && strcasecmp(charset_out, "AUTO") != 0 && strcasecmp(charset_out, "UTF-8") != 0 && strcasecmp(charset_out, "UTF8") != 0;
 
     if (ed->block.anchor_row < ed->row || (ed->block.anchor_row == ed->row && ed->block.anchor_col <= ed->col))
     {
@@ -2306,6 +2301,104 @@ int ed_search_all(Ed *ed, const wchar_t *needle, int **out_rows, int **out_cols)
 
     *out_rows = rows;
     *out_cols = cols;
+
+    return count;
+}
+
+/* Search with case-sensitive and whole-word options */
+int ed_search_all_custom(Ed *ed, const wchar_t *needle, int case_sensitive, int whole_word, int **out_rows, int **out_cols)
+{
+    int count = 0;
+    int capacity = 1024;
+    int i, j;
+    int needle_len = (int)wcslen(needle);
+
+    if (!needle || needle_len == 0)
+        return 0;
+
+    *out_rows = malloc(capacity * sizeof(int));
+    *out_cols = malloc(capacity * sizeof(int));
+
+    if (!*out_rows || !*out_cols)
+    {
+        free(*out_rows);
+        free(*out_cols);
+        *out_rows = *out_cols = NULL;
+        return 0;
+    }
+
+    for (i = 0; i < ed->count; i++)
+    {
+        const wchar_t *line = ed->lines[i]->wcs;
+        int line_len = ed->lines[i]->len;
+
+        for (j = 0; j <= line_len - needle_len; j++)
+        {
+            int match = 1;
+            int k;
+
+            /* Check if needle matches at this position */
+            for (k = 0; k < needle_len; k++)
+            {
+                wchar_t c1 = line[j + k];
+                wchar_t c2 = needle[k];
+
+                if (!case_sensitive)
+                {
+                    c1 = towlower(c1);
+                    c2 = towlower(c2);
+                }
+
+                if (c1 != c2)
+                {
+                    match = 0;
+                    break;
+                }
+            }
+
+            if (match)
+            {
+                /* Check whole word boundary */
+                if (whole_word)
+                {
+                    wchar_t prev_char = (j > 0) ? line[j - 1] : 0;
+                    wchar_t next_char = (j + needle_len < line_len) ? line[j + needle_len] : 0;
+
+                    /* Check if previous and next characters are word boundaries */
+                    if ((prev_char != 0 && !iswspace(prev_char) && !iswpunct(prev_char)) || (next_char != 0 && !iswspace(next_char) && !iswpunct(next_char)))
+                    {
+                        match = 0;
+                    }
+                }
+
+                if (match)
+                {
+                    /* Add match to results */
+                    if (count >= capacity)
+                    {
+                        capacity *= 2;
+                        *out_rows = realloc(*out_rows, capacity * sizeof(int));
+                        *out_cols = realloc(*out_cols, capacity * sizeof(int));
+
+                        if (!*out_rows || !*out_cols)
+                        {
+                            free(*out_rows);
+                            free(*out_cols);
+
+                            *out_rows = *out_cols = NULL;
+
+                            return 0;
+                        }
+                    }
+
+                    (*out_rows)[count] = i;
+                    (*out_cols)[count] = j;
+
+                    count++;
+                }
+            }
+        }
+    }
 
     return count;
 }

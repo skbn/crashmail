@@ -194,6 +194,7 @@ static void st_format_value(const CrashEditCfg *w, const SetupField *fld, char *
             snprintf(buf, bufsz, "%d (manual)", v);
         else
             snprintf(buf, bufsz, "%d (auto)", ftn_effective_tz_offset(v, 0));
+
         break;
     }
     case FT_TZAUTO:
@@ -228,21 +229,34 @@ static void st_edit_field(CrashEditCfg *w, const SetupField *fld)
     case FT_STR:
     {
         char *s = base + fld->off;
-        char tmp[CFG_STR_MAX];
-        int cap = fld->maxlen > 0 && fld->maxlen < (int)sizeof(tmp) ? fld->maxlen : (int)sizeof(tmp);
+        wchar_t wtmp[CFG_STR_MAX];
+        int cap = fld->maxlen > 0 && fld->maxlen < (int)sizeof(wtmp) ? fld->maxlen : (int)sizeof(wtmp);
+        wchar_t *w_initial;
 
-        strncpy(tmp, s, sizeof(tmp) - 1);
-        tmp[sizeof(tmp) - 1] = '\0';
+        w_initial = utf8_to_wcs(s, NULL);
+        wtmp[0] = L'\0';
 
-        if (ui_popup_input(fld->label, "New value:", tmp, cap) == 0)
+        if (w_initial)
         {
-            size_t n = strlen(tmp);
+            wcsncpy(wtmp, w_initial, (size_t)(cap - 1));
+            wtmp[cap - 1] = L'\0';
+            free(w_initial);
+        }
 
-            if (n >= (size_t)cap)
-                n = cap - 1;
+        if (ui_popup_input(fld->label, "New value:", wtmp, cap) == 0)
+        {
+            char *u = wcs_to_utf8(wtmp, (int)wcslen(wtmp));
+            if (u)
+            {
+                size_t n = strlen(u);
 
-            memcpy(s, tmp, n);
-            s[n] = '\0';
+                if (n >= (size_t)cap)
+                    n = cap - 1;
+
+                memcpy(s, u, n);
+                s[n] = '\0';
+                free(u);
+            }
         }
 
         break;
@@ -285,21 +299,35 @@ static void st_edit_field(CrashEditCfg *w, const SetupField *fld)
         {
             /* Other FT_STR_AUTO fields: normal popup editing */
             char *s = base + fld->off;
-            char tmp[CFG_STR_MAX];
-            int cap = fld->maxlen > 0 && fld->maxlen < (int)sizeof(tmp) ? fld->maxlen : (int)sizeof(tmp);
+            wchar_t wtmp[CFG_STR_MAX];
+            int cap = fld->maxlen > 0 && fld->maxlen < (int)sizeof(wtmp) ? fld->maxlen : (int)sizeof(wtmp);
+            wchar_t *w_initial;
 
-            strncpy(tmp, s, sizeof(tmp) - 1);
-            tmp[sizeof(tmp) - 1] = '\0';
+            w_initial = utf8_to_wcs(s, NULL);
+            wtmp[0] = L'\0';
 
-            if (ui_popup_input(fld->label, "New value (empty = AUTO):", tmp, cap) == 0)
+            if (w_initial)
             {
-                size_t n = strlen(tmp);
+                wcsncpy(wtmp, w_initial, (size_t)(cap - 1));
+                wtmp[cap - 1] = L'\0';
+                free(w_initial);
+            }
 
-                if (n >= (size_t)cap)
-                    n = cap - 1;
+            if (ui_popup_input(fld->label, "New value (empty = AUTO):", wtmp, cap) == 0)
+            {
+                char *u = wcs_to_utf8(wtmp, (int)wcslen(wtmp));
 
-                memcpy(s, tmp, n);
-                s[n] = '\0';
+                if (u)
+                {
+                    size_t n = strlen(u);
+
+                    if (n >= (size_t)cap)
+                        n = cap - 1;
+
+                    memcpy(s, u, n);
+                    s[n] = '\0';
+                    free(u);
+                }
             }
         }
         break;
@@ -309,13 +337,31 @@ static void st_edit_field(CrashEditCfg *w, const SetupField *fld)
     case FT_COLORMAP:
     {
         int *v = (int *)(base + fld->off);
+        wchar_t wtmp[32];
         char tmp[32];
 
         snprintf(tmp, sizeof(tmp), "%d", *v);
 
-        if (ui_popup_input(fld->label, "New value (integer):", tmp, sizeof(tmp)) == 0)
+        wchar_t *w_initial = utf8_to_wcs(tmp, NULL);
+        wtmp[0] = L'\0';
+
+        if (w_initial)
         {
-            int parsed = (int)strtol(tmp, NULL, 10);
+            wcsncpy(wtmp, w_initial, 31);
+            wtmp[31] = L'\0';
+            free(w_initial);
+        }
+
+        if (ui_popup_input(fld->label, "New value (integer):", wtmp, 32) == 0)
+        {
+            char *u = wcs_to_utf8(wtmp, (int)wcslen(wtmp));
+            int parsed = 0;
+
+            if (u)
+            {
+                parsed = (int)strtol(u, NULL, 10);
+                free(u);
+            }
 
             /* Amiga COLORMAP pens are physical pen numbers and can never be negative, so clamp those.
              * Everything else -- timezone (zones west of UTC) AND colour fields cursor_color/default_bg_color,

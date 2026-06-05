@@ -64,6 +64,24 @@
 #define KEY_ARIGHT 0x7F6 /* Alt+Right */
 #endif
 
+#ifndef PLATFORM_AMIGA
+#define BRACKET_PASTE_ON()            \
+    do                                \
+    {                                 \
+        fputs("\033[?2004h", stdout); \
+        fflush(stdout);               \
+    } while (0)
+#define BRACKET_PASTE_OFF()           \
+    do                                \
+    {                                 \
+        fputs("\033[?2004l", stdout); \
+        fflush(stdout);               \
+    } while (0)
+#else
+#define BRACKET_PASTE_ON() ((void)0)
+#define BRACKET_PASTE_OFF() ((void)0)
+#endif
+
 /* Color pairs */
 #define COL_NORMAL 1
 #define COL_SELECTED 2
@@ -118,6 +136,31 @@ typedef struct
     wchar_t search[80]; /* current filter text */
 } UiSession;
 
+/* Input state for text fields (modular input handling) */
+typedef struct
+{
+    wchar_t *buf; /* buffer de entrada (wchar_t) */
+    int bufsz;    /* capacidad del buffer */
+    int cursor;   /* posición del cursor */
+    int len;      /* longitud actual del texto */
+} InputState;
+
+/* Search state (unified for reader and editor) */
+typedef struct
+{
+    wchar_t query[64];        /* last search query */
+    wchar_t last_replace[64]; /* last replacement text */
+    int *rows;                /* malloc'd array of row indices with matches */
+    int *cols;                /* malloc'd array of col indices with matches (editor only) */
+    int match_count;          /* number of matches */
+    int is_mode;              /* 0=normal, 1=search mode */
+    int only_mode;            /* 1=only search mode activated by F5 */
+    int current_match;        /* Current match index (0-based) for navigation */
+    int match_current;        /* Current match number (1-based) for display */
+    int case_sensitive;       /* Search case sensitivity flag */
+    int whole_word;           /* Search whole word flag */
+} UiSearch;
+
 /* Main app state */
 struct UiApp
 {
@@ -146,15 +189,13 @@ struct UiApp
     /* Reader state */
     Reader *reader;
     MsgHdr *hdr;
-    char msg_charset[32];          /* charset detected when reading */
-    char view_charset[32];         /* charset chosen for display */
-    char decoded_charset[32];      /* actual decode charset (may differ from view_charset) */
-    uint32_t cur_msgnum;           /* JAM msgnum of currently shown msg */
-    char cur_msgid[160];           /* MSGID value of currently shown msg (without ^A) */
-    char cur_reply[160];           /* REPLY value of currently shown msg (without ^A) */
-    wchar_t reader_search[64];     /* last search query in reader */
-    int *reader_search_matches;    /* malloc'd array of line indices with matches */
-    int reader_search_match_count; /* number of matches */
+    char msg_charset[32];     /* charset detected when reading */
+    char view_charset[32];    /* charset chosen for display */
+    char decoded_charset[32]; /* actual decode charset (may differ from view_charset) */
+    uint32_t cur_msgnum;      /* JAM msgnum of currently shown msg */
+    char cur_msgid[160];      /* MSGID value of currently shown msg (without ^A) */
+    char cur_reply[160];      /* REPLY value of currently shown msg (without ^A) */
+    UiSearch reader_search;   /* search state in reader */
 
     /* Editor state */
     Ed *editor;
@@ -169,12 +210,9 @@ struct UiApp
     int edit_return_view;              /* VIEW_READER or VIEW_MSGLIST: where to go on cancel/save */
     int edit_active_field;             /* 0..4 = FROM/TO/SUBJ/DADDR/BODY, -1 idle */
     uint32_t edit_reply_to_msgnum;
-    uint32_t edit_attr;          /* MSG_PRIVATE / MSG_CRASH / MSG_HOLD */
-    wchar_t edit_search[64];     /* last forward-search query */
-    int *edit_search_rows;       /* malloc'd array of row indices with matches */
-    int *edit_search_cols;       /* malloc'd array of col indices with matches */
-    int edit_search_match_count; /* number of matches */
-    AttachList *attach_list;     /* file attachments for current message */
+    uint32_t edit_attr;      /* MSG_PRIVATE / MSG_CRASH / MSG_HOLD */
+    UiSearch edit_search;    /* search state in editor */
+    AttachList *attach_list; /* file attachments for current message */
 
     /* Status message (one-line) */
     char status[256];
@@ -245,6 +283,7 @@ void ui_arealist_rebuild_order(UiApp *app);
 /* Popups (blocking, return value = user choice) */
 int ui_popup_confirm(const char *title, const char *msg);     /* 1=yes, 0=no, -1=ESC */
 int ui_popup_confirm_all(const char *title, const char *msg); /* 1=yes, 0=no, -1=ESC, 2=all */
+void ui_popup_message(const char *title, const char *msg);    /* simple message, waits for key */
 
 /* Choose one item from string array (-1=cancel, initial=preselected) */
 int ui_popup_list(const char *title, const char **items, int count, int initial);
@@ -256,16 +295,16 @@ int ui_popup_search_results(const char *title, const int *line_nums, const char 
 int ui_popup_charset(const char *title, const char *cur, char *out, int outsz);
 int ui_popup_charset_pair(const char *view_in, const char *output_in, const char *view_def, const char *output_def, char *view_out, int view_outsz, char *output_out, int output_outsz);
 
-/* Choose AKA from cfg->aka[] (cur_idx=preselected, returns selected index, -1=cancel) */
+/* Choose AKA from cfg->aka[] (cur_idx=preselected, returns selected index,
+ * -1=cancel) */
 int ui_popup_aka(const UiApp *app, int cur_idx);
 
 /* Input text: prompt + prefilled buffer (0=ok, -1=cancel) */
 /* Wide-char input (for filters/text with possible accents) */
-int ui_popup_input_wcs(const char *title, const char *prompt, wchar_t *wbuf, int wcap);
+int ui_popup_input(const char *title, const char *prompt, wchar_t *wbuf, int wcap);
 
-/* Narrow-char input (for ASCII fields: paths, sort spec) */
-int ui_popup_input(const char *title, const char *prompt, char *buf, int bufsz);
-int ui_popup_input_at(int py, int px, int ph, int pw, const char *title, const char *prompt, char *buf, int bufsz);
+/* Find & Replace popup with case-sensitive and whole-word options */
+int ui_popup_replace(const wchar_t *search_in, const wchar_t *replace_in, wchar_t *search_out, int search_outsz, wchar_t *replace_out, int replace_outsz, int *case_sensitive, int *whole_word);
 
 /* Choose area list sort spec (0=ok, -1=cancel) */
 int ui_popup_sort(char *spec, int specsz, const char *cfg_default);

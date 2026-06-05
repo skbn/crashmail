@@ -29,12 +29,14 @@
 #include "ui.h"
 #include "ui_internal.h"
 #include <locale.h>
+
 #if !defined(PLATFORM_WIN32) && !defined(PLATFORM_AMIGA)
-#include <langinfo.h> /* nl_langinfo(CODESET) for UTF-8 locale detection */
+#include <langinfo.h> /* nl_langinfo(CODESET) for UTF-8 locale detection (fix BSD) */
 #endif
 #ifdef PLATFORM_WIN32
 #include <windows.h>
 #endif
+
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -365,6 +367,8 @@ void ui_draw_statusbar(UiApp *app)
 void ui_draw_menubar(UiApp *app, const char *title)
 {
     int x;
+    int left_offset = 0;
+    char hint[64] = "";
 
     attron(COLOR_PAIR(COL_MENU));
     move(0, 0);
@@ -372,12 +376,31 @@ void ui_draw_menubar(UiApp *app, const char *title)
     for (x = 0; x < COLS; x++)
         addch(' ');
 
+    /* Left: key hints based on search mode */
+    if (app)
+    {
+        /* Check editor/reader search mode */
+        if (app->edit_search.is_mode && app->edit_search.match_count > 0)
+            snprintf(hint, sizeof(hint), "Match %d/%d | F3=Prev F4=Next F5=Change F6=ALL ESC=Exit", app->edit_search.match_current, app->edit_search.match_count);
+        else if (app->edit_search.only_mode && app->edit_search.match_count > 0)
+            snprintf(hint, sizeof(hint), "Match %d/%d | F3=Prev F4=Next ESC=Exit", app->edit_search.match_current, app->edit_search.match_count);
+        else if (app->reader_search.only_mode && app->reader_search.match_count > 0)
+            snprintf(hint, sizeof(hint), "Match %d/%d | F3=Prev F4=Next ESC=Exit", app->reader_search.match_current, app->reader_search.match_count);
+
+        if (hint[0])
+        {
+            mvaddnstr(0, 2, hint, (int)strlen(hint));
+            left_offset = (int)strlen(hint) + 4;
+        }
+    }
+
+    /* Right: title */
     if (title && title[0])
     {
         int tl = (int)strlen(title);
         int tx = COLS - tl - 2;
 
-        if (tx > 2)
+        if (tx > left_offset)
             mvaddnstr(0, tx, title, tl);
     }
 
@@ -517,6 +540,7 @@ static void ui_init_locale()
     /* Wrapper layers handle encoding; just set whatever the env says */
     setlocale(LC_ALL, "");
 #else
+
     static const char *utf8_fallbacks[] =
         {
             "C.UTF-8",
@@ -590,7 +614,7 @@ UiApp *ui_init(CrashEditCfg *cfg, AreaList *areas)
     raw();
     noecho();
 
-	/* fix with paste text */
+    /* fix with paste text */
     /*nonl();*/ /* Disable carriage return to newline translation */
 
     keypad(stdscr, TRUE);
@@ -658,6 +682,8 @@ UiApp *ui_init(CrashEditCfg *cfg, AreaList *areas)
 
     define_key("\033c", KEY_ALT('C')); /* Alt+C */
     define_key("\033C", KEY_ALT('C')); /* Alt+Shift+C */
+    define_key("\033f", KEY_ALT('F')); /* Alt+F */
+    define_key("\033F", KEY_ALT('F')); /* Alt+Shift+F */
     define_key("\033s", KEY_ALT('S')); /* Alt+S */
     define_key("\033S", KEY_ALT('S')); /* Alt+Shift+S */
     define_key("\033l", KEY_ALT('L')); /* Alt+L */

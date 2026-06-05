@@ -120,6 +120,8 @@ void ed_set_pos(Ed *ed, int row, int col);
 int ed_search_forward(Ed *ed, const wchar_t *needle);
 /* Find all matches, returns count and malloc'd arrays (caller must free) */
 int ed_search_all(Ed *ed, const wchar_t *needle, int **out_rows, int **out_cols);
+/* Find all matches with case-sensitive and whole-word options */
+int ed_search_all_custom(Ed *ed, const wchar_t *needle, int case_sensitive, int whole_word, int **out_rows, int **out_cols);
 /* Re-flow with quote preservation */
 int ed_rewrap_paragraph(Ed *ed, int width);
 

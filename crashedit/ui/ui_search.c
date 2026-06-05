@@ -41,8 +41,7 @@ static const char *SEARCH_HELP[] =
 #ifndef PLATFORM_AMIGA
         "  PgUp/PgDn      Page up/down",
         "  Home/End       First / last area",
-#endif
-#ifdef PLATFORM_AMIGA
+#else
         "  Ctrl+U/D       Page up/down",
         "  Ctrl+B/E       First / last area",
 #endif
@@ -54,8 +53,7 @@ static const char *SEARCH_HELP[] =
 #ifndef PLATFORM_AMIGA
         "  PgUp/PgDn      Page up/down",
         "  Home/End       First / last message",
-#endif
-#ifdef PLATFORM_AMIGA
+#else
         "  Ctrl+U/D       Page up/down",
         "  Ctrl+B/E       First / last message",
 #endif
@@ -268,7 +266,10 @@ static int search_params_popup(UiApp *app, char *pattern, int patternsz, int *op
 
         mvaddnstr(row, fieldx + fieldw + 1, "(0=default)", 14);
 
-        /* Footer */
+        /* Footer - clear area first to apply popup background */
+        for (k = 0; k < w - 4; k++)
+            mvaddch(y + h - 2, x + 2 + k, ' ');
+
         mvaddnstr(y + h - 2, x + 2, "TAB next  SPACE toggle  ENTER run  ESC cancel", w - 4);
 
         attroff(COLOR_PAIR(COL_POPUP));
@@ -692,12 +693,14 @@ UiView ui_search_results_run(UiApp *app)
             case 'k':
                 if (area_pick > 0)
                     area_pick--;
+
                 break;
 
             case KEY_DOWN:
             case 'j':
                 if (area_pick < n_runs - 1)
                     area_pick++;
+
                 break;
 
             case KEY_HOME:
@@ -716,6 +719,7 @@ UiView ui_search_results_run(UiApp *app)
 
                 if (area_pick >= n_runs)
                     area_pick = n_runs - 1;
+
                 break;
 
             case KEY_PPAGE:
@@ -724,6 +728,7 @@ UiView ui_search_results_run(UiApp *app)
 
                 if (area_pick < 0)
                     area_pick = 0;
+
                 break;
 
             case '\n':
@@ -753,12 +758,14 @@ UiView ui_search_results_run(UiApp *app)
             case 'k':
                 if (hit_pick > 0)
                     hit_pick--;
+
                 break;
 
             case KEY_DOWN:
             case 'j':
                 if (hit_pick < cnt - 1)
                     hit_pick++;
+
                 break;
 
             case KEY_HOME:
@@ -777,6 +784,7 @@ UiView ui_search_results_run(UiApp *app)
 
                 if (hit_pick >= cnt)
                     hit_pick = cnt - 1;
+
                 break;
 
             case KEY_PPAGE:
@@ -785,6 +793,7 @@ UiView ui_search_results_run(UiApp *app)
 
                 if (hit_pick < 0)
                     hit_pick = 0;
+
                 break;
 
             case KEY_BACKSPACE:
@@ -811,8 +820,7 @@ UiView ui_search_results_run(UiApp *app)
                     app->search_hit_top = hit_top;
                     next_view = VIEW_READER;
 
-                    /* DO NOT free runs/search — we want them when
-                     * we come back. Just return */
+                    /* DO NOT free runs/search — we want them when we come back. Just return */
                     return next_view;
                 }
 

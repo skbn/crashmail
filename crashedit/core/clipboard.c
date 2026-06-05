@@ -239,6 +239,9 @@ static char *read_ftxt_payload(struct IOClipReq *io)
 
             if (!grown)
             {
+                free(out);
+
+                out = NULL;
                 ok = 0;
             }
             else
