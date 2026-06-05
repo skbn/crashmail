@@ -149,7 +149,10 @@ static void normalize_charset(char *cs)
 {
     const char *canonical = charset_resolve(cs);
     if (canonical && canonical != cs)
-        strcpy(cs, canonical);
+    {
+        strncpy(cs, canonical, CHARSET_NAME_MAX - 1);
+        cs[CHARSET_NAME_MAX - 1] = '\0';
+    }
 }
 
 /* Map color name to ncurses number (0..15), or -1 */
@@ -726,6 +729,17 @@ int cfg_load(CrashEditCfg *cfg, const char *path)
         else if (strcasecmp(word, "TAGLINEFILE") == 0)
         {
             copy_rest(rest, cfg->tagline_file, sizeof(cfg->tagline_file));
+        }
+        else if (strcasecmp(word, "INCLUDE") == 0)
+        {
+            if (cfg->nodelist_includes_count < (int)(sizeof(cfg->nodelist_includes) / sizeof(cfg->nodelist_includes[0])))
+            {
+                int slot = cfg->nodelist_includes_count;
+                copy_rest(rest, cfg->nodelist_includes[slot], sizeof(cfg->nodelist_includes[slot]));
+
+                if (cfg->nodelist_includes[slot][0])
+                    cfg->nodelist_includes_count++;
+            }
         }
         else if (strcasecmp(word, "TEMPLATEFILE") == 0)
         {

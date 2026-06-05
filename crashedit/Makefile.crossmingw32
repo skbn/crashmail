@@ -64,7 +64,7 @@ CDEFS = -DPLATFORM_WIN32 -D_WINDOWS
 CORE_OBJS = $(OBJDIR)/jam_wrap.o $(OBJDIR)/utf8.o $(OBJDIR)/charset.o \
             $(OBJDIR)/ftn.o $(OBJDIR)/msghdr.o $(OBJDIR)/wrapper_io.o \
             $(OBJDIR)/clipboard.o $(OBJDIR)/attach.o $(OBJDIR)/freq.o $(OBJDIR)/keys.o \
-            $(OBJDIR)/ansi.o $(OBJDIR)/ncursesw_win32.o $(OBJDIR)/search.o
+            $(OBJDIR)/ansi.o $(OBJDIR)/ncursesw_win32.o $(OBJDIR)/search.o $(OBJDIR)/nodelist.o
 COMP_OBJS = $(OBJDIR)/editor.o $(OBJDIR)/reader.o $(OBJDIR)/areafile.o $(OBJDIR)/config.o
 UI_OBJS   = $(OBJDIR)/ui_app.o \
             $(OBJDIR)/ui_session.o $(OBJDIR)/ui_popup.o $(OBJDIR)/ui_arealist.o \
@@ -73,7 +73,7 @@ UI_OBJS   = $(OBJDIR)/ui_app.o \
             $(OBJDIR)/ui_editor_prep.o $(OBJDIR)/ui_editor_popups.o \
             $(OBJDIR)/ui_aka.o $(OBJDIR)/ui_attr.o $(OBJDIR)/ui_files.o \
             $(OBJDIR)/ui_popup_attach.o $(OBJDIR)/ui_popup_freq.o $(OBJDIR)/ui_setup.o \
-            $(OBJDIR)/ui_search.o
+            $(OBJDIR)/ui_search.o $(OBJDIR)/ui_popup_nodelist.o
 ALL_OBJS = $(CORE_OBJS) $(COMP_OBJS)
 
 all: $(TARGET) crashedit
@@ -190,6 +190,12 @@ $(OBJDIR)/ui_setup.o: $(UIDIR)/ui_setup.c $(UIDIR)/ui_internal.h $(COMPDIR)/conf
 
 $(OBJDIR)/ui_search.o: $(UIDIR)/ui_search.c $(UIDIR)/ui_search.h $(UIDIR)/ui_internal.h $(COREDIR)/search.h | $(OBJDIR)
 	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
+$(OBJDIR)/nodelist.o: $(COREDIR)/nodelist.c $(COREDIR)/nodelist.h | $(OBJDIR)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(OBJDIR)/ui_popup_nodelist.o: $(UIDIR)/ui_popup_nodelist.c $(UIDIR)/ui_internal.h $(COREDIR)/nodelist.h | $(OBJDIR)
+	$(CC) $(CFLAGS) -c $< -o $@
 
 # Application
 JAMLIB = $(HERE)../src/jamlib/jamlib.a

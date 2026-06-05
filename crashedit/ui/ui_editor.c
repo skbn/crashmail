@@ -109,7 +109,13 @@ static const char *EDITOR_HELP[] =
         "    F3 ALT-C        Charset",
         "    F4 Ctrl-A       AKA (netmail)",
         "    F9 Alt+A        Attr (Priv/Crash/Hold)",
-        "    ESC F10         Cancel (confirm)",
+        "    F10 Alt+T       Nodelist picker",
+#ifdef PLATFORM_AMIGA
+        "    Alt+V           Nodelist browser",
+#else
+        "    F11/Alt+V       Nodelist browser",
+#endif
+        "    ESC             Cancel (confirm)",
         "    F1 ?            This help"};
 #define EDITOR_HELP_N ((int)(sizeof(EDITOR_HELP) / sizeof(EDITOR_HELP[0])))
 
@@ -1753,7 +1759,7 @@ UiView ui_editor_run(UiApp *app)
         if ((is_key && ch == KEY_F(4)) || (!is_key && ch == CTRL('A')) || (is_key && ch == KEY_ALT('N')))
         {
             /* F4/Alt+N: next match in search mode, otherwise AKA picker */
-            if ((is_key && ch == KEY_ALT('N')) || (is_key && ch == KEY_F(4)) && app->edit_search.is_mode || app->edit_search.only_mode)
+            if (((is_key && ch == KEY_ALT('N')) || (is_key && ch == KEY_F(4))) && (app->edit_search.is_mode || app->edit_search.only_mode))
             {
                 if (search_next_editor(app))
                     continue;
@@ -1845,12 +1851,43 @@ UiView ui_editor_run(UiApp *app)
             }
         } /* end F4 / Ctrl+A handler */
 
-        /* ESC in header: jump to body. ESC in body / F10: confirm quit */
-        if ((!is_key && ch == 27) || (is_key && ch == KEY_F(10)))
+        /* Only read info */
+        if ((is_key && (int)ch == KEY_F(11)) || (is_key && ch == KEY_ALT('V')))
+        {
+            ui_popup_nodelist(app, 0, NULL, 0, NULL, 0);
+            continue;
+        }
+
+        /* Active only in header */
+        if (((is_key && (int)ch == KEY_F(10) || (is_key && ch == KEY_ALT('T'))) && app->edit_active_field != EF_BODY))
+        {
+            char picked_name[NODELIST_NAME_MAX];
+            char picked_addr[NODELIST_ADDR_MAX];
+
+            picked_name[0] = '\0';
+            picked_addr[0] = '\0';
+
+            if (ui_popup_nodelist(app, 1, picked_name, sizeof(picked_name), picked_addr, sizeof(picked_addr)))
+            {
+                if (picked_name[0])
+                    msghdr_set_utf8(app->edit_hdr, HDR_TO, picked_name);
+
+                /* Destination address is meaningful only on netmail */
+                if (ui_is_netmail(app) && picked_addr[0])
+                    msghdr_set_utf8(app->edit_hdr, HDR_DADDR, picked_addr);
+
+                ui_status(app, "Recipient set: %s%s%s", picked_name, picked_addr[0] ? "  " : "", picked_addr[0] ? picked_addr : "");
+            }
+
+            continue;
+        }
+
+        /* ESC in header: jump to body. ESC in body: confirm quit */
+        if (!is_key && ch == 27)
         {
             EdInfo info;
 
-            if (!is_key && ch == 27 && app->edit_active_field != EF_BODY)
+            if (app->edit_active_field != EF_BODY)
             {
                 app->edit_active_field = EF_BODY;
                 continue;

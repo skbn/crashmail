@@ -583,6 +583,8 @@ UiApp *ui_init(CrashEditCfg *cfg, AreaList *areas)
 {
     UiApp *app;
     char *s;
+    int k;
+    const char *default_net;
 
     if (!cfg || !areas)
         return NULL;
@@ -690,6 +692,10 @@ UiApp *ui_init(CrashEditCfg *cfg, AreaList *areas)
     define_key("\033L", KEY_ALT('L')); /* Alt+Shift+L */
     define_key("\033i", KEY_ALT('I')); /* Alt+I */
     define_key("\033I", KEY_ALT('I')); /* Alt+Shift+I */
+    define_key("\033v", KEY_ALT('V')); /* Alt+V nodelist view */
+    define_key("\033V", KEY_ALT('V')); /* Alt+Shift+V */
+    define_key("\033t", KEY_ALT('T')); /* Alt+T nodelist picker */
+    define_key("\033T", KEY_ALT('T')); /* Alt+Shift+T */
 #endif
 
     app = (UiApp *)calloc(1, sizeof(UiApp));
@@ -771,6 +777,28 @@ UiApp *ui_init(CrashEditCfg *cfg, AreaList *areas)
         ed_set_undo_levels(app->editor, cfg->undo_levels);
 
     ui_arealist_rebuild_order(app);
+
+    /* Load FTS-5000 nodelists / pointlists declared with INCLUDE in the config */
+    nodelist_init(&app->nodelist);
+
+    /* default_net = "fidonet"; */
+    default_net = NULL; /* No @network suffix in nodelist addresses */
+
+    if (cfg->aka_count > 0)
+    {
+        const char *at = strchr(cfg->aka[0], '@');
+
+        if (at && at[1])
+            default_net = at + 1;
+    }
+
+    for (k = 0; k < cfg->nodelist_includes_count; k++)
+    {
+        const char *p = cfg->nodelist_includes[k];
+
+        if (p && p[0])
+            nodelist_load_file(&app->nodelist, p, default_net);
+    }
 
     /* MSGLISTFIRST: if exactly one area, open it directly */
     if (app->cfg->msglistfirst && areas->count == 1)
@@ -874,6 +902,8 @@ void ui_cleanup(UiApp *app)
 
     /* Release any pending search session (frees ss + the runs array) */
     ui_search_cleanup(app);
+
+    nodelist_free(&app->nodelist);
 
     free(app->area_order);
     free(app);

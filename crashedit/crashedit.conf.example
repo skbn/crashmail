@@ -65,6 +65,17 @@ ORIGIN Citrick BBS citlmbbs.synchro.net
 # Default: (empty)
 #TEMPLATEFILE work:fido/etc/template.txt
 
+# INCLUDE -- Path(s) to FTS-5000 nodelists or pointlists to load into
+#            RAM at startup. Used by the F10 picker in the editor (and
+#            F11 to browse the list visually) to fill the To: and
+#            Dest: fields by name or FTN address. Up to 16 INCLUDE
+#            lines are allowed; each adds one file. Both classical
+#            nodelists (Zone/Region/Host/Hub/Pvt/...) and pointlists
+#            (Boss + child point lines) are recognised. Comments and
+#            unknown line types are silently skipped
+#INCLUDE work:fido/etc/nodelist.107
+#INCLUDE work:fido/etc/r34pnt.114
+
 
 #===========================================================================#
 #  GREETING / ATTRIBUTION / SIGNATURE                                       #

@@ -826,7 +826,13 @@ char *ftn_quote_body(const char *body)
         n = snprintf(&qb[qi], qmax - (size_t)qi, "> %.*s\n", llen, p);
 
         if (n > 0)
-            qi += n;
+        {
+            if ((size_t)n >= qmax - (size_t)qi)
+                n = (int)(qmax - (size_t)qi) - 1;
+
+            if (n > 0)
+                qi += n;
+        }
 
         if ((size_t)qi >= qmax - 4)
             break;
@@ -1698,20 +1704,27 @@ int ftn_detect_timezone_offset()
     time_t t_utc, t_local;
     int dt;
 
+    memset(&utc_tm, 0, sizeof(utc_tm));
+    memset(&local_tm, 0, sizeof(local_tm));
+
     /* Get UTC time */
 #ifdef PLATFORM_WIN32
-    gmtime_s(&utc_tm, &t);
+    if (gmtime_s(&utc_tm, &t) != 0)
+        return 0;
 #else
-    gmtime_r(&t, &utc_tm);
+    if (!gmtime_r(&t, &utc_tm))
+        return 0;
 #endif
 
     utc_tm.tm_isdst = -1;
 
     /* Get local time */
 #ifdef PLATFORM_WIN32
-    localtime_s(&local_tm, &t);
+    if (localtime_s(&local_tm, &t) != 0)
+        return 0;
 #else
-    localtime_r(&t, &local_tm);
+    if (!localtime_r(&t, &local_tm))
+        return 0;
 #endif
 
     local_tm.tm_isdst = -1;

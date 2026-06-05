@@ -28,9 +28,10 @@
 #include <string.h>
 #include <ctype.h>
 #include <wchar.h>
+#include <wctype.h>
 #include "editor.h"
 #include "../core/utf8.h"
-#include "../core/charset.h" /* for charset_body_from_utf8 in block export */
+#include "../core/charset.h"
 
 /* Line: dynamic wchar_t array */
 typedef struct
@@ -1819,7 +1820,13 @@ int ed_rewrap_paragraph(Ed *ed, int width)
 
     prefix_len = detect_quote_prefix(line);
 
-    if (prefix_len > 0 && prefix_len < (int)(sizeof(prefix) / sizeof(prefix[0])))
+    if (prefix_len < 0)
+        prefix_len = 0;
+
+    if (prefix_len > (int)(sizeof(prefix) / sizeof(prefix[0])) - 1)
+        prefix_len = (int)(sizeof(prefix) / sizeof(prefix[0])) - 1;
+
+    if (prefix_len > 0)
         wmemcpy(prefix, line, (size_t)prefix_len);
 
     prefix[prefix_len] = L'\0';
@@ -2311,9 +2318,14 @@ int ed_search_all_custom(Ed *ed, const wchar_t *needle, int case_sensitive, int 
     int count = 0;
     int capacity = 1024;
     int i, j;
-    int needle_len = (int)wcslen(needle);
+    int needle_len;
 
-    if (!needle || needle_len == 0)
+    if (!ed || !needle || !out_rows || !out_cols)
+        return 0;
+
+    needle_len = (int)wcslen(needle);
+
+    if (needle_len == 0)
         return 0;
 
     *out_rows = malloc(capacity * sizeof(int));
@@ -2366,9 +2378,7 @@ int ed_search_all_custom(Ed *ed, const wchar_t *needle, int case_sensitive, int 
 
                     /* Check if previous and next characters are word boundaries */
                     if ((prev_char != 0 && !iswspace(prev_char) && !iswpunct(prev_char)) || (next_char != 0 && !iswspace(next_char) && !iswpunct(next_char)))
-                    {
                         match = 0;
-                    }
                 }
 
                 if (match)
@@ -2376,11 +2386,12 @@ int ed_search_all_custom(Ed *ed, const wchar_t *needle, int case_sensitive, int 
                     /* Add match to results */
                     if (count >= capacity)
                     {
-                        capacity *= 2;
-                        *out_rows = realloc(*out_rows, capacity * sizeof(int));
-                        *out_cols = realloc(*out_cols, capacity * sizeof(int));
+                        int *nr, *nc;
 
-                        if (!*out_rows || !*out_cols)
+                        capacity *= 2;
+                        nr = realloc(*out_rows, capacity * sizeof(int));
+
+                        if (!nr)
                         {
                             free(*out_rows);
                             free(*out_cols);
@@ -2389,6 +2400,21 @@ int ed_search_all_custom(Ed *ed, const wchar_t *needle, int case_sensitive, int 
 
                             return 0;
                         }
+
+                        *out_rows = nr;
+
+                        nc = realloc(*out_cols, capacity * sizeof(int));
+
+                        if (!nc)
+                        {
+                            free(*out_rows);
+                            free(*out_cols);
+                            *out_rows = *out_cols = NULL;
+
+                            return 0;
+                        }
+
+                        *out_cols = nc;
                     }
 
                     (*out_rows)[count] = i;

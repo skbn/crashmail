@@ -870,6 +870,8 @@ static int popup_input_core(const char *title, const char *prompt, wchar_t *wbuf
     /* Cleanup saved window (should not reach here, but for safety) */
     if (saved)
         delwin(saved);
+
+    return -1;
 }
 
 /* Public wide-char input wrapper */

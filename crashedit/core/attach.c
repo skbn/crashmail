@@ -266,6 +266,11 @@ char **attach_build_subjects(const AttachList *list, int *out_count)
             continue;
 
         name_len = strlen(name);
+
+        /* Skip filenames that won't fit in the buffer */
+        if (name_len + 1 > sizeof(buf))
+            continue;
+
         /* +1 for the separating space between filenames (only when the
          * buffer already has content) */
         want = buf_len + (buf_len ? 1 : 0) + name_len;

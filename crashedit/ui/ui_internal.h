@@ -26,6 +26,10 @@
 #ifndef UI_INTERNAL_H
 #define UI_INTERNAL_H
 
+#ifndef _XOPEN_SOURCE_EXTENDED
+#define _XOPEN_SOURCE_EXTENDED 1
+#endif
+
 #include "../wrapper.h"
 #include <wchar.h>
 
@@ -38,6 +42,7 @@
 #endif
 
 #include "../core/keys.h"
+#include "../core/nodelist.h"
 
 /* CTRL('B') = 0x02 */
 #ifndef CTRL
@@ -234,6 +239,9 @@ struct UiApp
 
     /* Force setup mode on first run or missing config. ui_run() drops into setup screen */
     int force_setup;
+
+    /* Nodelist/pointlist entries loaded from INCLUDE directives at startup */
+    Nodelist nodelist;
 };
 
 typedef struct UiApp UiApp;
@@ -317,6 +325,9 @@ int ui_setup_run(UiApp *app);           /* config editor; 1=saved (reload), 0=ca
 int ui_popup_attach_remove(UiApp *app); /* 1=removed, 0=canceled */
 int ui_popup_attach_clear(UiApp *app);  /* 1=cleared, 0=canceled */
 int ui_popup_attach_list(UiApp *app);   /* 0=closed */
+
+/* Nodelist / pointlist picker. Type-ahead filtering by name or address */
+int ui_popup_nodelist(UiApp *app, int allow_pick, char *out_name, int name_sz, char *out_addr, int addr_sz);
 
 /* Compute centered popup geometry, clamped to LINES/COLS */
 void ui_popup_center(int want_h, int want_w, int *y, int *x, int *h, int *w);

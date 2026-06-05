@@ -108,6 +108,10 @@ typedef struct
     /* Freq output: outbound dir and mode (ASO/BSO/BSO+ext). See core/freq.c */
     char freq_outbound[CFG_STR_MAX];
     int freq_mode;
+
+    /* INCLUDE: paths to FTS-5000 nodelists/pointlists to load into RAM on startup */
+    char nodelist_includes[16][CFG_STR_MAX];
+    int nodelist_includes_count;
 } CrashEditCfg;
 
 /* Load config from path (0=ok, -1=error) */
