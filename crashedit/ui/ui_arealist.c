@@ -58,6 +58,7 @@ static const char *AREALIST_HELP[] =
 #endif
         "  Enter          Open selected area (message list)",
         "  /              Search (fuzzy match)",
+        "  G              Goto area by name (cursor jump)",
         "  s              Change sort order",
         "  Alt+C, C       Catch-up (Y=this area, A=ALL areas)",
         "  Alt+S, R       Rescan all areas",
@@ -746,7 +747,9 @@ UiView ui_arealist_run(UiApp *app)
         if (app->area_order_count == 0)
         {
             attron(COLOR_PAIR(COL_NORMAL));
+
             mvaddnstr(LINES / 2, (COLS - 30) / 2, "(no areas match the filter)", 30);
+
             attroff(COLOR_PAIR(COL_NORMAL));
         }
         else
@@ -775,11 +778,11 @@ UiView ui_arealist_run(UiApp *app)
         {
             char *sbuf = wcs_to_utf8(app->area_search, (int)wcslen(app->area_search));
 
-            ui_status(app, "Filter: \"%s\"  |  %d areas  | /=search  s=sort", sbuf ? sbuf : "", app->area_order_count);
+            ui_status(app, "Filter: \"%s\"  |  %d areas  | /=search G=goto s=sort", sbuf ? sbuf : "", app->area_order_count);
             free(sbuf);
         }
         else
-            ui_status(app, "%s | %d areas | /=search  s=sort", WRAPPER_PID, app->area_order_count);
+            ui_status(app, "%s | %d areas | /=search G=goto s=sort", WRAPPER_PID, app->area_order_count);
 
         ui_draw_statusbar(app);
         refresh();
@@ -857,6 +860,253 @@ UiView ui_arealist_run(UiApp *app)
                 app->area_search[63] = L'\0';
 
                 ui_arealist_rebuild_order(app);
+            }
+
+            break;
+        }
+        case 'G':
+        case 'g':
+        {
+            char maybe[64];
+            int mlen = 0;
+            int *saved_order = NULL;
+            int saved_count = app->area_order_count;
+
+            /* Snapshot the current display order so Esc can restore it */
+            if (saved_count > 0)
+            {
+                saved_order = (int *)malloc((size_t)saved_count * sizeof(int));
+
+                if (saved_order)
+                    memcpy(saved_order, app->area_order, (size_t)saved_count * sizeof(int));
+            }
+
+            maybe[0] = '\0';
+
+            for (;;)
+            {
+                wint_t k;
+                int krc;
+                int j;
+                int vis_rows = LINES - 3;
+                ArealistLayout ly;
+                char hdr[128];
+
+                if (vis_rows < 1)
+                    vis_rows = 1;
+
+                erase();
+                ui_draw_menubar(app, "Area List");
+
+                /* Type-ahead bar across the header row */
+                attron(COLOR_PAIR(COL_HEADER));
+                move(1, 0);
+
+                for (j = 0; j < COLS; j++)
+                    addch(' ');
+
+                snprintf(hdr, sizeof(hdr), ">>Pick area: %s_", maybe);
+                mvaddnstr(1, 1, hdr, COLS - 2);
+
+                attroff(COLOR_PAIR(COL_HEADER));
+
+                compute_layout_cached(app, COLS, &ly);
+
+                if (app->area_sel < app->area_top)
+                    app->area_top = app->area_sel;
+
+                if (app->area_sel >= app->area_top + vis_rows)
+                    app->area_top = app->area_sel - vis_rows + 1;
+
+                if (app->area_top < 0)
+                    app->area_top = 0;
+
+                for (j = 0; j < vis_rows && app->area_top + j < app->area_order_count; j++)
+                {
+                    int aidx = app->area_order[app->area_top + j];
+                    AreaEntry *a = &app->areas->entries[aidx];
+                    int sel = (app->area_top + j == app->area_sel);
+
+                    attron(COLOR_PAIR(sel ? COL_SELECTED : COL_NORMAL));
+
+                    draw_row(2 + j, 0, COLS, app, a, aidx + 1, sel, &ly);
+
+                    attroff(COLOR_PAIR(sel ? COL_SELECTED : COL_NORMAL));
+                }
+
+                ui_draw_statusbar(app);
+                refresh();
+
+                krc = wrapper_read_key(&k);
+
+                if (krc == ERR)
+                    continue;
+
+                /* Enter: open the currently selected area */
+                if ((int)k == '\n' || (int)k == '\r' || (int)k == KEY_ENTER)
+                {
+                    if (app->area_order_count > 0 && app->area_sel >= 0 && app->area_sel < app->area_order_count)
+                    {
+                        int idx = app->area_order[app->area_sel];
+
+                        free(saved_order);
+
+                        if (ui_session_open(app, idx) == 0)
+                            return VIEW_MSGLIST;
+                    }
+                    else
+                    {
+                        free(saved_order);
+                    }
+
+                    break;
+                }
+
+                /* Esc: restore original order */
+                if ((int)k == 27)
+                {
+                    if (saved_order && saved_count > 0)
+                    {
+                        free(app->area_order);
+                        app->area_order = saved_order;
+                        app->area_order_count = saved_count;
+                        saved_order = NULL;
+
+                        if (app->area_sel >= app->area_order_count)
+                            app->area_sel = app->area_order_count - 1;
+
+                        if (app->area_sel < 0)
+                            app->area_sel = 0;
+                    }
+
+                    free(saved_order);
+                    break;
+                }
+
+                /* Backspace */
+                if ((int)k == KEY_BACKSPACE || (int)k == 8 || (int)k == 127)
+                {
+                    if (mlen > 0)
+                        maybe[--mlen] = '\0';
+                }
+                /* Up / Down: manual navigation */
+                else if ((int)k == KEY_UP)
+                {
+                    if (app->area_sel > 0)
+                        app->area_sel--;
+
+                    continue;
+                }
+                else if ((int)k == KEY_DOWN)
+                {
+                    if (app->area_sel < app->area_order_count - 1)
+                        app->area_sel++;
+
+                    continue;
+                }
+                /* Printable ASCII char: append to type-ahead buffer */
+                else if (krc != KEY_CODE_YES && k >= 0x20 && k < 0x7F && mlen < 62)
+                {
+                    maybe[mlen++] = (char)k;
+                    maybe[mlen] = '\0';
+                }
+                else
+                {
+                    continue; /* ignore everything else */
+                }
+
+                /* Re-partition area_order: matching areas first (in their
+                 * original relative order), then non-matching. Use the
+                 * saved snapshot as the source of truth so each keystroke
+                 * starts from the same base order */
+                if (saved_order && saved_count > 0)
+                {
+                    int t;
+                    int n = 0;
+
+                    if (mlen == 0)
+                    {
+                        /* Empty needle: restore original order verbatim */
+                        memcpy(app->area_order, saved_order, (size_t)saved_count * sizeof(int));
+
+                        app->area_sel = 0;
+                        app->area_top = 0;
+                    }
+                    else
+                    {
+                        /* Matches */
+                        for (t = 0; t < saved_count; t++)
+                        {
+                            int aidx = saved_order[t];
+                            const char *nm = app->areas->entries[aidx].name;
+                            int matches = 0;
+                            int q;
+
+                            if (nm)
+                            {
+                                const char *h;
+
+                                for (h = nm; *h && !matches; h++)
+                                {
+                                    int ok = 1;
+
+                                    for (q = 0; q < mlen; q++)
+                                    {
+                                        if (!h[q] || tolower((unsigned char)h[q]) != tolower((unsigned char)maybe[q]))
+                                        {
+                                            ok = 0;
+                                            break;
+                                        }
+                                    }
+
+                                    if (ok)
+                                        matches = 1;
+                                }
+                            }
+
+                            if (matches)
+                                app->area_order[n++] = aidx;
+                        }
+
+                        /* Non-matches */
+                        for (t = 0; t < saved_count; t++)
+                        {
+                            int aidx = saved_order[t];
+                            const char *nm = app->areas->entries[aidx].name;
+                            int matches = 0;
+                            int q;
+
+                            if (nm)
+                            {
+                                const char *h;
+
+                                for (h = nm; *h && !matches; h++)
+                                {
+                                    int ok = 1;
+
+                                    for (q = 0; q < mlen; q++)
+                                    {
+                                        if (!h[q] || tolower((unsigned char)h[q]) != tolower((unsigned char)maybe[q]))
+                                        {
+                                            ok = 0;
+                                            break;
+                                        }
+                                    }
+
+                                    if (ok)
+                                        matches = 1;
+                                }
+                            }
+
+                            if (!matches)
+                                app->area_order[n++] = aidx;
+                        }
+
+                        /* Cursor on the first match (top of list) */
+                        app->area_sel = 0;
+                        app->area_top = 0;
+                    }
+                }
             }
 
             break;

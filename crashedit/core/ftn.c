@@ -201,43 +201,60 @@ int ftn_quote_depth(const char *line, int len)
 /* Extract quote string from line */
 int ftn_get_quotestr(const char *line, int len, char *qbuf, int qbufsz)
 {
-    int i = 0, qlen = 0;
+    int i = 0;
+    int last = -1; /* index just past the final quote char of the prefix */
 
     if (!line || len <= 0 || !qbuf || qbufsz <= 0)
         return 0;
 
-    while (i < len && line[i] == ' ')
+    /* Skip leading whitespace (kept verbatim in the copy below) */
+    while (i < len && (line[i] == ' ' || line[i] == '\t'))
         i++;
 
-    /* Copy leading spaces as part of quote string */
-    int space_start = i;
-    int j = 0;
-
-    while (j < space_start && qlen < qbufsz - 1)
-        qbuf[qlen++] = line[j++];
-
-    /* Find first quote character */
-    while (i < len && !is_qchar(line[i]) && !isalpha((unsigned char)line[i]))
-        i++;
-
-    /* Consume all consecutive quote characters */
-    /*while (i < len && (is_qchar(line[i]) || isalpha((unsigned char)line[i])) && qlen < qbufsz - 1)*/
-    while (i < len && is_qchar(line[i]) && qlen < qbufsz - 1)
+    while (i < len)
     {
-        /* Filter out LF from quote string */
-        if (line[i] != '\n')
-            qbuf[qlen++] = line[i];
+        char c = line[i];
 
-        i++;
+        if (is_qchar(c))
+        {
+            i++;
+            last = i; /* prefix provisionally ends here */
+        }
+        else if (isalpha((unsigned char)c) || c == ' ' || c == '\t')
+        {
+            /* Could be initials ("RW") or the space between tokens
+             * Keep scanning; only commit when we actually see a '>' */
+            i++;
+        }
+        else
+        {
+            break; /* real content begins */
+        }
     }
 
-    /* Include space after quote if present */
-    if (i < len && line[i] == ' ' && qlen < qbufsz - 1)
-        qbuf[qlen++] = line[i++];
+    /* No quote char found at all: not a quoted line */
+    if (last < 0)
+    {
+        qbuf[0] = '\0';
+        return 0;
+    }
 
-    qbuf[qlen] = '\0';
+    /* Copy [0, last) verbatim, then include one trailing space if any */
+    {
+        int qlen = 0;
+        int k;
 
-    return qlen;
+        for (k = 0; k < last && qlen < qbufsz - 1; k++)
+            if (line[k] != '\n')
+                qbuf[qlen++] = line[k];
+
+        if (last < len && line[last] == ' ' && qlen < qbufsz - 1)
+            qbuf[qlen++] = ' ';
+
+        qbuf[qlen] = '\0';
+
+        return qlen;
+    }
 }
 
 int ftn_is_control(const char *p, int len)
@@ -981,10 +998,25 @@ static char *quote_body_named_core(const char *body, const char *from_name, int 
 
             if (qlen > 0 && qlen < (int)sizeof(deepbuf) - 2)
             {
-                int dpos = (deepbuf[qlen - 1] == ' ') ? qlen - 1 : qlen;
-                memmove(deepbuf + dpos + 1, deepbuf + dpos, (size_t)(qlen - dpos + 1));
+                /* Find the first '>' (or quote char) in deepbuf and
+                 * insert an extra '>' right after it */
+                int fpos = 0;
 
-                deepbuf[dpos] = '>';
+                while (fpos < qlen && !is_qchar(deepbuf[fpos]))
+                    fpos++;
+
+                if (fpos < qlen)
+                {
+                    /* Insert '>' at position fpos+1 */
+                    memmove(deepbuf + fpos + 2, deepbuf + fpos + 1, (size_t)(qlen - fpos - 1 + 1)); /* +1 for NUL */
+                    deepbuf[fpos + 1] = '>';
+                }
+                else
+                {
+                    /* No quote char located (shouldn't happen): append */
+                    deepbuf[qlen] = '>';
+                    deepbuf[qlen + 1] = '\0';
+                }
 
                 use_prefix = deepbuf;
                 content += qlen;
