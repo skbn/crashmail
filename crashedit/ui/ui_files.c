@@ -526,6 +526,7 @@ int ui_files_pick(const char *title, const char *start_dir, char *out_path, int 
         {
             int i;
 
+            standend(); /* Clear any residual attributes from previous iteration */
             draw_frame(y, x, h, w, title ? title : "Select file");
             attron(COLOR_PAIR(COL_POPUP));
 
@@ -822,6 +823,7 @@ int ui_files_save(const char *title, const char *start_dir, const char *init_nam
         {
             int i;
 
+            standend(); /* Clear any residual attributes from previous iteration */
             draw_frame(y, x, h, w, title ? title : "Save as");
             attron(COLOR_PAIR(COL_POPUP));
 

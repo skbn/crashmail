@@ -221,7 +221,8 @@ int ftn_get_quotestr(const char *line, int len, char *qbuf, int qbufsz)
         i++;
 
     /* Consume all consecutive quote characters */
-    while (i < len && (is_qchar(line[i]) || isalpha((unsigned char)line[i])) && qlen < qbufsz - 1)
+    /*while (i < len && (is_qchar(line[i]) || isalpha((unsigned char)line[i])) && qlen < qbufsz - 1)*/
+    while (i < len && is_qchar(line[i]) && qlen < qbufsz - 1)
     {
         /* Filter out LF from quote string */
         if (line[i] != '\n')

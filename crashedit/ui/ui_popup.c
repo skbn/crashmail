@@ -747,6 +747,7 @@ static int input_handle_key(InputState *state, int ch)
             wmemmove(&state->buf[state->cursor - 1], &state->buf[state->cursor], (size_t)(state->len - state->cursor + 1));
             state->cursor--;
             state->len--;
+            state->buf[state->len] = L'\0';
         }
     }
     else if (ch == KEY_DC)
@@ -755,6 +756,7 @@ static int input_handle_key(InputState *state, int ch)
         {
             wmemmove(&state->buf[state->cursor], &state->buf[state->cursor + 1], (size_t)(state->len - state->cursor));
             state->len--;
+            state->buf[state->len] = L'\0';
         }
     }
     else if (ch >= 0x20 && ch < 127 && state->len + 1 < state->bufsz)
@@ -762,6 +764,7 @@ static int input_handle_key(InputState *state, int ch)
         wmemmove(&state->buf[state->cursor + 1], &state->buf[state->cursor], (size_t)(state->len - state->cursor + 1));
         state->buf[state->cursor++] = (wchar_t)ch;
         state->len++;
+        state->buf[state->len] = L'\0';
     }
     else
     {
