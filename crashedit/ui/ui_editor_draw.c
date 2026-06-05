@@ -1,0 +1,545 @@
+/*
+ * crashedit - Message area editor for AmigaOS
+ *
+ * This file is part of the crashedit project.
+ *
+ * Copyright (C) 2026 Tanausú M. 39:190/101@amiganet 2:341/207@fidonet
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
+#include "ui_editor_draw.h"
+#include "ui.h"
+#include "ui_internal.h"
+#include "ui_editor_internal.h"
+#include "ui_editor_softwrap.h"
+#include "ui_attr.h"
+#include "../core/msghdr.h"
+#include "../components/editor.h"
+#include <stdio.h>
+#include <string.h>
+#include <wchar.h>
+
+/* Header field drawing */
+void draw_edit_header(UiApp *app)
+{
+    AreaEntry *ae;
+    const wchar_t *from = msghdr_get(app->edit_hdr, HDR_FROM);
+    const wchar_t *to = msghdr_get(app->edit_hdr, HDR_TO);
+    static const char SPACES[256] =
+        "                                                                "
+        "                                                                "
+        "                                                                "
+        "                                                                ";
+    const wchar_t *subj = msghdr_get(app->edit_hdr, HDR_SUBJECT);
+    const char *oaddr = ui_wcs2u8(msghdr_get(app->edit_hdr, HDR_OADDR));
+    const char *daddr = ui_wcs2u8(msghdr_get(app->edit_hdr, HDR_DADDR));
+    const char *area = ui_wcs2u8(msghdr_get(app->edit_hdr, HDR_AREA));
+    char attr_str[40];
+    int i;
+    const char *cs;
+    int cl;
+    const char *attach_mode = "";
+
+    ae = &app->areas->entries[app->sess.area_idx];
+
+    /* Build attribute string */
+    ui_attr_build(app->edit_attr, attr_str, sizeof(attr_str));
+
+    attron(COLOR_PAIR(COL_HEADER));
+
+    for (i = 1; i < 7; i++)
+    {
+        int written = 0;
+
+        move(i, 0);
+        clrtoeol();
+
+        while (written < COLS)
+        {
+            int chunk = COLS - written;
+
+            if (chunk > (int)sizeof(SPACES))
+                chunk = (int)sizeof(SPACES);
+
+            mvaddnstr(i, written, SPACES, chunk);
+            written += chunk;
+        }
+    }
+
+    /* Area on left, edit-mode label in menu bar */
+    /*mvprintw(1, 1, "Area: %-30.30s  %s", area, app->edit_is_new ? (app->edit_is_reply ? "Reply" : "New Message") : "Edit");*/
+
+    if (app->attach_list && app->attach_list->count > 0)
+        attach_mode = "[ATT]";
+
+    mvprintw(1, 1, "Area: %-30.30s  %s  %s", area, app->edit_is_new ? (app->edit_is_reply ? "Reply" : "New Message") : "Edit", attach_mode);
+
+    /* From + origin AKA */
+    if (app->edit_active_field == EF_FROM)
+        attron(A_REVERSE);
+
+    mvprintw(2, 1, "From: %-25.25s  %-20.20s %s", ui_wcs2u8(from), oaddr, "[locked]");
+
+    if (app->edit_active_field == EF_FROM)
+    {
+        attroff(A_REVERSE);
+        move(msghdr_field_row(app->edit_hdr, HDR_FROM), msghdr_field_col(app->edit_hdr, HDR_FROM) + msghdr_edit_col(app->edit_hdr));
+        curs_set(1);
+    }
+
+    /* To + destination AKA (netmail only) */
+    if (app->edit_active_field == EF_TO)
+        attron(A_REVERSE);
+
+    mvprintw(3, 1, "  To: %-25.25s", ui_wcs2u8(to));
+
+    if (app->edit_active_field == EF_TO)
+    {
+        attroff(A_REVERSE);
+        move(msghdr_field_row(app->edit_hdr, HDR_TO), msghdr_field_col(app->edit_hdr, HDR_TO) + msghdr_edit_col(app->edit_hdr));
+        curs_set(1);
+    }
+
+    /* Subject (or Dest for netmail) */
+    if (ae->type != AREATYPE_NETMAIL)
+    {
+        if (app->edit_active_field == EF_SUBJECT)
+            attron(A_REVERSE);
+
+        mvprintw(4, 1, "Subj: %s", ui_wcs2u8(subj));
+
+        if (app->edit_active_field == EF_SUBJECT)
+        {
+            attroff(A_REVERSE);
+            move(msghdr_field_row(app->edit_hdr, HDR_SUBJECT), msghdr_field_col(app->edit_hdr, HDR_SUBJECT) + msghdr_edit_col(app->edit_hdr));
+            curs_set(1);
+        }
+    }
+    else
+    {
+        /* Destination AKA (netmail only, editable) */
+        if (app->edit_active_field == EF_DADDR)
+            attron(A_REVERSE);
+
+        mvprintw(4, 1, "Dest: %-25.25s", daddr[0] ? daddr : "");
+
+        if (app->edit_active_field == EF_DADDR)
+        {
+            attroff(A_REVERSE);
+            move(msghdr_field_row(app->edit_hdr, HDR_DADDR), msghdr_field_col(app->edit_hdr, HDR_DADDR) + msghdr_edit_col(app->edit_hdr));
+            curs_set(1);
+        }
+
+        /* Subject (netmail only) */
+        if (app->edit_active_field == EF_SUBJECT)
+            attron(A_REVERSE);
+
+        mvprintw(5, 1, "Subj: %s", ui_wcs2u8(subj));
+
+        if (app->edit_active_field == EF_SUBJECT)
+        {
+            attroff(A_REVERSE);
+            move(msghdr_field_row(app->edit_hdr, HDR_SUBJECT), msghdr_field_col(app->edit_hdr, HDR_SUBJECT) + msghdr_edit_col(app->edit_hdr));
+            curs_set(1);
+        }
+    }
+
+    /* Attr on left, Charset on right */
+    mvprintw(ae->type == AREATYPE_NETMAIL ? 6 : 5, 1, "Attr: %s", attr_str[0] ? attr_str : "-");
+
+    /* Show effective output charset (resolve Auto to cfg->charset) */
+    cs = app->edit_charset[0] ? app->edit_charset : (app->cfg && app->cfg->charset[0] ? app->cfg->charset : "UTF-8");
+    cl = (int)strlen(cs);
+
+    mvprintw(ae->type == AREATYPE_NETMAIL ? 6 : 5, COLS - cl - 10, "Charset: %s", cs);
+
+    /* Hide cursor if not in header edit mode */
+    if (app->edit_active_field != EF_FROM && app->edit_active_field != EF_TO && app->edit_active_field != EF_SUBJECT && app->edit_active_field != EF_DADDR)
+        curs_set(0);
+
+    attroff(COLOR_PAIR(COL_HEADER));
+
+    attron(COLOR_PAIR(COL_BORDER));
+    ui_hline(ae->type == AREATYPE_NETMAIL ? 7 : 6, 0, COLS);
+    attroff(COLOR_PAIR(COL_BORDER));
+}
+
+/* Position cursor in active field after status bar redraw */
+void position_edit_cursor(UiApp *app)
+{
+    int ec;
+
+    if (!app)
+        return;
+
+    ec = msghdr_edit_col(app->edit_hdr);
+
+    switch (app->edit_active_field)
+    {
+    case EF_FROM:
+        move(msghdr_field_row(app->edit_hdr, HDR_FROM), msghdr_field_col(app->edit_hdr, HDR_FROM) + ec);
+        curs_set(1);
+        return;
+    case EF_TO:
+        move(msghdr_field_row(app->edit_hdr, HDR_TO), msghdr_field_col(app->edit_hdr, HDR_TO) + ec);
+        curs_set(1);
+        return;
+    case EF_DADDR:
+        move(msghdr_field_row(app->edit_hdr, HDR_DADDR), msghdr_field_col(app->edit_hdr, HDR_DADDR) + ec);
+        curs_set(1);
+        return;
+    case EF_SUBJECT:
+        move(msghdr_field_row(app->edit_hdr, HDR_SUBJECT), msghdr_field_col(app->edit_hdr, HDR_SUBJECT) + ec);
+        curs_set(1);
+        return;
+    case EF_BODY:
+    {
+        EdInfo info;
+        AreaEntry *ae;
+        int start_row, rows;
+        int cy, cx;
+        int max_y;
+        int soft;
+
+        ae = &app->areas->entries[app->sess.area_idx];
+        start_row = (ae->type == AREATYPE_NETMAIL) ? 8 : 7;
+        rows = LINES - start_row - 1;
+        soft = !(app->cfg && app->cfg->hard_wrap);
+        ed_get_info(app->editor, &info);
+
+        if (soft)
+        {
+            int vrow = 0, vcol = 0;
+            int width = COLS < 1 ? 1 : COLS;
+
+            soft_cursor_vpos(app, width, &vrow, &vcol);
+            cy = start_row + (vrow - s_soft_vtop);
+            cx = vcol;
+        }
+        else
+        {
+            cy = start_row + (info.row - info.top);
+            cx = info.col;
+        }
+
+        /* Always move; clamp to body region */
+        max_y = start_row + rows - 1;
+
+        if (max_y < start_row)
+            max_y = start_row;
+
+        if (cy < start_row)
+            cy = start_row;
+
+        if (cy > max_y)
+            cy = max_y;
+
+        if (cx < 0)
+            cx = 0;
+
+        if (cx > COLS - 1)
+            cx = COLS - 1;
+
+        move(cy, cx);
+        curs_set(1);
+
+        return;
+    }
+    default:
+        curs_set(0);
+        return;
+    }
+}
+
+void draw_edit_body(UiApp *app)
+{
+    EdInfo info;
+    AreaEntry *ae;
+    int rows, start_row, i;
+    int b_r1 = -1, b_c1 = 0, b_r2 = -1, b_c2 = 0;
+    int soft;
+    int width;
+    int cur_vrow, cur_vcol;
+    int li, sr;
+    int vrow;
+
+    ae = &app->areas->entries[app->sess.area_idx];
+    start_row = (ae->type == AREATYPE_NETMAIL) ? 8 : 7;
+    rows = LINES - start_row - 1;
+    soft = !(app->cfg && app->cfg->hard_wrap);
+    width = COLS; /* visual wrap fits the terminal */
+
+    if (width < 1)
+        width = 1;
+
+    ed_set_page(app->editor, rows);
+    ed_get_info(app->editor, &info);
+
+    /* Normalize block range (anchor vs cursor) for highlight */
+    if (info.block.active)
+    {
+        if (info.block.anchor_row < info.row || (info.block.anchor_row == info.row && info.block.anchor_col <= info.col))
+        {
+            b_r1 = info.block.anchor_row;
+            b_c1 = info.block.anchor_col;
+            b_r2 = info.row;
+            b_c2 = info.col;
+        }
+        else
+        {
+            b_r1 = info.row;
+            b_c1 = info.col;
+            b_r2 = info.block.anchor_row;
+            b_c2 = info.block.anchor_col;
+        }
+    }
+
+    if (!soft)
+    {
+        /* HARD-WRAP: classic 1 logical line == 1 screen row */
+        for (i = 0; i < rows; i++)
+        {
+            int line_idx = info.top + i;
+            int line_len;
+            const wchar_t *wl;
+
+            move(start_row + i, 0);
+            clrtoeol();
+
+            if (line_idx >= info.line_count)
+                continue;
+
+            /* mvaddnwstr: n is in wide chars, no UTF-8 conversion needed */
+            wl = ed_line_wcs(app->editor, line_idx);
+            line_len = ed_line_len(app->editor, line_idx);
+
+            if (wl && line_len > 0)
+                mvaddnwstr(start_row + i, 0, wl, line_len);
+
+            /* Highlight search matches */
+            if (app->edit_search.rows && app->edit_search.match_count > 0)
+            {
+                int j;
+
+                for (j = 0; j < app->edit_search.match_count; j++)
+                {
+                    if (app->edit_search.rows[j] == line_idx)
+                    {
+                        int match_col = app->edit_search.cols[j];
+                        int match_len = (int)wcslen(app->edit_search.query);
+
+                        if (match_col >= 0 && match_col + match_len <= line_len)
+                        {
+                            attron(COLOR_PAIR(COL_SEARCH_MATCH));
+                            mvaddnwstr(start_row + i, match_col, &wl[match_col], match_len);
+                            attroff(COLOR_PAIR(COL_SEARCH_MATCH));
+                        }
+                    }
+                }
+            }
+
+            if (b_r1 >= 0 && line_idx >= b_r1 && line_idx <= b_r2)
+            {
+                const wchar_t *wcs;
+                int hs, he;
+
+                hs = (line_idx == b_r1) ? b_c1 : 0;
+                he = (line_idx == b_r2) ? b_c2 : line_len;
+
+                if (hs < 0)
+                    hs = 0;
+
+                if (he > line_len)
+                    he = line_len;
+
+                wcs = wl;
+
+                if (wcs && hs < he)
+                {
+                    attron(A_REVERSE);
+                    mvaddnwstr(start_row + i, hs, &wcs[hs], he - hs);
+                    attroff(A_REVERSE);
+                }
+            }
+        }
+
+        if (app->edit_active_field == EF_BODY)
+        {
+            int cy = start_row + (info.row - info.top);
+            int cx = info.col;
+
+            if (cy >= start_row && cy < start_row + rows)
+                move(cy, cx);
+
+            curs_set(1);
+        }
+        return;
+    }
+
+    /* SOFT-WRAP: one logical line spans several screen rows */
+    soft_cursor_vpos(app, width, &cur_vrow, &cur_vcol);
+
+    /* Keep the cursor's visual row inside [s_soft_vtop, +rows) */
+    if (cur_vrow < s_soft_vtop)
+        s_soft_vtop = cur_vrow;
+    else if (cur_vrow >= s_soft_vtop + rows)
+        s_soft_vtop = cur_vrow - rows + 1;
+
+    if (s_soft_vtop < 0)
+        s_soft_vtop = 0;
+
+    /* Walk logical lines, emitting visual sub-rows, skipping the
+     * first s_soft_vtop of them, filling `rows` screen rows */
+    for (sr = 0; sr < rows; sr++)
+    {
+        move(start_row + sr, 0);
+        clrtoeol();
+    }
+
+    vrow = 0; /* absolute visual row being produced */
+    sr = 0;   /* screen row index 0..rows-1 */
+
+    for (li = 0; li < info.line_count && sr < rows; li++)
+    {
+        const wchar_t *l = ed_line_wcs(app->editor, li);
+        int len = ed_line_len(app->editor, li);
+        int pos = 0;
+        int done = 0;
+
+        while (!done && sr < rows)
+        {
+            int seg_start = pos;
+            int seg_end, seg_len, np;
+
+            if (l && len > 0)
+            {
+                seg_end = wrap_next(l, len, width, pos);
+                np = seg_end;
+            }
+            else
+            {
+                seg_end = 0;
+                np = len; /* empty line: one (blank) sub-row */
+            }
+
+            if (vrow >= s_soft_vtop)
+            {
+                seg_len = seg_end - seg_start;
+
+                if (seg_len < 0)
+                    seg_len = 0;
+
+                if (l && seg_len > 0)
+                    mvaddnwstr(start_row + sr, 0, &l[seg_start], seg_len);
+
+                /* Highlight search matches in softwrap */
+                if (app->edit_search.rows && app->edit_search.match_count > 0)
+                {
+                    int j;
+
+                    for (j = 0; j < app->edit_search.match_count; j++)
+                    {
+                        if (app->edit_search.rows[j] == li)
+                        {
+                            int match_col = app->edit_search.cols[j];
+                            int match_len = (int)wcslen(app->edit_search.query);
+                            int match_end = match_col + match_len;
+
+                            /* Check if match is within this segment */
+                            if (match_col >= seg_start && match_end <= seg_end)
+                            {
+                                /* Match entirely within this segment */
+                                attron(COLOR_PAIR(COL_SEARCH_MATCH));
+                                mvaddnwstr(start_row + sr, match_col - seg_start, &l[match_col], match_len);
+                                attroff(COLOR_PAIR(COL_SEARCH_MATCH));
+                            }
+                            else if (match_col >= seg_start && match_col < seg_end)
+                            {
+                                /* Match starts in this segment, continues to next */
+                                int partial_len = seg_end - match_col;
+                                attron(COLOR_PAIR(COL_SEARCH_MATCH));
+                                mvaddnwstr(start_row + sr, match_col - seg_start, &l[match_col], partial_len);
+                                attroff(COLOR_PAIR(COL_SEARCH_MATCH));
+                            }
+                            else if (match_end > seg_start && match_end <= seg_end)
+                            {
+                                /* Match ends in this segment, started in previous */
+                                int partial_len = match_end - seg_start;
+
+                                attron(COLOR_PAIR(COL_SEARCH_MATCH));
+                                mvaddnwstr(start_row + sr, 0, &l[seg_start], partial_len);
+                                attroff(COLOR_PAIR(COL_SEARCH_MATCH));
+                            }
+                        }
+                    }
+                }
+
+                /* Block-selection overlay (logical-span) */
+                if (b_r1 >= 0 && li >= b_r1 && li <= b_r2 && l)
+                {
+                    int hs = (li == b_r1) ? b_c1 : 0;
+                    int he = (li == b_r2) ? b_c2 : len;
+
+                    if (hs < seg_start)
+                        hs = seg_start;
+
+                    if (he > seg_end)
+                        he = seg_end;
+
+                    if (hs < he)
+                    {
+                        attron(A_REVERSE);
+                        mvaddnwstr(start_row + sr, hs - seg_start, &l[hs], he - hs);
+                        attroff(A_REVERSE);
+                    }
+                }
+                sr++;
+            }
+
+            vrow++;
+
+            if (np >= len)
+                done = 1;
+            else
+            {
+                if (np <= pos)
+                    np = pos + (width < 1 ? 1 : width);
+
+                pos = np;
+            }
+        }
+    }
+
+    if (app->edit_active_field == EF_BODY)
+    {
+        int cy = start_row + (cur_vrow - s_soft_vtop);
+        int cx = cur_vcol;
+
+        if (cy < start_row)
+            cy = start_row;
+
+        if (cy > start_row + rows - 1)
+            cy = start_row + rows - 1;
+
+        if (cx < 0)
+            cx = 0;
+
+        if (cx > COLS - 1)
+            cx = COLS - 1;
+
+        move(cy, cx);
+        curs_set(1);
+    }
+}

@@ -29,7 +29,7 @@
 #include "ui_internal.h"
 #include "../core/keys.h"
 
-/* Field indices for TAB cycle (GoldED+ order: FROM->TO->DADDR->SUBJECT->BODY) */
+/* Field indices for TAB cycle */
 #define EF_FROM 0
 #define EF_TO 1
 #define EF_DADDR 2
@@ -43,7 +43,6 @@
 #endif
 
 /* Editor internal helpers (defined in ui_editor_prep.c / ui_editor_popups.c) */
-
 char *editor_build_kludge_block(const CrashEditCfg *cfg, const char *oaddr, const char *daddr, const char *raw_daddr, const char *reply_msgid_value, int is_netmail);
 const char *editor_daddr_for_intl(UiApp *app, const char *daddr);
 void editor_reset_state(UiApp *app);

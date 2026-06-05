@@ -71,6 +71,7 @@ UI_OBJS   = $(OBJDIR)/ui_app.o \
             $(OBJDIR)/ui_arealist_layout.o \
             $(OBJDIR)/ui_msglist.o $(OBJDIR)/ui_reader.o $(OBJDIR)/ui_editor.o \
             $(OBJDIR)/ui_editor_prep.o $(OBJDIR)/ui_editor_popups.o \
+            $(OBJDIR)/ui_editor_softwrap.o $(OBJDIR)/ui_editor_search.o $(OBJDIR)/ui_editor_paste.o $(OBJDIR)/ui_editor_draw.o $(OBJDIR)/ui_editor_helper.o \
             $(OBJDIR)/ui_aka.o $(OBJDIR)/ui_attr.o $(OBJDIR)/ui_files.o \
             $(OBJDIR)/ui_popup_attach.o $(OBJDIR)/ui_popup_freq.o $(OBJDIR)/ui_setup.o \
             $(OBJDIR)/ui_search.o $(OBJDIR)/ui_popup_nodelist.o
@@ -167,6 +168,21 @@ $(OBJDIR)/ui_editor_prep.o: $(UIDIR)/ui_editor_prep.c $(UIDIR)/ui_editor_interna
 	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
 
 $(OBJDIR)/ui_editor_popups.o: $(UIDIR)/ui_editor_popups.c $(UIDIR)/ui_editor_internal.h | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
+$(OBJDIR)/ui_editor_softwrap.o: $(UIDIR)/ui_editor_softwrap.c $(UIDIR)/ui_editor_softwrap.h | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
+$(OBJDIR)/ui_editor_search.o: $(UIDIR)/ui_editor_search.c $(UIDIR)/ui_editor_search.h | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
+$(OBJDIR)/ui_editor_paste.o: $(UIDIR)/ui_editor_paste.c $(UIDIR)/ui_editor_paste.h | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
+$(OBJDIR)/ui_editor_draw.o: $(UIDIR)/ui_editor_draw.c $(UIDIR)/ui_editor_draw.h | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
+$(OBJDIR)/ui_editor_helper.o: $(UIDIR)/ui_editor_helper.c $(UIDIR)/ui_editor_helper.h | $(OBJDIR)
 	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
 
 # Shared helpers
