@@ -337,6 +337,28 @@ AREALISTFORMAT "A E PNU C D G"
 #COLOR QUOTE1 green black
 #COLOR STATUS black white
 
+# Built-in default color palette (these are used if you do not override):
+#   NORMAL       white on black
+#   SELECTED     black on cyan
+#   HEADER       yellow on blue
+#   STATUS       black on white
+#   MENU         black on white
+#   MENUHOT      red on white
+#   BORDER       cyan on black
+#   QUOTE1-4     green on black
+#   KLUDGE       cyan on black
+#   TEAR         yellow on black
+#   ORIGIN       yellow on black
+#   SEENBY       magenta on black
+#   VIA          blue on black
+#   UNREAD       yellow on black
+#   DELETED      red on black
+#   POPUP        white on blue
+#   POPUPSEL     black on cyan
+#   ERROR        white on red
+#   TAGLINE      cyan on black
+#   SEARCH_MATCH yellow on black
+
 # CURSORCOLOR -- Cursor color. Accepts:
 #               - Color name (e.g. red, cyan)
 #               - Number 0..255 (Amiga pen / ncurses color index)
@@ -344,9 +366,9 @@ AREALISTFORMAT "A E PNU C D G"
 # Default: -1 (terminal default)
 #CURSORCOLOR cyan
 
-#-------------------------------------------------------------------------
+#===========================================================================
 #  AMIGA-SPECIFIC OPTIONS (ignored on other platforms)
-#-------------------------------------------------------------------------
+#===========================================================================
 
 # DEFAULT_BG_COLOR -- Default background color for COLOR_PAIR(0)
 #                     Accepts color name or number 0..7
@@ -392,29 +414,6 @@ AREALISTFORMAT "A E PNU C D G"
 #                 NO = UTF-16 BE
 # Default: YES
 #TTF_USE_UTF8 YES
-
-# Built-in default color palette (these are used if you do not override):
-#   NORMAL       white on black
-#   SELECTED     black on cyan
-#   HEADER       yellow on blue
-#   STATUS       black on white
-#   MENU         black on white
-#   MENUHOT      red on white
-#   BORDER       cyan on black
-#   QUOTE1-4     green on black
-#   KLUDGE       cyan on black
-#   TEAR         yellow on black
-#   ORIGIN       yellow on black
-#   SEENBY       magenta on black
-#   VIA          blue on black
-#   UNREAD       yellow on black
-#   DELETED      red on black
-#   POPUP        white on blue
-#   POPUPSEL     black on cyan
-#   ERROR        white on red
-#   TAGLINE      cyan on black
-#   SEARCH_MATCH yellow on black
-
 
 #===========================================================================
 #  TIME
