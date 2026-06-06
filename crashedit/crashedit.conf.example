@@ -365,6 +365,34 @@ AREALISTFORMAT "A E PNU C D G"
 # Default: topaz.font (Amiga), Consolas (Windows)
 #ANSIFONT topaz.font
 
+# TTF_ENABLED -- Enable TrueType font rendering (AmigaOS only, requires ttengine.library v6+)
+#                If enabled and ttengine.library is available, text is rendered with TTF
+#                instead of bitmap fonts. Falls back to bitmap if library not found
+# Default: NO
+#TTF_ENABLED YES
+
+# TTF_FONT -- Path to .ttf font file (AmigaOS only)
+#             Must be a monospaced font for proper display
+#             Example: "FONTS:_ttf/DejaVuSansMono.ttf"
+# Default: (empty - bitmap font used)
+#TTF_FONT FONTS:_ttf/DejaVuSansMono.ttf
+
+# TTF_SIZE -- Font size in points (AmigaOS only)
+#            Valid range: 6..96, typically 12..16 for editing
+# Default: 14
+#TTF_SIZE 14
+
+# TTF_ANTIALIAS -- Antialiasing mode for TTF rendering (AmigaOS only)
+#                  Values: auto, off, on
+# Default: auto
+#TTF_ANTIALIAS auto
+
+# TTF_USE_UTF8 -- Encoding mode for TTF (AmigaOS only)
+#                 YES = UTF-8
+#                 NO = UTF-16 BE
+# Default: YES
+#TTF_USE_UTF8 YES
+
 # Built-in default color palette (these are used if you do not override):
 #   NORMAL       white on black
 #   SELECTED     black on cyan

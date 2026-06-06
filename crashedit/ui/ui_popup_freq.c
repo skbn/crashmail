@@ -386,7 +386,7 @@ int ui_popup_freq(UiApp *app)
                 continue;
             }
 
-            if (ui_popup_input("Add file to request", "Remote filename:", wname, FREQ_UI_NAME_MAX) == 0 && wname[0])
+            if (ui_popup_input_width("Add file to request", "Remote filename:", wname, FREQ_UI_NAME_MAX, 64) == 0 && wname[0])
             {
                 char *u = wcs_to_utf8(wname, (int)wcslen(wname));
 

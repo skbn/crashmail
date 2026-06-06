@@ -310,6 +310,7 @@ int ui_popup_aka(const UiApp *app, int cur_idx);
 /* Input text: prompt + prefilled buffer (0=ok, -1=cancel) */
 /* Wide-char input (for filters/text with possible accents) */
 int ui_popup_input(const char *title, const char *prompt, wchar_t *wbuf, int wcap);
+int ui_popup_input_width(const char *title, const char *prompt, wchar_t *wbuf, int wcap, int width);
 
 /* Find & Replace popup with case-sensitive and whole-word options */
 int ui_popup_replace(const wchar_t *search_in, const wchar_t *replace_in, wchar_t *search_out, int search_outsz, wchar_t *replace_out, int replace_outsz, int *case_sensitive, int *whole_word);

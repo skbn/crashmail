@@ -775,10 +775,10 @@ static int input_handle_key(InputState *state, int ch)
 }
 
 /* Wide-char text input popup (shared by ui_popup_input and ui_popup_input) */
-static int popup_input_core(const char *title, const char *prompt, wchar_t *wbuf, int wcap)
+static int popup_input_core(const char *title, const char *prompt, wchar_t *wbuf, int wcap, int fixed_width)
 {
     int y, x, h, w;
-    int want_w = wcap + 4;
+    int want_w;
     wint_t wch;
     int rc;
     InputState state;
@@ -787,8 +787,14 @@ static int popup_input_core(const char *title, const char *prompt, wchar_t *wbuf
     if (!wbuf || wcap < 2)
         return -1;
 
-    if (want_w < 50)
-        want_w = 50;
+    if (fixed_width > 0)
+        want_w = fixed_width;
+    else
+    {
+        want_w = wcap + 4;
+        if (want_w < 50)
+            want_w = 50;
+    }
 
     ui_popup_center(7, want_w, &y, &x, &h, &w);
 
@@ -877,7 +883,13 @@ static int popup_input_core(const char *title, const char *prompt, wchar_t *wbuf
 /* Public wide-char input wrapper */
 int ui_popup_input(const char *title, const char *prompt, wchar_t *wbuf, int wcap)
 {
-    return popup_input_core(title, prompt, wbuf, wcap);
+    return popup_input_core(title, prompt, wbuf, wcap, -1);
+}
+
+/* Public wide-char input wrapper with fixed width */
+int ui_popup_input_width(const char *title, const char *prompt, wchar_t *wbuf, int wcap, int width)
+{
+    return popup_input_core(title, prompt, wbuf, wcap, width);
 }
 
 int ui_popup_sort(char *spec, int specsz, const char *cfg_default)
