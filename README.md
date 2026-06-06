@@ -11,8 +11,10 @@ Crashedit based on golded+ but with basic functionalities: area, messages, reade
 
 Added tag "aso" to crashmail config file to work in aso mode.
 
+```
 **For CrashEdit documentation, see [crashedit/README.md](crashedit/README.md)**
 **For CrashEdit documentation in Spanish, see [crashedit/README_ESP.md](crashedit/README_ESP.md)**
+```
 
 This project was inspired by Golded+ [https://github.com/golded-plus/golded-plus]. While it served as a reference during development, the implementation in this repository was written independently and does not contain code copied from the original project.
 
@@ -96,10 +98,8 @@ Screenshots
 
 ![Linux](img/linux.png)
 
-![Ansi Art support](img/ansi art.png)
+![Ansi Art support](img/ansi%20art.png)
 
-![Experimental TTF support AmigaOS](img/utf8 ttf experimental.png)
+![TTF support](img/ttf%20amigaos.png)
 
-![TTF support](img/ttf amigaos.png)
-
-![ansi art ttf](img/ttf utf8 ansi.png)
+![ansi art ttf](img/ttf%20utf8%20ansi.png)
