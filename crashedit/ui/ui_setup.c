@@ -264,7 +264,6 @@ static void st_edit_field(CrashEditCfg *w, const SetupField *fld)
 
         /* File fields: use file picker */
         if (strcmp(fld->label, "Area file") == 0 ||
-            strcmp(fld->label, "Freq outbound dir") == 0 ||
             strcmp(fld->label, "Tagline file") == 0 ||
             strcmp(fld->label, "Template file") == 0 ||
             strcmp(fld->label, "Font") == 0 ||
@@ -276,6 +275,19 @@ static void st_edit_field(CrashEditCfg *w, const SetupField *fld)
             tmp[sizeof(tmp) - 1] = '\0';
 
             if (ui_files_pick(fld->label, NULL, tmp, sizeof(tmp)) == 0)
+            {
+                strncpy(s, tmp, CFG_STR_MAX - 1);
+                s[CFG_STR_MAX - 1] = '\0';
+            }
+        }
+        /* Directory fields: use directory picker */
+        else if (strcmp(fld->label, "Freq outbound dir") == 0)
+        {
+            char tmp[CFG_STR_MAX];
+            strncpy(tmp, s, sizeof(tmp) - 1);
+            tmp[sizeof(tmp) - 1] = '\0';
+
+            if (ui_files_pick_dir(fld->label, NULL, tmp, sizeof(tmp)) == 0)
             {
                 strncpy(s, tmp, CFG_STR_MAX - 1);
                 s[CFG_STR_MAX - 1] = '\0';

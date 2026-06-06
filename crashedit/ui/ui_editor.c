@@ -1508,11 +1508,25 @@ UiView ui_editor_run(UiApp *app)
 
         /* Handle body input */
         if (handle_body_input(app, ch, is_key, wch, soft_active, body_width, body_rows, eff_wrap, &preserve_desired))
+        {
+            /* Reset desired column unless this was a vertical move that
+             * needs to preserve it (UP/DOWN/PgUp/PgDn set preserve_desired=1)
+             * Without this, LEFT/RIGHT/HOME/END leave a stale desired_vcol
+             * that makes the next UP/DOWN jump to a wrong column */
+            if (!preserve_desired)
+                soft_reset_desired();
+
             continue;
+        }
 
         /* Handle navigation keys in body */
         if (handle_navigation_keys(app, ch, is_key, soft_active, body_width, body_rows, &preserve_desired))
+        {
+            if (!preserve_desired)
+                soft_reset_desired();
+
             continue;
+        }
 
         /* Reset desired column on horizontal moves */
         if (!preserve_desired)

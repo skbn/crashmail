@@ -26,9 +26,13 @@
 #ifndef UI_FILES_H
 #define UI_FILES_H
 
-/* Browse for file starting at <start_dir> (or CWD if NULL),
+/* Browse for file starting at <start_dir> (or CWD if NULL)
  * fills <out_path> (0=ok, -1=cancel, -2=error) */
 int ui_files_pick(const char *title, const char *start_dir, char *out_path, int out_path_sz);
+
+/* Browse for directory starting at <start_dir> (or CWD if NULL)
+ * fills <out_path> (0=ok, -1=cancel, -2=error) */
+int ui_files_pick_dir(const char *title, const char *start_dir, char *out_path, int out_path_sz);
 
 /* Same as ui_files_pick but shows an editable filename field for save-as
  * <init_name> pre-fills the name field (may be NULL) */
