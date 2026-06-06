@@ -101,6 +101,13 @@ typedef struct
     char font[CFG_STR_MAX];
     char ansifont[CFG_STR_MAX];
 
+    /* TrueType font support (Amiga via ttengine.library v6+) */
+    int ttf_enabled;            /* 0=disabled, 1=enabled */
+    char ttf_font[CFG_STR_MAX]; /* e.g. "FONTS:_ttf/DejaVuSansMono.ttf" */
+    int ttf_size;               /* point size, default 14 */
+    int ttf_antialias;          /* 0=auto, 1=off, 2=on */
+    int ttf_use_utf8;           /* 0=UTF-16 BE (BMP only), 1=UTF-8 (full Unicode/emojis) */
+
     /* Amiga color palette (0-15) */
     int color_map[16];
     int color_map_initialized;

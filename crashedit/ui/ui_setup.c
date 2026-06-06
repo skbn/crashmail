@@ -23,6 +23,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include "ui_files.h"
 #include <string.h>
 
 #include "ui_internal.h"
@@ -46,7 +47,8 @@ typedef enum
     FT_TRI,      /* tri-state 0/1/2 (e.g. forceintl: auto/always/never) */
     FT_TZ,       /* timezone offset in minutes; editing marks it manual */
     FT_TZAUTO,   /* yes/no: auto-detect TZ from OS (toggles timezone_is_manual) */
-    FT_COLORMAP  /* integer 0-255, edit also marks color_map_initialized */
+    FT_COLORMAP, /* integer 0-255, edit also marks color_map_initialized */
+    FT_CYCLE     /* cycle through predefined string options (e.g. TTF antialias: AUTO/OFF/ON) */
 } FieldType;
 
 typedef struct
@@ -113,6 +115,11 @@ static const SetupField st_fields[] =
 
 #if defined(PLATFORM_AMIGA)
         {5, "ANSI font", FT_STR, F_OFF(ansifont), CFG_STR_MAX},
+        {5, "TTF enabled", FT_BOOL, F_OFF(ttf_enabled), 0},
+        {5, "TTF font", FT_STR, F_OFF(ttf_font), CFG_STR_MAX},
+        {5, "TTF size", FT_INT, F_OFF(ttf_size), 0},
+        {5, "TTF antialias", FT_CYCLE, F_OFF(ttf_antialias), 0},
+        {5, "TTF encoding", FT_CYCLE, F_OFF(ttf_use_utf8), 0},
 #endif
 
         {5, "Pen 0 (black)", FT_COLORMAP, offsetof(CrashEditCfg, color_map) + 0 * sizeof(int), 0},
@@ -177,12 +184,37 @@ static void st_format_value(const CrashEditCfg *w, const SetupField *fld, char *
     }
     case FT_TRI:
     {
-        /* 0/1/2 — currently only used by forceintl: auto/always/never */
+        /* 0/1/2 — used by forceintl: auto/always/never */
         int v = *(const int *)(base + fld->off);
         const char *n = (v == 0) ? "auto" : (v == 1) ? "always"
                                         : (v == 2)   ? "never"
                                                      : "?";
         snprintf(buf, bufsz, "%d (%s)", v, n);
+        break;
+    }
+    case FT_CYCLE:
+    {
+        /* Cycle through predefined string options */
+        int v = *(const int *)(base + fld->off);
+        const char *label = "";
+
+        if (strcmp(fld->label, "TTF encoding") == 0)
+        {
+            /* TTF encoding: 0=UTF-16 BE (BMP only), 1=UTF-8 (full Unicode) */
+            if (v == 0)
+                label = "UTF-16";
+            else
+                label = "UTF-8";
+        }
+        else
+        {
+            /* TTF antialias: 0=AUTO, 1=OFF, 2=ON */
+            label = (v == 0) ? "AUTO" : (v == 1) ? "OFF"
+                                    : (v == 2)   ? "ON"
+                                                 : "AUTO";
+        }
+
+        snprintf(buf, bufsz, "%s", label);
         break;
     }
     case FT_TZ:
@@ -229,33 +261,57 @@ static void st_edit_field(CrashEditCfg *w, const SetupField *fld)
     case FT_STR:
     {
         char *s = base + fld->off;
-        wchar_t wtmp[CFG_STR_MAX];
-        int cap = fld->maxlen > 0 && fld->maxlen < (int)sizeof(wtmp) ? fld->maxlen : (int)sizeof(wtmp);
-        wchar_t *w_initial;
 
-        w_initial = utf8_to_wcs(s, NULL);
-        wtmp[0] = L'\0';
-
-        if (w_initial)
+        /* File fields: use file picker */
+        if (strcmp(fld->label, "Area file") == 0 ||
+            strcmp(fld->label, "Freq outbound dir") == 0 ||
+            strcmp(fld->label, "Tagline file") == 0 ||
+            strcmp(fld->label, "Template file") == 0 ||
+            strcmp(fld->label, "Font") == 0 ||
+            strcmp(fld->label, "ANSI font") == 0 ||
+            strcmp(fld->label, "TTF font") == 0)
         {
-            wcsncpy(wtmp, w_initial, (size_t)(cap - 1));
-            wtmp[cap - 1] = L'\0';
-            free(w_initial);
-        }
+            char tmp[CFG_STR_MAX];
+            strncpy(tmp, s, sizeof(tmp) - 1);
+            tmp[sizeof(tmp) - 1] = '\0';
 
-        if (ui_popup_input(fld->label, "New value:", wtmp, cap) == 0)
-        {
-            char *u = wcs_to_utf8(wtmp, (int)wcslen(wtmp));
-            if (u)
+            if (ui_files_pick(fld->label, NULL, tmp, sizeof(tmp)) == 0)
             {
-                size_t n = strlen(u);
+                strncpy(s, tmp, CFG_STR_MAX - 1);
+                s[CFG_STR_MAX - 1] = '\0';
+            }
+        }
+        else
+        {
+            wchar_t wtmp[CFG_STR_MAX];
+            int cap = fld->maxlen > 0 && fld->maxlen < (int)sizeof(wtmp) ? fld->maxlen : (int)sizeof(wtmp);
+            wchar_t *w_initial;
 
-                if (n >= (size_t)cap)
-                    n = cap - 1;
+            w_initial = utf8_to_wcs(s, NULL);
+            wtmp[0] = L'\0';
 
-                memcpy(s, u, n);
-                s[n] = '\0';
-                free(u);
+            if (w_initial)
+            {
+                wcsncpy(wtmp, w_initial, (size_t)(cap - 1));
+                wtmp[cap - 1] = L'\0';
+                free(w_initial);
+            }
+
+            if (ui_popup_input(fld->label, "New value:", wtmp, cap) == 0)
+            {
+                char *u = wcs_to_utf8(wtmp, (int)wcslen(wtmp));
+                if (u)
+                {
+                    size_t n = strlen(u);
+
+                    if (n >= (size_t)cap)
+                        n = cap - 1;
+
+                    memcpy(s, u, n);
+
+                    s[n] = '\0';
+                    free(u);
+                }
             }
         }
 
@@ -271,6 +327,7 @@ static void st_edit_field(CrashEditCfg *w, const SetupField *fld)
             int count, i, current = -1;
 
             charsets = charset_get_list(&count);
+
             if (charsets && count > 0)
             {
                 /* Find current charset in list (empty = AUTO is position -1) */
@@ -325,11 +382,13 @@ static void st_edit_field(CrashEditCfg *w, const SetupField *fld)
                         n = cap - 1;
 
                     memcpy(s, u, n);
+
                     s[n] = '\0';
                     free(u);
                 }
             }
         }
+
         break;
     }
     case FT_INT:
@@ -370,6 +429,13 @@ static void st_edit_field(CrashEditCfg *w, const SetupField *fld)
                 parsed = 0;
 
             *v = parsed;
+
+            /* Special validation for TTF_SIZE (6-96) */
+            if (fld->off == F_OFF(ttf_size))
+            {
+                if (parsed < 6 || parsed > 96)
+                    *v = 14;
+            }
 
             /* Editing timezone implies user wants manual offset rather than auto-detected one */
             if (fld->type == FT_TZ)
@@ -428,6 +494,20 @@ static void st_edit_field(CrashEditCfg *w, const SetupField *fld)
 
         break;
     }
+    case FT_CYCLE:
+    {
+        /* Cycle through predefined options */
+        int *v = (int *)(base + fld->off);
+
+        if (strcmp(fld->label, "TTF encoding") == 0)
+            /* TTF encoding: 0=UTF-16, 1=UTF-8 (toggle between 2 options) */
+            *v = (*v == 0) ? 1 : 0;
+        else
+            /* TTF antialias: 0=AUTO, 1=OFF, 2=ON (cycle through 3 options) */
+            *v = (*v + 1) % 3;
+
+        break;
+    }
     }
 }
 
@@ -466,6 +546,7 @@ int ui_setup_run(UiApp *app)
     CrashEditCfg work; /* working copy: cancel discards */
     int tab = 0;
     int sel = 0; /* within-tab selection */
+    int scroll_offset = 0;
     int key;
     int dirty = 0;
 
@@ -479,6 +560,7 @@ int ui_setup_run(UiApp *app)
         int i, c, row;
         int tabx;
         int nfields = st_tab_field_count(tab);
+        int valw;
 
         erase();
 
@@ -509,6 +591,11 @@ int ui_setup_run(UiApp *app)
         }
 
         /* Fields of the current tab */
+        int visible_fields = LINES - 6;
+
+        if (visible_fields < 1)
+            visible_fields = 1;
+
         row = 4;
         c = 0;
 
@@ -519,6 +606,12 @@ int ui_setup_run(UiApp *app)
             if (st_fields[i].tab != tab)
                 continue;
 
+            if (c < scroll_offset || c >= scroll_offset + visible_fields)
+            {
+                c++;
+                continue;
+            }
+
             st_format_value(&work, &st_fields[i], val, sizeof(val));
 
             if (c == sel)
@@ -526,20 +619,23 @@ int ui_setup_run(UiApp *app)
             else
                 attron(COLOR_PAIR(COL_NORMAL));
 
-            {
-                int valw = COLS - 24;
+            int valw = COLS - 24;
 
-                if (valw < 1)
-                    valw = 1; /* never pass a negative precision to printf */
+            if (valw < 1)
+                valw = 1; /* never pass a negative precision to printf */
 
-                mvprintw(row, 2, "%-16s : %-.*s", st_fields[i].label, valw, val);
-            }
+            mvprintw(row, 2, "%-16s : %-.*s", st_fields[i].label, valw, val);
 
             attroff(COLOR_PAIR(COL_SELECTED));
             attroff(COLOR_PAIR(COL_NORMAL));
 
             row++;
             c++;
+        }
+
+        if (nfields > visible_fields && scroll_offset + visible_fields < nfields)
+        {
+            mvprintw(LINES - 2, COLS - 2, "↓");
         }
 
         /* Footer */
@@ -596,6 +692,7 @@ int ui_setup_run(UiApp *app)
                 tab = ST_TAB_COUNT - 1;
 
             sel = 0;
+            scroll_offset = 0;
             continue;
         }
 
@@ -603,13 +700,19 @@ int ui_setup_run(UiApp *app)
         {
             tab = (tab + 1) % ST_TAB_COUNT;
             sel = 0;
+            scroll_offset = 0;
             continue;
         }
 
         if (key == KEY_UP || key == 'k')
         {
             if (sel > 0)
+            {
                 sel--;
+
+                if (sel < scroll_offset)
+                    scroll_offset = sel;
+            }
 
             continue;
         }
@@ -617,7 +720,12 @@ int ui_setup_run(UiApp *app)
         if (key == KEY_DOWN || key == 'j')
         {
             if (sel < nfields - 1)
+            {
                 sel++;
+
+                if (sel >= scroll_offset + visible_fields)
+                    scroll_offset = sel - visible_fields + 1;
+            }
 
             continue;
         }

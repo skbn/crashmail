@@ -309,7 +309,8 @@ static int load_msg(UiApp *app, uint32_t msgnum)
         app->msg_charset[0] = '\0';
     }
 
-    /* ANSI mode: force CP437 if UTF-8 came from default/fallback (not CHRS/override) */
+    /* ANSI mode: force CP437 if UTF-8 came from default/fallback (not CHRS/override)
+     * Exception: when TTF is active, keep detected charset to preserve Unicode characters */
     ansi_on = (app->cfg && app->cfg->viewansi);
     ansi_on_outer = ansi_on;
 

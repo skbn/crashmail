@@ -95,3 +95,11 @@ Screenshots
 ![FreeBSD](img/freebsd.png)
 
 ![Linux](img/linux.png)
+
+![Ansi Art support](img/ansi art.png)
+
+![Experimental TTF support AmigaOS](img/utf8 ttf experimental.png)
+
+![TTF support](img/ttf amigaos.png)
+
+![ansi art ttf](img/ttf utf8 ansi.png)

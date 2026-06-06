@@ -539,6 +539,13 @@ void cfg_defaults(CrashEditCfg *cfg)
     cfg->color_map[14] = 14;        /* bright cyan */
     cfg->color_map[15] = 15;        /* bright white */
     cfg->color_map_initialized = 0; /* Use defaults initially */
+
+    /* TTF defaults: disabled (empty path) — bitmap font is used */
+    cfg->ttf_enabled = 0;
+    cfg->ttf_font[0] = '\0';
+    cfg->ttf_size = 14;
+    cfg->ttf_antialias = 0; /* auto */
+    cfg->ttf_use_utf8 = 1;  /* UTF-8 for full Unicode/emoji support */
 }
 
 int cfg_load(CrashEditCfg *cfg, const char *path)
@@ -1038,9 +1045,64 @@ int cfg_load(CrashEditCfg *cfg, const char *path)
             copy_rest(rest, cfg->ansifont, sizeof(cfg->ansifont));
             strip_quotes(cfg->ansifont);
         }
+        else if (strcasecmp(word, "TTF_ENABLED") == 0)
+        {
+            cfg->ttf_enabled = parse_yesno(rest);
+        }
+        else if (strcasecmp(word, "TTF_FONT") == 0)
+        {
+            char tmp[CFG_STR_MAX];
+
+            copy_rest(rest, tmp, sizeof(tmp));
+            strip_quotes(tmp);
+            strncpy(cfg->ttf_font, tmp, sizeof(cfg->ttf_font) - 1);
+
+            cfg->ttf_font[sizeof(cfg->ttf_font) - 1] = '\0';
+        }
+        else if (strcasecmp(word, "TTF_SIZE") == 0)
+        {
+            char val[16];
+
+            get_token(rest, val, sizeof(val));
+
+            cfg->ttf_size = atoi(val);
+
+            if (cfg->ttf_size < 6 || cfg->ttf_size > 96)
+                cfg->ttf_size = 14;
+        }
+        else if (strcasecmp(word, "TTF_ANTIALIAS") == 0)
+        {
+            char val[16];
+
+            get_token(rest, val, sizeof(val));
+
+            if (strcasecmp(val, "ON") == 0 || strcasecmp(val, "YES") == 0)
+                cfg->ttf_antialias = 2;
+            else if (strcasecmp(val, "OFF") == 0 || strcasecmp(val, "NO") == 0)
+                cfg->ttf_antialias = 1;
+            else
+                cfg->ttf_antialias = 0; /* auto */
+        }
+        else if (strcasecmp(word, "TTF_USE_UTF8") == 0)
+        {
+            char val[16];
+
+            get_token(rest, val, sizeof(val));
+
+            if (strcasecmp(val, "ON") == 0 || strcasecmp(val, "YES") == 0 || strcasecmp(val, "1") == 0)
+                cfg->ttf_use_utf8 = 1;
+            else if (strcasecmp(val, "OFF") == 0 || strcasecmp(val, "NO") == 0 || strcasecmp(val, "0") == 0)
+                cfg->ttf_use_utf8 = 0;
+            else
+                cfg->ttf_use_utf8 = 1; /* default to UTF-8 */
+        }
     }
 
     fclose(f);
+
+    /* Ensure ttf_use_utf8 has a valid value (for old config files without this field) */
+    if (cfg->ttf_use_utf8 != 0 && cfg->ttf_use_utf8 != 1)
+        cfg->ttf_use_utf8 = 1; /* default to UTF-8 */
 
     return 0;
 }
@@ -1080,13 +1142,14 @@ static void cfg_emit(FILE *f, const char *key, const char *val)
 
 int cfg_save(const CrashEditCfg *cfg, const char *path)
 {
-    CfgKV kv[40];
+    CfgKV kv[64];
     int nkv = 0;
     FILE *in;
     FILE *out;
     char tmp_path[CFG_STR_MAX + 8];
     char line[1024];
     int i;
+    const char *aa_str;
 
 #define KV_STR(k, s)                  \
     do                                \
@@ -1158,6 +1221,21 @@ int cfg_save(const CrashEditCfg *cfg, const char *path)
     KV_YN("HARDWRAP", cfg->hard_wrap);
     KV_STR("FONT", cfg->font);
     KV_STR("ANSIFONT", cfg->ansifont);
+
+    /* TrueType font (Amiga only) */
+    KV_YN("TTF_ENABLED", cfg->ttf_enabled);
+    KV_STR("TTF_FONT", cfg->ttf_font);
+    KV_INT("TTF_SIZE", cfg->ttf_size);
+
+    aa_str = "AUTO";
+
+    if (cfg->ttf_antialias == 2)
+        aa_str = "ON";
+    else if (cfg->ttf_antialias == 1)
+        aa_str = "OFF";
+
+    KV_STR("TTF_ANTIALIAS", aa_str);
+    KV_YN("TTF_USE_UTF8", cfg->ttf_use_utf8);
 
     /* Cursor and background colors */
     if (cfg->cursor_color_rgb[0])
