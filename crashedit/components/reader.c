@@ -32,6 +32,7 @@
 #include "../core/utf8.h"
 #include "../core/ansi.h"
 #include "../core/charset.h"
+#include "../ui/ui_editor_softwrap.h"
 
 /* One display line. Non-ANSI: single colour. ANSI: per-cell attrs in cells[] */
 typedef struct
@@ -199,56 +200,35 @@ static void rebuild_vis(Reader *rd)
     }
 }
 
-/* Word wrap in wchar_t. Non-ANSI only. Matches editor's wrap_next */
+/* Word wrap in wchar_t. Non-ANSI only. Uses editor's wrap_next for consistency */
 static void wrap_line(Reader *rd, const wchar_t *wcs, int len, int ww, int type, int ansi_color, int ansi_attrs)
 {
-    const wchar_t *p = wcs;
-    int rem = len;
-    int hard_end, brk, j;
+    int pos = 0;
 
-    if (ww < 10)
-        ww = 10;
+    if (ww < 1)
+        ww = 1;
 
-    if (rem == 0)
+    if (len == 0)
     {
         rd_add(rd, L"", 0, type, ansi_color, ansi_attrs, NULL);
         return;
     }
 
-    while (rem > 0)
+    while (pos < len)
     {
-        if (rem <= ww)
-        {
-            rd_add(rd, p, rem, type, ansi_color, ansi_attrs, NULL);
-            break;
-        }
+        int end = wrap_next(wcs, len, ww, pos);
+        int seg_len = end - pos;
 
-        /* Find last space in full window (old: j > ww/2, new: j > 0) */
-        hard_end = ww;
-        brk = hard_end;
+        if (seg_len < 0)
+            seg_len = 0;
 
-        for (j = hard_end; j > 0; j--)
-        {
-            if (p[j - 1] == L' ' || p[j - 1] == L'\t')
-            {
-                brk = j;
-                break;
-            }
-        }
+        rd_add(rd, &wcs[pos], seg_len, type, ansi_color, ansi_attrs, NULL);
 
-        if (brk <= 0)
-            brk = hard_end; /* hard cut, no space found */
-
-        rd_add(rd, p, brk, type, ansi_color, ansi_attrs, NULL);
-        p += brk;
-        rem -= brk;
+        pos = end;
 
         /* Skip leading space on continuation */
-        if (rem > 0 && *p == L' ')
-        {
-            p++;
-            rem--;
-        }
+        if (pos < len && wcs[pos] == L' ')
+            pos++;
     }
 }
 
