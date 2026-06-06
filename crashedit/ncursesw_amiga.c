@@ -91,6 +91,9 @@ static int s_ttf_size = 14;
 static int s_ttf_antialias = 0;    /* 0=auto, 1=off, 2=on */
 static int s_ttf_use_utf8 = 1;     /* 0=UTF-16 BE (BMP only), 1=UTF-8 (full Unicode) */
 static int s_ttf_proportional = 0; /* 1 = render per-cell (proportional font detected) */
+static int s_ansi_mode = 0;        /* 1 = app is in ANSI-art viewing mode; draw block glyphs
+                                    * (U+2580..U+259F) via RectFill instead of TT_Text for
+                                    * pixel-perfect tiling */
 
 static int s_cursor_vis = 1;
 static int s_colors_on = 0;
@@ -213,6 +216,173 @@ static void apply_colors(int pair, int attrs)
     SetDrMd(ami_rp, JAM2);
 }
 
+/* Direct block-glyph rendering (Unicode U+2580..U+259F).
+ *
+ * These 32 codepoints are precisely-defined geometric blocks/shades that
+ * are MEANT to tile seamlessly to form solid shapes (ANSI art). TTF fonts
+ * render them as actual glyphs, but the glyph height = ascender+descender
+ * may be smaller than our cell height (which includes accent room for
+ * Á, É, Ñ, etc.), leaving 1-2 px gaps between rows
+ *
+ * In ANSI viewing mode we bypass the font and draw these blocks ourselves
+ * with RectFill / SetAfPt so they tile pixel-perfect, matching what topaz
+ * does on the bitmap path. Bonus: faster than rasterizing through TTengine
+ */
+static int is_block_glyph(uint32_t cp)
+{
+    return (cp >= 0x2580 && cp <= 0x259F);
+}
+
+static void draw_block_glyph(uint32_t cp, int x, int y, int cw, int ch_, UBYTE fg)
+{
+    /* Standard Amiga area-fill patterns (16-pixel wide, 2-row repeating)
+     * We feed these to SetAfPt() so RectFill paints them */
+    static UWORD pat_25[2] = {0x8888, 0x2222}; /* ░ light shade  */
+    static UWORD pat_50[2] = {0x5555, 0xAAAA}; /* ▒ medium shade (checker) */
+    static UWORD pat_75[2] = {0x7777, 0xDDDD}; /* ▓ dark shade   */
+    UBYTE saved;
+
+    int xm = x + cw / 2;  /* horizontal middle */
+    int ym = y + ch_ / 2; /* vertical middle */
+    int x1 = x + cw - 1;  /* right edge */
+    int y1 = y + ch_ - 1; /* bottom edge */
+
+    if (!ami_rp || cw < 2 || ch_ < 2)
+        return;
+
+    saved = ami_rp->FgPen;
+
+    SetAPen(ami_rp, fg);
+
+    switch (cp)
+    {
+    /* Half blocks */
+    case 0x2580: /* ▀ UPPER HALF */
+        RectFill(ami_rp, x, y, x1, ym - 1);
+        break;
+    case 0x2584: /* ▄ LOWER HALF */
+        RectFill(ami_rp, x, ym, x1, y1);
+        break;
+    case 0x2588: /* █ FULL BLOCK */
+        RectFill(ami_rp, x, y, x1, y1);
+        break;
+    case 0x258C: /* ▌ LEFT HALF */
+        RectFill(ami_rp, x, y, xm - 1, y1);
+        break;
+    case 0x2590: /* ▐ RIGHT HALF */
+        RectFill(ami_rp, xm, y, x1, y1);
+        break;
+
+    /* Lower-N-eighths blocks (▁ ▂ ▃ ▅ ▆ ▇) */
+    case 0x2581:
+        RectFill(ami_rp, x, y + ch_ * 7 / 8, x1, y1);
+        break;
+    case 0x2582:
+        RectFill(ami_rp, x, y + ch_ * 6 / 8, x1, y1);
+        break;
+    case 0x2583:
+        RectFill(ami_rp, x, y + ch_ * 5 / 8, x1, y1);
+        break;
+    case 0x2585:
+        RectFill(ami_rp, x, y + ch_ * 3 / 8, x1, y1);
+        break;
+    case 0x2586:
+        RectFill(ami_rp, x, y + ch_ * 2 / 8, x1, y1);
+        break;
+    case 0x2587:
+        RectFill(ami_rp, x, y + ch_ * 1 / 8, x1, y1);
+        break;
+
+    /* Left-N-eighths blocks (▉ ▊ ▋ ▍ ▎ ▏) */
+    case 0x2589:
+        RectFill(ami_rp, x, y, x + cw * 7 / 8 - 1, y1);
+        break;
+    case 0x258A:
+        RectFill(ami_rp, x, y, x + cw * 6 / 8 - 1, y1);
+        break;
+    case 0x258B:
+        RectFill(ami_rp, x, y, x + cw * 5 / 8 - 1, y1);
+        break;
+    case 0x258D:
+        RectFill(ami_rp, x, y, x + cw * 3 / 8 - 1, y1);
+        break;
+    case 0x258E:
+        RectFill(ami_rp, x, y, x + cw * 2 / 8 - 1, y1);
+        break;
+    case 0x258F:
+        RectFill(ami_rp, x, y, x + cw / 8 - 1, y1);
+        break;
+
+    /* One-eighth top and right (▔ ▕) */
+    case 0x2594:
+        RectFill(ami_rp, x, y, x1, y + ch_ / 8 - 1);
+        break;
+    case 0x2595:
+        RectFill(ami_rp, x + cw * 7 / 8, y, x1, y1);
+        break;
+
+    /* Shaded blocks (░ ▒ ▓) — patterned fills */
+    case 0x2591:
+        SetAfPt(ami_rp, pat_25, 1);
+        RectFill(ami_rp, x, y, x1, y1);
+        SetAfPt(ami_rp, NULL, 0);
+        break;
+    case 0x2592:
+        SetAfPt(ami_rp, pat_50, 1);
+        RectFill(ami_rp, x, y, x1, y1);
+        SetAfPt(ami_rp, NULL, 0);
+        break;
+    case 0x2593:
+        SetAfPt(ami_rp, pat_75, 1);
+        RectFill(ami_rp, x, y, x1, y1);
+        SetAfPt(ami_rp, NULL, 0);
+        break;
+
+    /* Quadrants (▖ ▗ ▘ ▙ ▚ ▛ ▜ ▝ ▞ ▟) */
+    case 0x2596: /* ▖ lower left */
+        RectFill(ami_rp, x, ym, xm - 1, y1);
+        break;
+    case 0x2597: /* ▗ lower right */
+        RectFill(ami_rp, xm, ym, x1, y1);
+        break;
+    case 0x2598: /* ▘ upper left */
+        RectFill(ami_rp, x, y, xm - 1, ym - 1);
+        break;
+    case 0x2599: /* ▙ upper left + lower */
+        RectFill(ami_rp, x, y, xm - 1, ym - 1);
+        RectFill(ami_rp, x, ym, x1, y1);
+        break;
+    case 0x259A: /* ▚ upper left + lower right */
+        RectFill(ami_rp, x, y, xm - 1, ym - 1);
+        RectFill(ami_rp, xm, ym, x1, y1);
+        break;
+    case 0x259B: /* ▛ upper + lower left */
+        RectFill(ami_rp, x, y, x1, ym - 1);
+        RectFill(ami_rp, x, ym, xm - 1, y1);
+        break;
+    case 0x259C: /* ▜ upper + lower right */
+        RectFill(ami_rp, x, y, x1, ym - 1);
+        RectFill(ami_rp, xm, ym, x1, y1);
+        break;
+    case 0x259D: /* ▝ upper right */
+        RectFill(ami_rp, xm, y, x1, ym - 1);
+        break;
+    case 0x259E: /* ▞ upper right + lower left */
+        RectFill(ami_rp, xm, y, x1, ym - 1);
+        RectFill(ami_rp, x, ym, xm - 1, y1);
+        break;
+    case 0x259F: /* ▟ upper right + lower */
+        RectFill(ami_rp, xm, y, x1, ym - 1);
+        RectFill(ami_rp, x, ym, x1, y1);
+        break;
+
+    default:
+        break;
+    }
+
+    SetAPen(ami_rp, saved);
+}
+
 /* Render one cell to screen */
 static void render_cell(int row, int col, chtype ch, int attrs)
 {
@@ -243,7 +413,14 @@ static void render_cell(int row, int col, chtype ch, int attrs)
 
         if (wc >= 0x20)
         {
-            if (s_ttf_use_utf8)
+            /* ANSI mode + block glyph → draw directly with RectFill so the
+             * block tiles seamlessly to its neighbors. Outside ANSI mode (or
+             * for any non-block char), fall through to normal TT_Text path */
+            if (s_ansi_mode && is_block_glyph(wc))
+            {
+                draw_block_glyph(wc, x, y, fw, fh, saved);
+            }
+            else if (s_ttf_use_utf8)
             {
                 int utf8_len = utf32_to_utf8(wc, utf8_buf);
 
@@ -414,7 +591,9 @@ static void render_all()
 
             if (s_use_ttf)
             {
-                if (s_ttf_proportional)
+                /* Per-cell render is needed if the font is proportional or if
+                 * we are in ANSI mode */
+                if (s_ttf_proportional || s_ansi_mode)
                 {
                     int u;
                     for (u = 0; u < run_len; u++)
@@ -423,6 +602,7 @@ static void render_all()
                         uint32_t wc = (uint32_t)(cc->ch & 0xFFFFFFFF);
                         int cx = px(run_start + u);
                         UBYTE saved2;
+                        UBYTE fg_pen;
 
                         if (wc < 0x20)
                             wc = (uint32_t)' ';
@@ -431,9 +611,18 @@ static void render_all()
                          * from a wider neighbor glyph in the previous frame is
                          * erased before we render the current glyph */
                         saved2 = ami_rp->FgPen;
+                        fg_pen = saved2; /* current FgPen is the cell's foreground */
+
                         SetAPen(ami_rp, ami_rp->BgPen);
                         RectFill(ami_rp, cx, y, cx + fw - 1, y + fh - 1);
                         SetAPen(ami_rp, saved2);
+
+                        /* ANSI mode + block glyph: draw directly (no font) */
+                        if (s_ansi_mode && is_block_glyph(wc))
+                        {
+                            draw_block_glyph(wc, cx, y, fw, fh, fg_pen);
+                            continue;
+                        }
 
                         Move(ami_rp, cx, y + fb);
 
@@ -1886,7 +2075,11 @@ int amiga_change_font(int use_ansi)
 {
     struct TextFont *target_font;
 
-    /* In TTF mode the bitmap ANSI font isn't used; ignore the toggle */
+    /* Track ANSI mode regardless of font backend */
+    s_ansi_mode = use_ansi ? 1 : 0;
+    s_shadow_dirty = 1; /* force full redraw */
+
+    /* In TTF mode the bitmap ANSI font isn't used; nothing more to do */
     if (s_use_ttf)
         return 0;
 
