@@ -217,6 +217,32 @@ static void setup_colors(const CrashEditCfg *cfg)
     refresh();
 }
 
+/* Apply config changes in-place (colors, font, cursor) without restarting */
+void ui_reapply_config(UiApp *app)
+{
+    if (!app || !app->cfg)
+        return;
+
+#ifdef PLATFORM_AMIGA
+    if (app->cfg->ttf_enabled)
+    {
+        extern int amiga_reload_ttf(const char *font_path, int new_size);
+        amiga_reload_ttf(app->cfg->ttf_font, app->cfg->ttf_size);
+    }
+
+    amiga_set_default_bg_color(app->cfg->default_bg_color);
+#endif
+
+    setup_colors(app->cfg);
+
+#ifdef PLATFORM_AMIGA
+    {
+        extern void amiga_force_redraw(void);
+        amiga_force_redraw();
+    }
+#endif
+}
+
 /* Status bar */
 
 void ui_status(UiApp *app, const char *fmt, ...)
@@ -854,7 +880,10 @@ int ui_run(UiApp *app)
         app->force_setup = 0;
 
         if (saved == 1)
-            return app->want_reload; /* = 1: reload with new settings */
+        {
+            /* First-run: areas weren't loaded yet, must reload from disk */
+            return 1;
+        }
 
         return 0; /* quit without saving */
     }

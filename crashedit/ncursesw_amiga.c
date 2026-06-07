@@ -2107,6 +2107,130 @@ int amiga_change_font(int use_ansi)
     return 0;
 }
 
+/* Reload TTF with new font path and/or size (called after setup changes)
+ * Closes the current TTengine font, reopens at the new size, reapplies to
+ * the RastPort and resizes stdscr to fit the new cell dimensions.
+ * Returns 1 on success, 0 on failure (old font remains active) */
+int amiga_reload_ttf(const char *font_path, int new_size)
+{
+    APTR new_font;
+    int aa_value;
+    char old_file[512];
+    int old_size;
+
+    if (!font_path || !font_path[0])
+        return 0;
+
+    if (new_size < 6 || new_size > 96)
+        return 0;
+
+    if (!s_use_ttf || !ami_ttf_font || !TTEngineBase)
+    {
+        /* TTF not active: just update stored settings */
+        strncpy(s_ttf_file, font_path, sizeof(s_ttf_file) - 1);
+
+        s_ttf_file[sizeof(s_ttf_file) - 1] = '\0';
+        s_ttf_size = new_size;
+
+        return 1;
+    }
+
+    strncpy(old_file, s_ttf_file, sizeof(old_file) - 1);
+
+    old_file[sizeof(old_file) - 1] = '\0';
+    old_size = s_ttf_size;
+
+    fprintf(stderr, "TTF: Reloading '%s' at %dpt (was '%s' %dpt)\n", font_path, new_size, old_file, old_size);
+
+    aa_value = (s_ttf_antialias == 2)   ? TT_Antialias_On : (s_ttf_antialias == 1) ? TT_Antialias_Off : TT_Antialias_Auto;
+
+    new_font = TT_OpenFont(
+        TT_FontFile, (ULONG)font_path,
+        TT_FontSize, (ULONG)new_size,
+        TT_FontWeight, TT_FontWeight_Normal,
+        TT_Antialias, (ULONG)aa_value,
+        TAG_END);
+
+    if (!new_font)
+    {
+        fprintf(stderr, "TTF: TT_OpenFont failed for '%s' at %dpt; keeping old font\n", font_path, new_size);
+        return 0;
+    }
+
+    /* Detach old font from rastport, close it */
+    if (ami_rp)
+        TT_DoneRastPort(ami_rp);
+
+    TT_CloseFont(ami_ttf_font);
+    ami_ttf_font = new_font;
+
+    /* Update stored settings */
+    strncpy(s_ttf_file, font_path, sizeof(s_ttf_file) - 1);
+    s_ttf_file[sizeof(s_ttf_file) - 1] = '\0';
+    s_ttf_size = new_size;
+
+    /* Reapply to rastport — this recalculates fw/fh/fb */
+    if (ami_rp)
+        ami_ttf_apply_to_rastport(ami_rp);
+
+    /* Resize the physical window to keep the same COLS x LINES with new font */
+    if (ami_win)
+    {
+        struct Screen *scr;
+        int bw = ami_win->BorderLeft + ami_win->BorderRight;
+        int bh = ami_win->BorderTop + ami_win->BorderBottom;
+        int want_w = COLS * fw + bw;
+        int want_h = LINES * fh + bh;
+        /* BorderTop already includes the title bar pixel height on a
+         * backdrop window, so no extra offset needed here */
+        int win_x = ami_win->LeftEdge;
+        int win_y = ami_win->TopEdge;
+
+        /* Clamp to screen bounds */
+        scr = ami_win->WScreen;
+        if (scr)
+        {
+            if (want_w > scr->Width)
+                want_w = scr->Width;
+            if (want_h > scr->Height)
+                want_h = scr->Height;
+            if (win_x + want_w > scr->Width)
+                win_x = scr->Width - want_w;
+            if (win_y + want_h > scr->Height)
+                win_y = scr->Height - want_h;
+            if (win_x < 0)
+                win_x = 0;
+            if (win_y < 0)
+                win_y = 0;
+        }
+
+        /* ChangeWindowBox is asynchronous: Intuition will send IDCMP_NEWSIZE
+         * once the resize is done and the window frame is repainted.
+         * The IDCMP_NEWSIZE handler in wgetch() recalculates COLS/LINES and
+         * redraws everything. We just mark the shadow dirty so that redraw
+         * is full, then let the event loop do the rest. */
+        s_shadow_dirty = 1;
+
+        if (s_shadow)
+        {
+            free(s_shadow);
+            s_shadow = NULL;
+            s_shadow_w = 0;
+            s_shadow_h = 0;
+        }
+
+        fprintf(stderr, "TTF: ChangeWindowBox x=%d y=%d w=%d h=%d (COLS=%d LINES=%d fw=%d fh=%d bw=%d bh=%d)\n",
+                win_x, win_y, want_w, want_h, COLS, LINES, fw, fh, bw, bh);
+
+        ChangeWindowBox(ami_win, win_x, win_y, want_w, want_h);
+    }
+
+    fprintf(stderr, "TTF: Reloaded '%s' at %dpt, cell=%dx%d\n",
+            font_path, new_size, fw, fh);
+
+    return 1;
+}
+
 /* Keyboard input */
 
 /* Pending bytes from a single MapRawKey() call (dead-key + vowel can

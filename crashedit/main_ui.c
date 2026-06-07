@@ -24,7 +24,7 @@
 
 /* main_ui.c -- Entry point for new UI */
 
-#ifdef AMIGA
+#ifdef PLATFORM_AMIGA
 const char __attribute__((used)) binkd_stack_size[] = "$STACK:65536";
 #endif
 

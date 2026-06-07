@@ -322,7 +322,8 @@ int ui_popup_sort(char *spec, int specsz, const char *cfg_default);
 void ui_popup_help(const char *title, const char *const *lines, int n);
 int ui_popup_attach_add(UiApp *app);    /* 1=added, 0=canceled, -1=error */
 int ui_popup_freq(UiApp *app);          /* file request popup; 1=written, 0=canceled */
-int ui_setup_run(UiApp *app);           /* config editor; 1=saved (reload), 0=cancelled */
+int ui_setup_run(UiApp *app);           /* config editor; 1=saved, 0=cancelled */
+void ui_reapply_config(UiApp *app);     /* apply config changes in-place (colors, font) */
 int ui_popup_attach_remove(UiApp *app); /* 1=removed, 0=canceled */
 int ui_popup_attach_clear(UiApp *app);  /* 1=cleared, 0=canceled */
 int ui_popup_attach_list(UiApp *app);   /* 0=closed */

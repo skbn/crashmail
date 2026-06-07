@@ -1158,11 +1158,8 @@ UiView ui_arealist_run(UiApp *app)
         }
         break;
         case 'S':
-            if (ui_setup_run(app) == 1)
-            {
-                flushinp();
-                return VIEW_QUIT;
-            }
+            ui_setup_run(app);
+            flushinp();
             break;
         case 27:
         case 'q':

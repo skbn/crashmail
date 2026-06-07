@@ -561,11 +561,18 @@ int ui_setup_run(UiApp *app)
     int scroll_offset = 0;
     int key;
     int dirty = 0;
+    char orig_ttf_font[512];
+    int orig_ttf_size;
 
     if (!app || !app->cfg)
         return 0;
 
     work = *app->cfg; /* struct copy (shallow; all fields are inline arrays/ints) */
+
+    /* Save original font values to detect changes */
+    strncpy(orig_ttf_font, work.ttf_font, sizeof(orig_ttf_font) - 1);
+    orig_ttf_font[sizeof(orig_ttf_font) - 1] = '\0';
+    orig_ttf_size = work.ttf_size;
 
     for (;;)
     {
@@ -692,7 +699,10 @@ int ui_setup_run(UiApp *app)
                 continue;
             }
 
-            app->want_reload = 1;
+            /* Apply new config in-place: update live struct, reapply colors/font */
+            *app->cfg = work;
+            ui_reapply_config(app);
+
             return 1;
         }
 
