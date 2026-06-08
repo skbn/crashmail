@@ -22,7 +22,6 @@
  * General Public License v2.1. See src/jamlib/LICENSE for details.
  */
 
-
 /* ncursesw_amiga.h - ncursesw for AmigaOS 3 */
 
 #ifndef NCURSESW_AMIGA_H

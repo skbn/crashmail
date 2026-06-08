@@ -65,7 +65,6 @@ static const char *READER_HELP[] =
         "  e              Edit this message",
         "  n, Ins         New message (in current area)",
         "  l, L           Show message list overlay (ESC returns here)",
-        "  g              Goto message number",
         "  Ctrl+H         Scroll to top of message",
         "  Ctrl+K         Scroll to bottom of message",
         "  Ctrl+G         Goto line number",
@@ -1354,19 +1353,53 @@ UiView ui_reader_run(UiApp *app)
                     free(u);
                 }
 
-                target_line = (int)(line_num - 1); /* Convert to 0-based */
+                target_line = (int)(line_num - 1); /* Convert to 0-based (global index) */
 
-                if (target_line >= 0 && target_line < rd_total(app->reader))
+                if (target_line >= 0 && target_line < rd_count(app->reader))
                 {
-                    rd_set_page(app->reader, LINES - 8);
+                    int vis_idx = rd_global_to_visible(app->reader, target_line);
 
-                    /* Scroll to target line */
-                    if (target_line < rd_top(app->reader))
-                        rd_scroll_up(app->reader, rd_top(app->reader) - target_line);
-                    else if (target_line >= rd_top(app->reader) + rd_visible(app->reader))
-                        rd_scroll_down(app->reader, target_line - (rd_top(app->reader) + rd_visible(app->reader)) + 1);
+                    /* If target is a hidden kludge, find next visible line */
+                    if (vis_idx < 0)
+                    {
+                        int i;
 
-                    ui_status(app, "Jumped to line %ld", line_num);
+                        for (i = target_line + 1; i < rd_count(app->reader); i++)
+                        {
+                            vis_idx = rd_global_to_visible(app->reader, i);
+
+                            if (vis_idx >= 0)
+                                break;
+                        }
+
+                        if (vis_idx < 0) /* No visible lines after, try before */
+                        {
+                            for (i = target_line - 1; i >= 0; i--)
+                            {
+                                vis_idx = rd_global_to_visible(app->reader, i);
+
+                                if (vis_idx >= 0)
+                                    break;
+                            }
+                        }
+                    }
+
+                    if (vis_idx >= 0)
+                    {
+                        rd_set_page(app->reader, LINES - 8);
+
+                        /* Scroll to target visible line */
+                        if (vis_idx < rd_top(app->reader))
+                            rd_scroll_up(app->reader, rd_top(app->reader) - vis_idx);
+                        else if (vis_idx >= rd_top(app->reader) + rd_visible(app->reader))
+                            rd_scroll_down(app->reader, vis_idx - (rd_top(app->reader) + rd_visible(app->reader)) + 1);
+
+                        ui_status(app, "Jumped to line %ld", line_num);
+                    }
+                    else
+                    {
+                        ui_status(app, "Line %ld is not visible", line_num);
+                    }
                 }
                 else
                 {
@@ -1441,49 +1474,6 @@ UiView ui_reader_run(UiApp *app)
                     rd_scroll_up(app->reader, rd_top(app->reader) - target_top);
 
                 continue; /* Force redraw */
-            }
-
-            break;
-        }
-
-        case 'g': /* Goto message number */
-        case 'G':
-        {
-            wchar_t wbuf[16];
-            wbuf[0] = L'\0';
-
-            if (ui_popup_input("Goto", "Message number:", wbuf, 16) == 0 && wbuf[0])
-            {
-                char *u = wcs_to_utf8(wbuf, (int)wcslen(wbuf));
-                long mn = 0;
-
-                if (u)
-                {
-                    mn = strtol(u, NULL, 10);
-                    free(u);
-                }
-
-                int i, found = -1;
-
-                for (i = 0; i < s->order_count; i++)
-                {
-                    if ((long)s->msgs[s->order[i]].msgnum == mn)
-                    {
-                        found = i;
-                        break;
-                    }
-                }
-
-                if (found >= 0)
-                {
-                    s->msg_sel = found + 1;
-                    app->cur_msgnum = (uint32_t)mn;
-
-                    if (load_msg(app, app->cur_msgnum) != 0)
-                        ui_status(app, "Cannot load message");
-                }
-                else
-                    ui_status(app, "No such message in this view");
             }
 
             break;

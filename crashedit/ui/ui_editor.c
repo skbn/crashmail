@@ -76,6 +76,7 @@ static const char *EDITOR_HELP[] =
         "    Ins Alt+I       Toggle insert",
 #endif
         "    Ctrl-W          Rewrap paragraph",
+        "    Alt+W           Toggle hard-wrap",
         "    Ctrl+Left/Right Word movement",
         "",
         "  Block (selection):",
@@ -370,6 +371,35 @@ static int handle_function_keys(UiApp *app, int ch, int is_key)
         return 1;
     }
 
+    /* Alt+W : toggle hard-wrap with rewrap option */
+    if (ch == KEY_ALT('W'))
+    {
+        if (app->cfg->hard_wrap == 0)
+        {
+            /* Changing from soft to hard: ask if user wants to rewrap */
+            char msg[128];
+
+            snprintf(msg, sizeof(msg), "Convert document to hard-wrap at column %d?", app->cfg->autowrap_col);
+
+            if (ui_popup_confirm("Hard Wrap", msg) == 1)
+            {
+                app->cfg->hard_wrap = 1;
+                ed_set_hard_wrap(app->editor, 1);
+                ed_rewrap_document(app->editor, app->cfg->autowrap_col);
+                ui_status(app, "Hard wrap: ON (rewrapped)");
+            }
+        }
+        else
+        {
+            /* Changing from hard to soft: just toggle without asking */
+            app->cfg->hard_wrap = 0;
+            ed_set_hard_wrap(app->editor, 0);
+            ui_status(app, "Hard wrap: OFF");
+        }
+
+        return 1;
+    }
+
     /* F10 / Alt+T : nodelist picker (header only) */
     if (((is_key && (int)ch == KEY_F(10) || (is_key && ch == KEY_ALT('T'))) && app->edit_active_field != EF_BODY))
     {
@@ -608,6 +638,10 @@ static int handle_control_keys(UiApp *app, int ch, int is_key)
     if (!is_key && ch == CTRL('Z'))
     {
         ed_undo(app->editor);
+
+        if (app->cfg)
+            app->cfg->hard_wrap = ed_get_hard_wrap(app->editor);
+
         reset_search(app);
 
         return 1;
@@ -1007,6 +1041,10 @@ static int handle_body_input(UiApp *app, int ch, int is_key, wint_t wch, int sof
         case KEY_ALT('Z'): /* Alt+Z: redo */
             ui_status(app, "Alt+Z detected - trying redo");
             ed_redo(app->editor);
+
+            if (app->cfg)
+                app->cfg->hard_wrap = ed_get_hard_wrap(app->editor);
+
             reset_search(app);
 
             return 1;

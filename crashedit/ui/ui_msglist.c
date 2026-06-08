@@ -50,6 +50,7 @@ static const char *MSGLIST_HELP[] =
         "  r              REPLY to selected message",
         "  e              EDIT selected message",
         "  d              DELETE selected message (confirm)",
+        "  g              Goto message number",
         "  /              Search by From/To/Subject",
         "  Ctrl+F         File request",
         "  S              Setup",
@@ -459,6 +460,56 @@ UiView ui_msglist_run(UiApp *app)
                 return VIEW_EDITOR;
             }
             break;
+        case 'g':
+        case 'G':
+        {
+            wchar_t wbuf[16];
+            wbuf[0] = L'\0';
+
+            if (ui_popup_input("Goto", "Message number:", wbuf, 16) == 0 && wbuf[0])
+            {
+                char *u = wcs_to_utf8(wbuf, (int)wcslen(wbuf));
+                long mn = 0;
+
+                if (u)
+                {
+                    mn = strtol(u, NULL, 10);
+                    free(u);
+                }
+
+                if (mn > 0)
+                {
+                    int i;
+                    int found = -1;
+
+                    for (i = 0; i < s->msg_count; i++)
+                    {
+                        if ((long)s->msgs[i].msgnum == mn)
+                        {
+                            found = i;
+                            break;
+                        }
+                    }
+
+                    if (found >= 0)
+                    {
+                        for (i = 0; i < s->order_count; i++)
+                        {
+                            if (s->order[i] == found)
+                            {
+                                s->msg_sel = i + 1;
+                                ui_status(app, "Moved to message %ld", mn);
+                                break;
+                            }
+                        }
+                    }
+                    else
+                        ui_status(app, "Message %ld not in list", mn);
+                }
+            }
+
+            break;
+        }
         case 'd':
         case 'D':
         case KEY_DC:

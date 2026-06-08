@@ -778,6 +778,10 @@ UiApp *ui_init(CrashEditCfg *cfg, AreaList *areas)
     app->reader = rd_new(cfg->viewkludge, cfg->viewhidden);
     app->hdr = msghdr_new();
     app->editor = ed_new();
+
+    if (app->editor)
+        ed_set_hard_wrap(app->editor, cfg->hard_wrap);
+
     app->edit_hdr = msghdr_new();
     app->attach_list = attach_new();
 

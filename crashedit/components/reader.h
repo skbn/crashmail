@@ -62,14 +62,16 @@ void rd_toggle_ansi(Reader *rd);
 int rd_ansi_visible(const Reader *rd);
 
 /* Query */
-int rd_total(const Reader *rd);
+int rd_total(const Reader *rd); /* visible line count */
+int rd_count(const Reader *rd); /* total line count (global) */
 int rd_visible(const Reader *rd);
 int rd_top(const Reader *rd);
 int rd_percent(const Reader *rd);
-const wchar_t *rd_get_line(const Reader *rd, int vis_idx); /* wchar_t line */
-int rd_get_len(const Reader *rd, int vis_idx);             /* character count */
-int rd_get_type(const Reader *rd, int vis_idx);            /* FTN_LT_* */
-int rd_get_line_idx(const Reader *rd, int vis_idx);        /* message line index from visible index */
+int rd_global_to_visible(const Reader *rd, int global_idx); /* -1 if not visible */
+const wchar_t *rd_get_line(const Reader *rd, int vis_idx);  /* wchar_t line */
+int rd_get_len(const Reader *rd, int vis_idx);              /* character count */
+int rd_get_type(const Reader *rd, int vis_idx);             /* FTN_LT_* */
+int rd_get_line_idx(const Reader *rd, int vis_idx);         /* message line index from visible index */
 
 /* Convenience: get line as UTF-8 into caller buffer */
 int rd_line_utf8(const Reader *rd, int vis_idx, char *buf, int bufsz);

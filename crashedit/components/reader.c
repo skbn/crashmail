@@ -535,9 +535,31 @@ int rd_total(const Reader *rd)
     return rd ? rd->vis_count : 0;
 }
 
+int rd_count(const Reader *rd)
+{
+    return rd ? rd->count : 0;
+}
+
 int rd_top(const Reader *rd)
 {
     return rd ? rd->top : 0;
+}
+
+/* Convert global line index to visible index; returns -1 if not visible (e.g., hidden kludge) */
+int rd_global_to_visible(const Reader *rd, int global_idx)
+{
+    int i;
+
+    if (!rd || !rd->vis || global_idx < 0)
+        return -1;
+
+    for (i = 0; i < rd->vis_count; i++)
+    {
+        if (rd->vis[i] == global_idx)
+            return i;
+    }
+
+    return -1; /* not visible */
 }
 
 int rd_visible(const Reader *rd)

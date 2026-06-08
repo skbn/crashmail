@@ -22,6 +22,7 @@
  * General Public License v2.1. See src/jamlib/LICENSE for details.
  */
 
+
 /* editor.c -- Text editor with wchar_t internal representation */
 #include <stdio.h>
 #include <stdlib.h>
@@ -44,20 +45,23 @@ typedef struct
 /* Operation types for undo/redo log */
 typedef enum
 {
-    OP_INSERT, /* inserted wchar_t text at (row,col) */
-    OP_DELETE, /* deleted wchar_t text at (row,col) */
-    OP_SPLIT,  /* Enter: split line at (row,col) */
-    OP_JOIN    /* Backspace at col 0: join row with row-1, col=join_col */
+    OP_INSERT,  /* inserted wchar_t text at (row,col) */
+    OP_DELETE,  /* deleted wchar_t text at (row,col) */
+    OP_SPLIT,   /* Enter: split line at (row,col) */
+    OP_JOIN,    /* Backspace at col 0: join row with row-1, col=join_col */
+    OP_SNAPSHOT /* Full document snapshot: text = full document UTF-8 */
 } UndoOpType;
 
 /* Single atomic edit operation */
 typedef struct
 {
     UndoOpType type;
-    int row, col;  /* position where op occurred */
-    wchar_t *text; /* owned; used by OP_INSERT and OP_DELETE */
-    int len;       /* chars in text */
-    int join_col;  /* for OP_JOIN: length of previous line before join */
+    int row, col;        /* position where op occurred */
+    wchar_t *text;       /* owned; used by OP_INSERT and OP_DELETE */
+    int len;             /* chars in text */
+    int join_col;        /* for OP_JOIN: length of previous line before join */
+    char *utf8_snapshot; /* owned; used by OP_SNAPSHOT: full document UTF-8 */
+    int hard_wrap_mode;  /* used by OP_SNAPSHOT: 0=soft-wrap, 1=hard-wrap */
 } UndoOp;
 
 /* Group of ops treated as one undo/redo step */
@@ -92,7 +96,9 @@ struct Ed
     int undo_open; /* 1 = current group is open for appending */
     UndoOpType undo_last_op;
     int undo_last_row;
-    int undo_last_col_end; /* col after last recorded char */
+    int undo_last_col_end;  /* col after last recorded char */
+    int undo_snapshot_mode; /* 1 = only allow snapshot operations, block individual ops */
+    int hard_wrap;          /* 0=soft-wrap, 1=hard-wrap */
 };
 
 #define INIT_ALLOC 256
@@ -316,7 +322,10 @@ static void undo_group_clear(UndoGroup *g)
     int i;
 
     for (i = 0; i < g->count; i++)
+    {
         free(g->ops[i].text);
+        free(g->ops[i].utf8_snapshot);
+    }
 
     free(g->ops);
 
@@ -345,6 +354,8 @@ Ed *ed_new(void)
     ed->page = 25;
     ed->undo_max = 50;
     ed->redo_max = 50;
+    ed->undo_snapshot_mode = 0;
+    ed->hard_wrap = 0;
     ed->lines = (EdLine **)malloc(INIT_ALLOC * sizeof(EdLine *));
 
     if (!ed->lines)
@@ -530,6 +541,7 @@ char *ed_to_string(const Ed *ed)
             free(parts[i]);
 
         free(parts);
+
         return NULL;
     }
 
@@ -1501,7 +1513,7 @@ static int undo_open_group(Ed *ed)
     return 0;
 }
 
-/* Append one op to the current (top) group. */
+/* Append one op to the current (top) group */
 static int undo_push_op(Ed *ed, UndoOpType type, int row, int col, const wchar_t *text, int len, int join_col)
 {
     UndoGroup *g;
@@ -1533,6 +1545,7 @@ static int undo_push_op(Ed *ed, UndoOpType type, int row, int col, const wchar_t
     op->len = len;
     op->join_col = join_col;
     op->text = NULL;
+    op->utf8_snapshot = NULL;
 
     if ((type == OP_INSERT || type == OP_DELETE) && text && len > 0)
     {
@@ -1578,11 +1591,11 @@ static int undo_coalesce_insert(Ed *ed, wchar_t ch)
     op->text = t;
     op->text[op->len++] = ch;
     op->text[op->len] = L'\0';
+
     return 0;
 }
 
-/* Prepend a single wchar_t to the text of the last DELETE op in the
-   current group (coalescing consecutive backspace deletes). */
+/* Prepend a single wchar_t to the text of the last DELETE op */
 static int undo_coalesce_delete_prepend(Ed *ed, wchar_t ch)
 {
     UndoGroup *g;
@@ -1607,16 +1620,20 @@ static int undo_coalesce_delete_prepend(Ed *ed, wchar_t ch)
         return -1;
 
     t[0] = ch;
+
     wmemcpy(&t[1], op->text, (size_t)op->len);
     t[op->len + 1] = L'\0';
+
     free(op->text);
+
     op->text = t;
     op->col--; /* deletion site moves one left */
     op->len++;
+
     return 0;
 }
 
-/* Append a single wchar_t to the text of the last DELETE op (Del key). */
+/* Append a single wchar_t to the text of the last DELETE op (Del key) */
 static int undo_coalesce_delete_append(Ed *ed, wchar_t ch)
 {
     UndoGroup *g;
@@ -1643,14 +1660,18 @@ static int undo_coalesce_delete_append(Ed *ed, wchar_t ch)
     op->text = t;
     op->text[op->len++] = ch;
     op->text[op->len] = L'\0';
+
     return 0;
 }
 
-/* Record an insert of ch at (row, col).
-   Coalesces with the previous insert if possible. */
+/* Record an insert of ch at (row, col)
+ * Coalesces with the previous insert if possible */
 static void record_insert(Ed *ed, int row, int col, wchar_t ch)
 {
     if (ed->undo_max <= 0)
+        return;
+
+    if (ed->undo_snapshot_mode)
         return;
 
     if (ed->undo_open && ed->undo_top > 0 && ed->undo_last_op == OP_INSERT && ed->undo_last_row == row && ed->undo_last_col_end == col)
@@ -1666,6 +1687,7 @@ static void record_insert(Ed *ed, int row, int col, wchar_t ch)
     if (!ed->undo_open || ed->undo_top == 0)
     {
         redo_clear(ed);
+
         if (undo_open_group(ed) != 0)
             return;
     }
@@ -1679,10 +1701,13 @@ static void record_insert(Ed *ed, int row, int col, wchar_t ch)
     ed->undo_last_col_end = col + 1;
 }
 
-/* Record a backspace-delete of ch that was at (row, col) before deletion. */
+/* Record a backspace-delete of ch that was at (row, col) before deletion */
 static void record_delete_back(Ed *ed, int row, int col, wchar_t ch)
 {
     if (ed->undo_max <= 0)
+        return;
+
+    if (ed->undo_snapshot_mode)
         return;
 
     /* Coalesce: consecutive backspaces on same row, cursor moving left */
@@ -1698,6 +1723,7 @@ static void record_delete_back(Ed *ed, int row, int col, wchar_t ch)
     if (!ed->undo_open || ed->undo_top == 0)
     {
         redo_clear(ed);
+
         if (undo_open_group(ed) != 0)
             return;
     }
@@ -1711,10 +1737,13 @@ static void record_delete_back(Ed *ed, int row, int col, wchar_t ch)
     ed->undo_last_col_end = col;
 }
 
-/* Record a forward-delete (Del key) of ch at (row, col). */
+/* Record a forward-delete (Del key) of ch at (row, col) */
 static void record_delete_fwd(Ed *ed, int row, int col, wchar_t ch)
 {
     if (ed->undo_max <= 0)
+        return;
+
+    if (ed->undo_snapshot_mode)
         return;
 
     /* Coalesce: consecutive Del presses at same position */
@@ -1727,6 +1756,7 @@ static void record_delete_fwd(Ed *ed, int row, int col, wchar_t ch)
     if (!ed->undo_open || ed->undo_top == 0)
     {
         redo_clear(ed);
+
         if (undo_open_group(ed) != 0)
             return;
     }
@@ -1740,47 +1770,53 @@ static void record_delete_fwd(Ed *ed, int row, int col, wchar_t ch)
     ed->undo_last_col_end = col;
 }
 
-/* Record an Enter (split) at (row, col). Always a break point. */
+/* Record an Enter (split) at (row, col). Always a break point */
 static void record_split(Ed *ed, int row, int col)
 {
     if (ed->undo_max <= 0)
         return;
 
+    if (ed->undo_snapshot_mode)
+        return;
+
     /* Close any open group before starting a new one */
     ed_save_undo(ed);
     redo_clear(ed);
+
     if (undo_open_group(ed) != 0)
         return;
 
     undo_push_op(ed, OP_SPLIT, row, col, NULL, 0, 0);
+
     ed->undo_open = 0; /* each Enter is its own group */
     ed->undo_last_op = OP_SPLIT;
     ed->undo_last_row = row;
     ed->undo_last_col_end = 0;
 }
 
-/* Record a join (backspace at col 0) at row, prev_line_len = join_col. */
+/* Record a join (backspace at col 0) at row, prev_line_len = join_col */
 static void record_join(Ed *ed, int row, int join_col)
 {
     if (ed->undo_max <= 0)
         return;
 
+    if (ed->undo_snapshot_mode)
+        return;
+
     /* Close any open group before starting a new one */
     ed_save_undo(ed);
     redo_clear(ed);
+
     if (undo_open_group(ed) != 0)
         return;
 
     undo_push_op(ed, OP_JOIN, row, 0, NULL, 0, join_col);
+
     ed->undo_open = 0;
     ed->undo_last_op = OP_JOIN;
     ed->undo_last_row = row;
     ed->undo_last_col_end = 0;
 }
-
-/* ------------------------------------------------------------------ */
-/* Apply a group of ops in reverse (undo) or forward (redo)           */
-/* ------------------------------------------------------------------ */
 
 static void apply_group_reverse(Ed *ed, UndoGroup *g)
 {
@@ -1800,6 +1836,7 @@ static void apply_group_reverse(Ed *ed, UndoGroup *g)
             /* Undo insert: delete the inserted chars */
             if (op->row < ed->count)
                 line_delete_range(ed->lines[op->row], op->col, op->len);
+
             break;
 
         case OP_DELETE:
@@ -1807,9 +1844,11 @@ static void apply_group_reverse(Ed *ed, UndoGroup *g)
             if (op->row < ed->count && op->text)
             {
                 int j;
+
                 for (j = 0; j < op->len; j++)
                     line_insert(ed->lines[op->row], op->col + j, op->text[j]);
             }
+
             break;
 
         case OP_SPLIT:
@@ -1818,9 +1857,11 @@ static void apply_group_reverse(Ed *ed, UndoGroup *g)
             {
                 cur = ed->lines[op->row];
                 prev = ed->lines[op->row + 1];
+
                 line_append(cur, prev->wcs, prev->len);
                 line_free(doc_remove_line(ed, op->row + 1));
             }
+
             break;
 
         case OP_JOIN:
@@ -1829,12 +1870,26 @@ static void apply_group_reverse(Ed *ed, UndoGroup *g)
             {
                 cur = ed->lines[op->row];
                 nl = line_new(&cur->wcs[op->join_col], cur->len - op->join_col);
+
                 if (nl)
                 {
                     line_truncate(cur, op->join_col);
                     doc_insert_line(ed, op->row + 1, nl);
                 }
             }
+
+            break;
+
+        case OP_SNAPSHOT:
+            /* Undo snapshot: restore document from UTF-8 snapshot */
+            if (op->utf8_snapshot)
+            {
+                doc_clear(ed);
+                ed_load(ed, op->utf8_snapshot);
+                ed->hard_wrap = op->hard_wrap_mode;
+                ed_set_pos(ed, op->row, op->col);
+            }
+
             break;
         }
     }
@@ -1894,6 +1949,17 @@ static void apply_group_forward(Ed *ed, UndoGroup *g)
                 line_free(doc_remove_line(ed, op->row + 1));
             }
 
+            break;
+
+        case OP_SNAPSHOT:
+            /* Redo snapshot: restore document from UTF-8 snapshot */
+            if (op->utf8_snapshot)
+            {
+                doc_clear(ed);
+                ed_load(ed, op->utf8_snapshot);
+                ed->hard_wrap = op->hard_wrap_mode;
+                ed_set_pos(ed, op->row, op->col);
+            }
             break;
         }
     }
@@ -2038,6 +2104,20 @@ void ed_set_modified(Ed *ed, int modified)
 {
     if (ed)
         ed->modified = modified;
+}
+
+int ed_get_hard_wrap(const Ed *ed)
+{
+    if (!ed)
+        return 0;
+
+    return ed->hard_wrap;
+}
+
+void ed_set_hard_wrap(Ed *ed, int hard_wrap)
+{
+    if (ed)
+        ed->hard_wrap = hard_wrap;
 }
 
 void ed_get_info(const Ed *ed, EdInfo *info)
@@ -2229,9 +2309,21 @@ int ed_rewrap_paragraph(Ed *ed, int width)
     wchar_t *outw = NULL;
     char *outu;
     int k;
+    char *snapshot_before = NULL;
+    char *snapshot_after = NULL;
+    UndoGroup *g;
+    int need_snapshot = 0;
+    int cursor_row_before = 0;
+    int cursor_col_before = 0;
+    int cursor_row_after = 0;
+    int cursor_col_after = 0;
 
     if (!ed || width < 20 || ed->count <= 0)
         return -1;
+
+    /* Check if we need to create a snapshot (only if not already in snapshot mode) */
+    if (!ed->undo_snapshot_mode)
+        need_snapshot = 1;
 
     line = ed->lines[ed->row]->wcs;
 
@@ -2273,6 +2365,7 @@ int ed_rewrap_paragraph(Ed *ed, int width)
             if (l[p] == L'>')
                 break;
         }
+
         first--;
     }
 
@@ -2407,6 +2500,10 @@ int ed_rewrap_paragraph(Ed *ed, int width)
         for (k = 0; k < break_at; k++)
             outw[out_used++] = joined[pos + k];
 
+        /* Trim trailing spaces from the line we just added */
+        while (out_used > 0 && outw[out_used - 1] == L' ')
+            out_used--;
+
         pos += (size_t)break_at;
 
         while (pos < used && joined[pos] == L' ')
@@ -2417,6 +2514,24 @@ int ed_rewrap_paragraph(Ed *ed, int width)
 
     outw[out_used] = L'\0';
     free(joined);
+
+    /* Save snapshot before rewrap if needed */
+    if (need_snapshot)
+    {
+        cursor_row_before = ed->row;
+        cursor_col_before = ed->col;
+
+        snapshot_before = ed_to_string(ed);
+
+        if (!snapshot_before)
+        {
+            free(outw);
+            return -1;
+        }
+
+        /* Enable snapshot mode to block individual undo operations */
+        ed->undo_snapshot_mode = 1;
+    }
 
     /* Delete the old paragraph block */
     ed_set_pos(ed, first, 0);
@@ -2434,6 +2549,283 @@ int ed_rewrap_paragraph(Ed *ed, int width)
     {
         ed_paste_text(ed, outu);
         free(outu);
+    }
+
+    /* Disable snapshot mode and save snapshot after rewrap if needed */
+    if (need_snapshot)
+    {
+        cursor_row_after = ed->row;
+        cursor_col_after = ed->col;
+
+        ed->undo_snapshot_mode = 0;
+
+        snapshot_after = ed_to_string(ed);
+
+        if (!snapshot_after)
+        {
+            free(snapshot_before);
+
+            return -1;
+        }
+
+        /* Push snapshot to undo stack */
+        redo_clear(ed);
+
+        if (undo_open_group(ed) != 0)
+        {
+            free(snapshot_before);
+            free(snapshot_after);
+
+            return -1;
+        }
+
+        g = &ed->undo_stack[ed->undo_top - 1];
+        g->cur_row = cursor_row_before;
+        g->cur_col = cursor_col_before;
+        g->end_row = cursor_row_after;
+        g->end_col = cursor_col_after;
+
+        if (g->count >= g->cap)
+        {
+            int nc = (g->cap > 0) ? (g->cap * 2) : 4;
+            UndoOp *t = (UndoOp *)realloc(g->ops, (size_t)nc * sizeof(UndoOp));
+
+            if (!t)
+            {
+                free(snapshot_before);
+                free(snapshot_after);
+
+                return -1;
+            }
+
+            g->ops = t;
+            g->cap = nc;
+        }
+
+        g->ops[g->count].type = OP_SNAPSHOT;
+        g->ops[g->count].row = cursor_row_before;
+        g->ops[g->count].col = cursor_col_before;
+        g->ops[g->count].len = 0;
+        g->ops[g->count].join_col = 0;
+        g->ops[g->count].text = NULL;
+        g->ops[g->count].utf8_snapshot = snapshot_before;
+        g->ops[g->count].hard_wrap_mode = ed->hard_wrap;
+        g->count++;
+        ed->undo_open = 0;
+
+        /* Push snapshot to redo stack */
+        if (undo_stack_make_room(&ed->redo_stack, &ed->redo_top, &ed->redo_cap, ed->redo_max) == 0)
+        {
+            g = &ed->redo_stack[ed->redo_top];
+            g->ops = (UndoOp *)malloc(sizeof(UndoOp));
+
+            if (g->ops)
+            {
+                g->count = 1;
+                g->cap = 1;
+                g->cur_row = cursor_row_before;
+                g->cur_col = cursor_col_before;
+                g->end_row = cursor_row_after;
+                g->end_col = cursor_col_after;
+                g->ops[0].type = OP_SNAPSHOT;
+                g->ops[0].row = cursor_row_after;
+                g->ops[0].col = cursor_col_after;
+                g->ops[0].len = 0;
+                g->ops[0].join_col = 0;
+                g->ops[0].text = NULL;
+                g->ops[0].utf8_snapshot = snapshot_after;
+                g->ops[0].hard_wrap_mode = ed->hard_wrap;
+                ed->redo_top++;
+            }
+            else
+            {
+                free(snapshot_after);
+            }
+        }
+        else
+        {
+            free(snapshot_after);
+        }
+    }
+
+    return 0;
+}
+
+/* Rewrap entire document to hard-wrap at specified width */
+int ed_rewrap_document(Ed *ed, int width)
+{
+    int para_start = 0;
+    EdInfo info;
+    int i;
+    char *snapshot_before = NULL;
+    char *snapshot_after = NULL;
+    UndoGroup *g;
+
+    if (!ed || width < 20 || ed->count <= 0)
+        return -1;
+
+    ed_get_info(ed, &info);
+
+    /* Save snapshot before rewrap for undo */
+    snapshot_before = ed_to_string(ed);
+
+    if (!snapshot_before)
+        return -1;
+
+    /* Enable snapshot mode to block individual undo operations */
+    ed->undo_snapshot_mode = 1;
+
+    /* Process document paragraph by paragraph */
+    while (para_start < info.line_count)
+    {
+        const wchar_t *l;
+        int prefix_len;
+        int para_end;
+        int needs_rewrap = 0;
+
+        /* Skip empty lines - preserve them as-is */
+        l = ed->lines[para_start]->wcs;
+
+        if (!l || !l[0])
+        {
+            para_start++;
+            continue;
+        }
+
+        /* Find paragraph end (consecutive non-empty lines with same quote prefix) */
+        prefix_len = detect_quote_prefix(l);
+        para_end = para_start + 1;
+
+        while (para_end < info.line_count)
+        {
+            const wchar_t *next_l = ed->lines[para_end]->wcs;
+            int next_prefix;
+
+            if (!next_l || !next_l[0])
+                break; /* Empty line ends paragraph */
+
+            next_prefix = detect_quote_prefix(next_l);
+
+            /* Different prefix ends paragraph */
+            if (prefix_len != next_prefix)
+                break;
+
+            para_end++;
+        }
+
+        /* Check if any line in paragraph exceeds width (excluding prefix) */
+        for (i = para_start; i < para_end; i++)
+        {
+            const wchar_t *check_l = ed->lines[i]->wcs;
+            int check_len = ed->lines[i]->len;
+            int content_len = check_len - prefix_len;
+
+            if (content_len > width - prefix_len)
+            {
+                needs_rewrap = 1;
+                break;
+            }
+        }
+
+        /* Only rewrap if needed */
+        if (needs_rewrap)
+        {
+            ed_set_pos(ed, para_start, 0);
+            ed_rewrap_paragraph(ed, width);
+
+            /* Update info because line count changed */
+            ed_get_info(ed, &info);
+        }
+
+        /* Move to next paragraph */
+        para_start = para_end;
+    }
+
+    /* Disable snapshot mode */
+    ed->undo_snapshot_mode = 0;
+
+    /* Save snapshot after rewrap for redo */
+    snapshot_after = ed_to_string(ed);
+
+    if (!snapshot_after)
+    {
+        free(snapshot_before);
+
+        return -1;
+    }
+
+    /* Push snapshot to undo stack */
+    redo_clear(ed);
+
+    if (undo_open_group(ed) != 0)
+    {
+        free(snapshot_before);
+        free(snapshot_after);
+
+        return -1;
+    }
+
+    g = &ed->undo_stack[ed->undo_top - 1];
+    if (g->count >= g->cap)
+    {
+        int nc = (g->cap > 0) ? (g->cap * 2) : 4;
+        UndoOp *t = (UndoOp *)realloc(g->ops, (size_t)nc * sizeof(UndoOp));
+
+        if (!t)
+        {
+            free(snapshot_before);
+
+            free(snapshot_after);
+            return -1;
+        }
+
+        g->ops = t;
+        g->cap = nc;
+    }
+
+    g->ops[g->count].type = OP_SNAPSHOT;
+    g->ops[g->count].row = ed->row;
+    g->ops[g->count].col = ed->col;
+    g->ops[g->count].len = 0;
+    g->ops[g->count].join_col = 0;
+    g->ops[g->count].text = NULL;
+    g->ops[g->count].utf8_snapshot = snapshot_before;
+    g->ops[g->count].hard_wrap_mode = ed->hard_wrap;
+    g->count++;
+    ed->undo_open = 0;
+
+    /* Push snapshot to redo stack */
+    if (undo_stack_make_room(&ed->redo_stack, &ed->redo_top, &ed->redo_cap, ed->redo_max) == 0)
+    {
+        g = &ed->redo_stack[ed->redo_top];
+        g->ops = (UndoOp *)malloc(sizeof(UndoOp));
+
+        if (g->ops)
+        {
+            g->count = 1;
+            g->cap = 1;
+            g->cur_row = ed->row;
+            g->cur_col = ed->col;
+            g->end_row = ed->row;
+            g->end_col = ed->col;
+            g->ops[0].type = OP_SNAPSHOT;
+            g->ops[0].row = ed->row;
+            g->ops[0].col = ed->col;
+            g->ops[0].len = 0;
+            g->ops[0].join_col = 0;
+            g->ops[0].text = NULL;
+            g->ops[0].utf8_snapshot = snapshot_after;
+            g->ops[0].hard_wrap_mode = ed->hard_wrap;
+            ed->redo_top++;
+        }
+        else
+        {
+            free(snapshot_after);
+        }
+    }
+    else
+    {
+        free(snapshot_after);
     }
 
     return 0;
@@ -2498,11 +2890,13 @@ int ed_load_file_at_cursor(Ed *ed, const char *path, const char *charset_in)
         }
 
         wrote = charset_body_to_utf8(charset_in, buf, (int)r, out, (int)outsz);
+
         free(buf);
 
         if (wrote < 0 || wrote >= (int)outsz)
         {
             free(out);
+
             return -1;
         }
 
