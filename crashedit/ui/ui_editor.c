@@ -935,7 +935,6 @@ static int handle_body_input(UiApp *app, int ch, int is_key, wint_t wch, int sof
             return 1;
 
         case KEY_ENTER:
-            ed_save_undo(app->editor);
             ed_enter(app->editor);
             reset_search(app);
 
@@ -957,7 +956,6 @@ static int handle_body_input(UiApp *app, int ch, int is_key, wint_t wch, int sof
             else
             {
                 /* Backspace single character */
-                ed_save_undo(app->editor);
                 ed_backspace(app->editor);
                 reset_search(app);
             }
@@ -981,7 +979,6 @@ static int handle_body_input(UiApp *app, int ch, int is_key, wint_t wch, int sof
             else
             {
                 /* Delete single character */
-                ed_save_undo(app->editor);
                 ed_delete(app->editor);
                 reset_search(app);
             }
@@ -1024,7 +1021,6 @@ static int handle_body_input(UiApp *app, int ch, int is_key, wint_t wch, int sof
         {
         case '\n':
         case '\r':
-            ed_save_undo(app->editor);
             ed_enter(app->editor);
             reset_search(app);
 
@@ -1032,7 +1028,6 @@ static int handle_body_input(UiApp *app, int ch, int is_key, wint_t wch, int sof
 
         case 8:
         case 127:
-            ed_save_undo(app->editor);
             ed_backspace(app->editor);
             reset_search(app);
 
@@ -1144,8 +1139,6 @@ static int handle_body_input(UiApp *app, int ch, int is_key, wint_t wch, int sof
             /* Printable wide character: insert into body */
             if (wch >= 0x20 && wch != 127)
             {
-                ed_save_undo(app->editor);
-
                 /* SOFT-WRAP: If cursor is at end of visual segment, move to start of next segment BEFORE inserting */
                 if (!(app->cfg && app->cfg->hard_wrap) && body_width > 0)
                 {

@@ -372,6 +372,13 @@ void draw_edit_body(UiApp *app)
                     mvaddnwstr(start_row + i, hs, &wcs[hs], he - hs);
                     attroff(A_REVERSE);
                 }
+                else if (hs == 0 && he == 0)
+                {
+                    /* Cursor at col 0 or empty line: show one reversed space */
+                    attron(A_REVERSE);
+                    mvaddch(start_row + i, 0, ' ');
+                    attroff(A_REVERSE);
+                }
             }
         }
 
@@ -504,7 +511,15 @@ void draw_edit_body(UiApp *app)
                         mvaddnwstr(start_row + sr, hs - seg_start, &l[hs], he - hs);
                         attroff(A_REVERSE);
                     }
+                    else if (hs == seg_start && he == seg_start)
+                    {
+                        /* Cursor at col 0 or empty line: show one reversed space */
+                        attron(A_REVERSE);
+                        mvaddch(start_row + sr, 0, ' ');
+                        attroff(A_REVERSE);
+                    }
                 }
+
                 sr++;
             }
 

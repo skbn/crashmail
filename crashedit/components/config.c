@@ -1100,9 +1100,11 @@ int cfg_load(CrashEditCfg *cfg, const char *path)
 
     fclose(f);
 
+#ifdef PLATFORM_AMIGA
     /* Ensure ttf_use_utf8 has a valid value (for old config files without this field) */
     if (cfg->ttf_use_utf8 != 0 && cfg->ttf_use_utf8 != 1)
         cfg->ttf_use_utf8 = 1; /* default to UTF-8 */
+#endif
 
     return 0;
 }
