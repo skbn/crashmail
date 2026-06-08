@@ -840,6 +840,7 @@ int ed_insert_char(Ed *ed, wchar_t ch)
     if (ed->insert_mode)
     {
         record_insert(ed, ed->row, ed->col, ch);
+
         if (line_insert(ln, ed->col, ch) != 0)
             return -1;
     }
