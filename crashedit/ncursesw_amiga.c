@@ -716,6 +716,7 @@ static void render_all()
     if (s_shadow && prev_y >= 0 && prev_x >= 0 && prev_y < LINES && prev_x < COLS && (prev_y != cy_cell || prev_x != cx_cell))
     {
         Cell *cell = CELL(stdscr, prev_y, prev_x);
+
         render_cell(prev_y, prev_x, cell->ch, cell->attrs);
         s_shadow[prev_y * COLS + prev_x] = *cell;
     }
@@ -724,6 +725,7 @@ static void render_all()
     {
         int cx = bx + cx_cell * fw;
         int cy = by + cy_cell * fh;
+
         SetAPen(ami_rp, s_cursor_pen);
         Move(ami_rp, cx, cy);
         Draw(ami_rp, cx + fw - 1, cy);
@@ -834,6 +836,7 @@ static void ami_ttf_apply_to_rastport(struct RastPort *rp)
     {
         char probe_M[2] = "M";
         char probe_i[2] = "i";
+
         mwidth = TT_TextLength(rp, probe_M, 1);
         iwidth = TT_TextLength(rp, probe_i, 1);
     }
@@ -841,6 +844,7 @@ static void ami_ttf_apply_to_rastport(struct RastPort *rp)
     {
         UWORD probe_M[2] = {'M', 0};
         UWORD probe_i[2] = {'i', 0};
+
         mwidth = TT_TextLength(rp, probe_M, 1);
         iwidth = TT_TextLength(rp, probe_i, 1);
     }
@@ -859,10 +863,6 @@ static void ami_ttf_apply_to_rastport(struct RastPort *rp)
         fw = (int)fwidth;
     else if (mwidth >= 4 && mwidth <= 64)
         fw = (int)mwidth;
-
-    /*
-    fprintf(stderr, "TTF: fixed=%lu fw_native=%lu M=%lu i=%lu -> fw=%d proportional=%d\n", (unsigned long)is_fixed, (unsigned long)fwidth, (unsigned long)mwidth, (unsigned long)iwidth, fw, s_ttf_proportional);
-*/
 
     TT_GetAttrs(rp,
                 TT_FontMaxTop, (ULONG)&max_top,
@@ -899,10 +899,6 @@ static void ami_ttf_apply_to_rastport(struct RastPort *rp)
 
     if (fh < 6)
         fh = 6;
-
-    /*
-    fprintf(stderr, "TTF: maxTop=%lu maxBot=%lu accAsc=%lu realDesc=%lu -> fb=%d fh=%d\n", (unsigned long)max_top, (unsigned long)max_bot, (unsigned long)asc_acc, (unsigned long)desc_real, fb, fh);
-    */
 }
 
 static void ami_ttf_close()
@@ -2140,9 +2136,8 @@ int amiga_reload_ttf(const char *font_path, int new_size)
     old_file[sizeof(old_file) - 1] = '\0';
     old_size = s_ttf_size;
 
-    fprintf(stderr, "TTF: Reloading '%s' at %dpt (was '%s' %dpt)\n", font_path, new_size, old_file, old_size);
-
-    aa_value = (s_ttf_antialias == 2)   ? TT_Antialias_On : (s_ttf_antialias == 1) ? TT_Antialias_Off : TT_Antialias_Auto;
+    aa_value = (s_ttf_antialias == 2) ? TT_Antialias_On : (s_ttf_antialias == 1) ? TT_Antialias_Off
+                                                                                 : TT_Antialias_Auto;
 
     new_font = TT_OpenFont(
         TT_FontFile, (ULONG)font_path,
@@ -2181,6 +2176,7 @@ int amiga_reload_ttf(const char *font_path, int new_size)
         int bh = ami_win->BorderTop + ami_win->BorderBottom;
         int want_w = COLS * fw + bw;
         int want_h = LINES * fh + bh;
+
         /* BorderTop already includes the title bar pixel height on a
          * backdrop window, so no extra offset needed here */
         int win_x = ami_win->LeftEdge;
@@ -2192,41 +2188,41 @@ int amiga_reload_ttf(const char *font_path, int new_size)
         {
             if (want_w > scr->Width)
                 want_w = scr->Width;
+
             if (want_h > scr->Height)
                 want_h = scr->Height;
+
             if (win_x + want_w > scr->Width)
                 win_x = scr->Width - want_w;
+
             if (win_y + want_h > scr->Height)
                 win_y = scr->Height - want_h;
+
             if (win_x < 0)
                 win_x = 0;
+
             if (win_y < 0)
                 win_y = 0;
         }
 
         /* ChangeWindowBox is asynchronous: Intuition will send IDCMP_NEWSIZE
-         * once the resize is done and the window frame is repainted.
+         * once the resize is done and the window frame is repainted
          * The IDCMP_NEWSIZE handler in wgetch() recalculates COLS/LINES and
          * redraws everything. We just mark the shadow dirty so that redraw
-         * is full, then let the event loop do the rest. */
+         * is full, then let the event loop do the rest */
         s_shadow_dirty = 1;
 
         if (s_shadow)
         {
             free(s_shadow);
+
             s_shadow = NULL;
             s_shadow_w = 0;
             s_shadow_h = 0;
         }
 
-        fprintf(stderr, "TTF: ChangeWindowBox x=%d y=%d w=%d h=%d (COLS=%d LINES=%d fw=%d fh=%d bw=%d bh=%d)\n",
-                win_x, win_y, want_w, want_h, COLS, LINES, fw, fh, bw, bh);
-
         ChangeWindowBox(ami_win, win_x, win_y, want_w, want_h);
     }
-
-    fprintf(stderr, "TTF: Reloaded '%s' at %dpt, cell=%dx%d\n",
-            font_path, new_size, fw, fh);
 
     return 1;
 }
