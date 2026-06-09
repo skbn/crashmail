@@ -736,6 +736,8 @@ UiApp *ui_init(CrashEditCfg *cfg, AreaList *areas)
     define_key("\033T", KEY_ALT('T')); /* Alt+Shift+T */
     define_key("\033y", KEY_ALT('Y')); /* Alt+Y help */
     define_key("\033Y", KEY_ALT('Y')); /* Alt+Shift+Y */
+    define_key("\033d", KEY_ALT('D')); /* Alt+D line numbers */
+    define_key("\033D", KEY_ALT('D')); /* Alt+Shift+D */
 #endif
 
     app = (UiApp *)calloc(1, sizeof(UiApp));

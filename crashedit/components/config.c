@@ -387,6 +387,8 @@ void cfg_defaults(CrashEditCfg *cfg)
     cfg->autowrap_col = 75;
     cfg->undo_levels = 50;
     cfg->quotemargin = 75;
+    cfg->hard_wrap = 0;
+    cfg->show_line_numbers = 0;
 
     /* GoldED+ body framing defaults (OFF by default) */
     cfg->greeting = 0;
@@ -677,6 +679,11 @@ int cfg_load(CrashEditCfg *cfg, const char *path)
         {
             /* YES=hard CR at wrap col; NO=soft-wrap (visual only) */
             cfg->hard_wrap = parse_yesno(rest);
+        }
+        else if (strcasecmp(word, "LINENUMBERS") == 0)
+        {
+            /* YES=show line numbers, NO=hide line numbers */
+            cfg->show_line_numbers = parse_yesno(rest);
         }
         /* GoldED+ extended keywords */
         else if (strcasecmp(word, "VIEWHIDDEN") == 0)
@@ -1221,6 +1228,7 @@ int cfg_save(const CrashEditCfg *cfg, const char *path)
     KV_INT("QUOTEMARGIN", cfg->quotemargin);
     KV_INT("UNDOLEVELS", cfg->undo_levels);
     KV_YN("HARDWRAP", cfg->hard_wrap);
+    KV_YN("LINENUMBERS", cfg->show_line_numbers);
     KV_STR("FONT", cfg->font);
     KV_STR("ANSIFONT", cfg->ansifont);
 

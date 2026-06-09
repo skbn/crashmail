@@ -75,10 +75,11 @@ static const char *EDITOR_HELP[] =
 #else
         "    Ins Alt+I       Toggle insert",
 #endif
+        "    Ctrl+Left/Right Word movement",
         "    Ctrl-W          Rewrap paragraph",
         "    Alt+W           Toggle hard-wrap",
         "    Alt+Q           Toggle wrap mode",
-        "    Ctrl+Left/Right Word movement",
+        "    Alt+D           Toggle line numbers",
         "",
         "  Block (selection):",
         "    F6 Alt+B        Mark/unmark block at cursor",
@@ -722,6 +723,18 @@ static int handle_alt_keys(UiApp *app, int ch, int is_key)
         return 1;
     }
 
+    /* Alt+D : toggle line numbers */
+    if (ch == KEY_ALT('D'))
+    {
+        if (app->cfg)
+        {
+            app->cfg->show_line_numbers = !app->cfg->show_line_numbers;
+            ui_status(app, "Line numbers: %s", app->cfg->show_line_numbers ? "ON" : "OFF");
+        }
+
+        return 1;
+    }
+
     return 0;
 }
 
@@ -1045,6 +1058,14 @@ static int handle_body_input(UiApp *app, int ch, int is_key, wint_t wch, int sof
         /* Alt-key chords: KEY_ALT() from shim (Amiga) or wrapper_read_key() fold (Linux) */
         case KEY_ALT('L'):
             ui_popup_attach_clear(app);
+            return 1;
+
+        case KEY_ALT('D'):
+            if (app->cfg)
+            {
+                app->cfg->show_line_numbers = !app->cfg->show_line_numbers;
+                ui_status(app, "Line numbers: %s", app->cfg->show_line_numbers ? "ON" : "OFF");
+            }
             return 1;
 
         case KEY_ALT('Z'): /* Alt+Z: redo */

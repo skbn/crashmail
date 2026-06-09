@@ -31,6 +31,24 @@
 #include <string.h>
 #include <wchar.h>
 
+/* Calculate width needed for line numbers (digits + 1 space) */
+static int lineno_width(int line_count)
+{
+    int width = 1;
+    int n = line_count;
+
+    if (n <= 0)
+        n = 1;
+
+    while (n >= 10)
+    {
+        n /= 10;
+        width++;
+    }
+
+    return width + 1; /* +1 for space after number */
+}
+
 /* Header field drawing */
 void draw_edit_header(UiApp *app)
 {
@@ -212,6 +230,8 @@ void position_edit_cursor(UiApp *app)
         int cy, cx;
         int max_y;
         int soft;
+        int ln_offset = 0;
+        int show_lnum = app->cfg && app->cfg->show_line_numbers;
 
         ae = &app->areas->entries[app->sess.area_idx];
         start_row = (ae->type == AREATYPE_NETMAIL) ? 8 : 7;
@@ -219,19 +239,26 @@ void position_edit_cursor(UiApp *app)
         soft = !(app->cfg && app->cfg->hard_wrap);
         ed_get_info(app->editor, &info);
 
+        /* Calculate line number offset if enabled */
+        if (show_lnum)
+            ln_offset = lineno_width(info.line_count);
+
         if (soft)
         {
             int vrow = 0, vcol = 0;
             int width = COLS < 1 ? 1 : COLS;
 
+            if (show_lnum)
+                width = COLS - ln_offset;
+
             soft_cursor_vpos(app, width, &vrow, &vcol);
             cy = start_row + (vrow - s_soft_vtop);
-            cx = vcol;
+            cx = ln_offset + vcol;
         }
         else
         {
             cy = start_row + (info.row - info.top);
-            cx = info.col;
+            cx = ln_offset + info.col;
         }
 
         /* Always move; clamp to body region */
@@ -246,7 +273,9 @@ void position_edit_cursor(UiApp *app)
         if (cy > max_y)
             cy = max_y;
 
-        if (cx < 0)
+        if (show_lnum && cx < ln_offset)
+            cx = ln_offset;
+        else if (cx < 0)
             cx = 0;
 
         if (cx > COLS - 1)
@@ -274,6 +303,9 @@ void draw_edit_body(UiApp *app)
     int cur_vrow, cur_vcol;
     int li, sr;
     int vrow;
+    int ln_width = 0;  /* line number width */
+    int ln_offset = 0; /* offset for editor content */
+    int show_lnum = app->cfg && app->cfg->show_line_numbers;
 
     ae = &app->areas->entries[app->sess.area_idx];
     start_row = (ae->type == AREATYPE_NETMAIL) ? 8 : 7;
@@ -286,6 +318,14 @@ void draw_edit_body(UiApp *app)
 
     ed_set_page(app->editor, rows);
     ed_get_info(app->editor, &info);
+
+    /* Calculate line number width if enabled */
+    if (show_lnum)
+    {
+        ln_width = lineno_width(info.line_count);
+        ln_offset = ln_width;
+        width = COLS - ln_offset; /* Reduce available width for text */
+    }
 
     /* Normalize block range (anchor vs cursor) for highlight */
     if (info.block.active)
@@ -321,12 +361,20 @@ void draw_edit_body(UiApp *app)
             if (line_idx >= info.line_count)
                 continue;
 
+            /* Draw line number if enabled */
+            if (show_lnum)
+            {
+                attron(COLOR_PAIR(COL_BORDER));
+                mvprintw(start_row + i, 0, "%*d", ln_width - 1, line_idx + 1);
+                attroff(COLOR_PAIR(COL_BORDER));
+            }
+
             /* mvaddnwstr: n is in wide chars, no UTF-8 conversion needed */
             wl = ed_line_wcs(app->editor, line_idx);
             line_len = ed_line_len(app->editor, line_idx);
 
             if (wl && line_len > 0)
-                mvaddnwstr(start_row + i, 0, wl, line_len);
+                mvaddnwstr(start_row + i, ln_offset, wl, line_len);
 
             /* Highlight search matches */
             if (app->edit_search.rows && app->edit_search.match_count > 0)
@@ -343,7 +391,7 @@ void draw_edit_body(UiApp *app)
                         if (match_col >= 0 && match_col + match_len <= line_len)
                         {
                             attron(COLOR_PAIR(COL_SEARCH_MATCH));
-                            mvaddnwstr(start_row + i, match_col, &wl[match_col], match_len);
+                            mvaddnwstr(start_row + i, ln_offset + match_col, &wl[match_col], match_len);
                             attroff(COLOR_PAIR(COL_SEARCH_MATCH));
                         }
                     }
@@ -369,7 +417,7 @@ void draw_edit_body(UiApp *app)
                 if (wcs && hs < he)
                 {
                     attron(A_REVERSE);
-                    mvaddnwstr(start_row + i, hs, &wcs[hs], he - hs);
+                    mvaddnwstr(start_row + i, ln_offset + hs, &wcs[hs], he - hs);
                     attroff(A_REVERSE);
                 }
                 else if (hs == 0 && he == 0)
@@ -382,16 +430,6 @@ void draw_edit_body(UiApp *app)
             }
         }
 
-        if (app->edit_active_field == EF_BODY)
-        {
-            int cy = start_row + (info.row - info.top);
-            int cx = info.col;
-
-            if (cy >= start_row && cy < start_row + rows)
-                move(cy, cx);
-
-            curs_set(1);
-        }
         return;
     }
 
@@ -424,6 +462,7 @@ void draw_edit_body(UiApp *app)
         int len = ed_line_len(app->editor, li);
         int pos = 0;
         int done = 0;
+        int first_seg = 1; /* Track first segment of each line for line number */
 
         while (!done && sr < rows)
         {
@@ -448,8 +487,17 @@ void draw_edit_body(UiApp *app)
                 if (seg_len < 0)
                     seg_len = 0;
 
+                /* Draw line number on first segment of each line */
+                if (show_lnum && first_seg)
+                {
+                    attron(COLOR_PAIR(COL_BORDER));
+                    mvprintw(start_row + sr, 0, "%*d", ln_width - 1, li + 1);
+                    attroff(COLOR_PAIR(COL_BORDER));
+                    first_seg = 0;
+                }
+
                 if (l && seg_len > 0)
-                    mvaddnwstr(start_row + sr, 0, &l[seg_start], seg_len);
+                    mvaddnwstr(start_row + sr, ln_offset, &l[seg_start], seg_len);
 
                 /* Highlight search matches in softwrap */
                 if (app->edit_search.rows && app->edit_search.match_count > 0)
@@ -469,7 +517,7 @@ void draw_edit_body(UiApp *app)
                             {
                                 /* Match entirely within this segment */
                                 attron(COLOR_PAIR(COL_SEARCH_MATCH));
-                                mvaddnwstr(start_row + sr, match_col - seg_start, &l[match_col], match_len);
+                                mvaddnwstr(start_row + sr, ln_offset + match_col - seg_start, &l[match_col], match_len);
                                 attroff(COLOR_PAIR(COL_SEARCH_MATCH));
                             }
                             else if (match_col >= seg_start && match_col < seg_end)
@@ -477,7 +525,7 @@ void draw_edit_body(UiApp *app)
                                 /* Match starts in this segment, continues to next */
                                 int partial_len = seg_end - match_col;
                                 attron(COLOR_PAIR(COL_SEARCH_MATCH));
-                                mvaddnwstr(start_row + sr, match_col - seg_start, &l[match_col], partial_len);
+                                mvaddnwstr(start_row + sr, ln_offset + match_col - seg_start, &l[match_col], partial_len);
                                 attroff(COLOR_PAIR(COL_SEARCH_MATCH));
                             }
                             else if (match_end > seg_start && match_end <= seg_end)
@@ -486,7 +534,7 @@ void draw_edit_body(UiApp *app)
                                 int partial_len = match_end - seg_start;
 
                                 attron(COLOR_PAIR(COL_SEARCH_MATCH));
-                                mvaddnwstr(start_row + sr, 0, &l[seg_start], partial_len);
+                                mvaddnwstr(start_row + sr, ln_offset, &l[seg_start], partial_len);
                                 attroff(COLOR_PAIR(COL_SEARCH_MATCH));
                             }
                         }
@@ -508,14 +556,14 @@ void draw_edit_body(UiApp *app)
                     if (hs < he)
                     {
                         attron(A_REVERSE);
-                        mvaddnwstr(start_row + sr, hs - seg_start, &l[hs], he - hs);
+                        mvaddnwstr(start_row + sr, ln_offset + hs - seg_start, &l[hs], he - hs);
                         attroff(A_REVERSE);
                     }
                     else if (hs == seg_start && he == seg_start)
                     {
                         /* Cursor at col 0 or empty line: show one reversed space */
                         attron(A_REVERSE);
-                        mvaddch(start_row + sr, 0, ' ');
+                        mvaddch(start_row + sr, ln_offset, ' ');
                         attroff(A_REVERSE);
                     }
                 }
@@ -535,26 +583,5 @@ void draw_edit_body(UiApp *app)
                 pos = np;
             }
         }
-    }
-
-    if (app->edit_active_field == EF_BODY)
-    {
-        int cy = start_row + (cur_vrow - s_soft_vtop);
-        int cx = cur_vcol;
-
-        if (cy < start_row)
-            cy = start_row;
-
-        if (cy > start_row + rows - 1)
-            cy = start_row + rows - 1;
-
-        if (cx < 0)
-            cx = 0;
-
-        if (cx > COLS - 1)
-            cx = COLS - 1;
-
-        move(cy, cx);
-        curs_set(1);
     }
 }

@@ -67,11 +67,12 @@ typedef struct
     char tearline[80];
     char tagline_file[CFG_STR_MAX];
     char template_file[CFG_STR_MAX];
-    int forceintl;    /* 0=auto, 1=always INTL, 2=never INTL */
-    int autowrap_col; /* auto-wrap column; 0 disables */
-    int undo_levels;  /* undo stack depth, default 50 */
-    int quotemargin;  /* quote wrap column; 0 disables */
-    int hard_wrap;    /* 0=soft-wrap (no CR), 1=hard-wrap (CR at column) */
+    int forceintl;         /* 0=auto, 1=always INTL, 2=never INTL */
+    int autowrap_col;      /* auto-wrap column; 0 disables */
+    int undo_levels;       /* undo stack depth, default 50 */
+    int quotemargin;       /* quote wrap column; 0 disables */
+    int hard_wrap;         /* 0=soft-wrap (no CR), 1=hard-wrap (CR at column) */
+    int show_line_numbers; /* 0=hide line numbers, 1=show line numbers */
 
     /* Message body framing with printf-style templates (%t=to, %f=from, %o=orig recipient, %d=orig date) */
     int greeting;                     /* 0=off, 1=emit greeting line */

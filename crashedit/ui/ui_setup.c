@@ -98,6 +98,7 @@ static const SetupField st_fields[] =
         {3, "Quote margin", FT_INT, F_OFF(quotemargin), 0},
         {3, "Undo levels", FT_INT, F_OFF(undo_levels), 0},
         {3, "Hard wrap", FT_BOOL, F_OFF(hard_wrap), 0},
+        {3, "Line numbers", FT_BOOL, F_OFF(show_line_numbers), 0},
 
         /* Messages */
         {4, "Greeting on", FT_BOOL, F_OFF(greeting), 0},
