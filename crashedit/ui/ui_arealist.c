@@ -783,9 +783,9 @@ UiView ui_arealist_run(UiApp *app)
         }
         else
 #ifndef PLATFORM_AMIGA || !defined(PLATFORM_WIN32)
-            ui_status(app, "%d areas | /=search G=goto s=sort", app->area_order_count);
+            ui_status(app, "%s | %d areas | /=search G=goto s=sort", WRAPPER_PID, app->area_order_count);
 #else
-            ui_status(app, "%s %s | %d areas | /=search G=goto s=sort", WRAPPER_PID, app->area_order_count);
+            ui_status(app, "%d areas | /=search G=goto s=sort", app->area_order_count);
 #endif
 
         ui_draw_statusbar(app);
