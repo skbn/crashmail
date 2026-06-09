@@ -1208,7 +1208,7 @@ static int handle_body_input(UiApp *app, int ch, int is_key, wint_t wch, int sof
             if (wch >= 0x20 && wch != 127)
             {
                 /* Try rapid paste detection first (fallback for terminals without bracketed paste) */
-                char *rapid_buf = collect_rapid_paste();
+                char *rapid_buf = collect_rapid_paste(wch);
 
                 if (rapid_buf)
                 {
