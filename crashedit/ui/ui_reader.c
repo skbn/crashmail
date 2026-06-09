@@ -78,7 +78,7 @@ static const char *READER_HELP[] =
         "  Ctrl+F         File request",
         "",
         "  ESC, q         Back to message list",
-        "  F1, ?          This help"};
+        "  F1 Alt+Y       This help"};
 #define READER_HELP_N ((int)(sizeof(READER_HELP) / sizeof(READER_HELP[0])))
 
 void ui_editor_prep_new(UiApp *app);
@@ -1563,7 +1563,7 @@ UiView ui_reader_run(UiApp *app)
             break;
 
         case KEY_F(1):
-        case '?':
+        case KEY_ALT('Y'):
             ui_popup_help("Reader Help", READER_HELP, READER_HELP_N);
             break;
 
