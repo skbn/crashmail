@@ -734,6 +734,8 @@ UiApp *ui_init(CrashEditCfg *cfg, AreaList *areas)
     define_key("\033V", KEY_ALT('V')); /* Alt+Shift+V */
     define_key("\033t", KEY_ALT('T')); /* Alt+T nodelist picker */
     define_key("\033T", KEY_ALT('T')); /* Alt+Shift+T */
+    define_key("\033y", KEY_ALT('Y')); /* Alt+Y help */
+    define_key("\033Y", KEY_ALT('Y')); /* Alt+Shift+Y */
 #endif
 
     app = (UiApp *)calloc(1, sizeof(UiApp));

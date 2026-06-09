@@ -22,7 +22,6 @@
  * General Public License v2.1. See src/jamlib/LICENSE for details.
  */
 
-
 /* editor.c -- Text editor with wchar_t internal representation */
 #include <stdio.h>
 #include <stdlib.h>

@@ -123,7 +123,7 @@ static const char *EDITOR_HELP[] =
         "    F11 Alt+V       Nodelist browser",
 #endif
         "    ESC             Cancel (confirm)",
-        "    F1              This help"};
+        "    F1 Alt+Y        This help"};
 #define EDITOR_HELP_N ((int)(sizeof(EDITOR_HELP) / sizeof(EDITOR_HELP[0])))
 
 /* Cycle header field in direction dir (+1=next, -1=prev). Skips DADDR for non-netmail */
@@ -160,8 +160,8 @@ static void editor_cycle_field(UiApp *app, int dir)
 /* Handle function keys (F1-F11). Returns 1 if handled, 0 otherwise */
 static int handle_function_keys(UiApp *app, int ch, int is_key)
 {
-    /* F1: help */
-    if (is_key && ch == KEY_F(1))
+    /* F1 / Alt+Y: help */
+    if ((is_key && ch == KEY_F(1)) || (is_key && ch == KEY_ALT('Y')))
     {
         ui_popup_help("Editor Help", EDITOR_HELP, EDITOR_HELP_N);
         return 1;
@@ -384,9 +384,9 @@ static int handle_function_keys(UiApp *app, int ch, int is_key)
 
             if (ui_popup_confirm("Hard Wrap", msg) == 1)
             {
+                ed_rewrap_document(app->editor, app->cfg->autowrap_col);
                 app->cfg->hard_wrap = 1;
                 ed_set_hard_wrap(app->editor, 1);
-                ed_rewrap_document(app->editor, app->cfg->autowrap_col);
                 ui_status(app, "Hard wrap: ON (rewrapped)");
             }
         }
@@ -1578,4 +1578,3 @@ UiView ui_editor_run(UiApp *app)
 
     return app->edit_return_view;
 }
-
