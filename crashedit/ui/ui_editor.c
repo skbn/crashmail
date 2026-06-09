@@ -1207,6 +1207,18 @@ static int handle_body_input(UiApp *app, int ch, int is_key, wint_t wch, int sof
             /* Printable wide character: insert into body */
             if (wch >= 0x20 && wch != 127)
             {
+                /* Try rapid paste detection first (fallback for terminals without bracketed paste) */
+                char *rapid_buf = collect_rapid_paste();
+
+                if (rapid_buf)
+                {
+                    deliver_paste(app, rapid_buf);
+
+                    free(rapid_buf);
+
+                    return 1;
+                }
+
                 /* SOFT-WRAP: If cursor is at end of visual segment, move to start of next segment BEFORE inserting */
                 if (!(app->cfg && app->cfg->hard_wrap) && body_width > 0)
                 {
@@ -1236,6 +1248,7 @@ static int handle_body_input(UiApp *app, int ch, int is_key, wint_t wch, int sof
                                     /* Cursor is at end of segment: move to start of next segment */
                                     ed_set_pos(app->editor, info.row, np);
                                 }
+
                                 break;
                             }
 

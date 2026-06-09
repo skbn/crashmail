@@ -568,7 +568,10 @@ UiView ui_msglist_run(UiApp *app)
             {
                 wcsncpy(s->search, tmp, 63);
                 s->search[63] = L'\0';
+
                 ui_session_rebuild_order(app);
+                s->msg_top = 1;
+                s->msg_sel = 1;
             }
             break;
         }

@@ -33,6 +33,9 @@ char *wrap_paste_text(const char *utf8, int col);
 /* Read characters until KEY_PASTE_END. Returns malloc'd UTF-8 buffer or NULL */
 char *collect_bracketed_paste(void);
 
+/* Detect rapid paste (fallback for terminals without bracketed paste support) */
+char *collect_rapid_paste(void);
+
 /* Paste UTF-8 buffer at cursor: body preserves newlines, header strips them */
 void deliver_paste(UiApp *app, const char *utf8);
 
