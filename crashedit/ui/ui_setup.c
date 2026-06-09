@@ -48,7 +48,8 @@ typedef enum
     FT_TZ,       /* timezone offset in minutes; editing marks it manual */
     FT_TZAUTO,   /* yes/no: auto-detect TZ from OS (toggles timezone_is_manual) */
     FT_COLORMAP, /* integer 0-255, edit also marks color_map_initialized */
-    FT_CYCLE     /* cycle through predefined string options (e.g. TTF antialias: AUTO/OFF/ON) */
+    FT_CYCLE,    /* cycle through predefined string options (e.g. TTF antialias: AUTO/OFF/ON) */
+    FT_COLORPAIR /* color pair configuration (fg/bg) */
 } FieldType;
 
 typedef struct
@@ -122,7 +123,8 @@ static const SetupField st_fields[] =
         {5, "TTF antialias", FT_CYCLE, F_OFF(ttf_antialias), 0},
         {5, "TTF encoding", FT_CYCLE, F_OFF(ttf_use_utf8), 0},
 #endif
-
+        {5, "Cursor color", FT_INT, F_OFF(cursor_color), 0},
+        {5, "Default BG color", FT_INT, F_OFF(default_bg_color), 0},
         {5, "Pen 0 (black)", FT_COLORMAP, offsetof(CrashEditCfg, color_map) + 0 * sizeof(int), 0},
         {5, "Pen 1 (red)", FT_COLORMAP, offsetof(CrashEditCfg, color_map) + 1 * sizeof(int), 0},
         {5, "Pen 2 (green)", FT_COLORMAP, offsetof(CrashEditCfg, color_map) + 2 * sizeof(int), 0},
@@ -131,8 +133,30 @@ static const SetupField st_fields[] =
         {5, "Pen 5 (magenta)", FT_COLORMAP, offsetof(CrashEditCfg, color_map) + 5 * sizeof(int), 0},
         {5, "Pen 6 (cyan)", FT_COLORMAP, offsetof(CrashEditCfg, color_map) + 6 * sizeof(int), 0},
         {5, "Pen 7 (white)", FT_COLORMAP, offsetof(CrashEditCfg, color_map) + 7 * sizeof(int), 0},
-        {5, "Cursor color", FT_INT, F_OFF(cursor_color), 0},
-        {5, "Default BG color", FT_INT, F_OFF(default_bg_color), 0}};
+        {5, "Normal", FT_COLORPAIR, offsetof(CrashEditCfg, color_fg) + COL_NORMAL * sizeof(int), 0},
+        {5, "Selected", FT_COLORPAIR, offsetof(CrashEditCfg, color_fg) + COL_SELECTED * sizeof(int), 0},
+        {5, "Header", FT_COLORPAIR, offsetof(CrashEditCfg, color_fg) + COL_HEADER * sizeof(int), 0},
+        {5, "Status", FT_COLORPAIR, offsetof(CrashEditCfg, color_fg) + COL_STATUS * sizeof(int), 0},
+        {5, "Menu", FT_COLORPAIR, offsetof(CrashEditCfg, color_fg) + COL_MENU * sizeof(int), 0},
+        {5, "Menu Hot", FT_COLORPAIR, offsetof(CrashEditCfg, color_fg) + COL_MENU_HOT * sizeof(int), 0},
+        {5, "Border", FT_COLORPAIR, offsetof(CrashEditCfg, color_fg) + COL_BORDER * sizeof(int), 0},
+        {5, "Quote1", FT_COLORPAIR, offsetof(CrashEditCfg, color_fg) + COL_QUOTE1 * sizeof(int), 0},
+        {5, "Quote2", FT_COLORPAIR, offsetof(CrashEditCfg, color_fg) + COL_QUOTE2 * sizeof(int), 0},
+        {5, "Quote3", FT_COLORPAIR, offsetof(CrashEditCfg, color_fg) + COL_QUOTE3 * sizeof(int), 0},
+        {5, "Quote4", FT_COLORPAIR, offsetof(CrashEditCfg, color_fg) + COL_QUOTE4 * sizeof(int), 0},
+        {5, "Kludge", FT_COLORPAIR, offsetof(CrashEditCfg, color_fg) + COL_KLUDGE * sizeof(int), 0},
+        {5, "Tear", FT_COLORPAIR, offsetof(CrashEditCfg, color_fg) + COL_TEAR * sizeof(int), 0},
+        {5, "Origin", FT_COLORPAIR, offsetof(CrashEditCfg, color_fg) + COL_ORIGIN * sizeof(int), 0},
+        {5, "Seenby", FT_COLORPAIR, offsetof(CrashEditCfg, color_fg) + COL_SEENBY * sizeof(int), 0},
+        {5, "Via", FT_COLORPAIR, offsetof(CrashEditCfg, color_fg) + COL_VIA * sizeof(int), 0},
+        {5, "Unread", FT_COLORPAIR, offsetof(CrashEditCfg, color_fg) + COL_UNREAD * sizeof(int), 0},
+        {5, "Deleted", FT_COLORPAIR, offsetof(CrashEditCfg, color_fg) + COL_DELETED * sizeof(int), 0},
+        {5, "Popup", FT_COLORPAIR, offsetof(CrashEditCfg, color_fg) + COL_POPUP * sizeof(int), 0},
+        {5, "Popup Sel", FT_COLORPAIR, offsetof(CrashEditCfg, color_fg) + COL_POPUP_SEL * sizeof(int), 0},
+        {5, "Error", FT_COLORPAIR, offsetof(CrashEditCfg, color_fg) + COL_ERROR * sizeof(int), 0},
+        {5, "Tagline", FT_COLORPAIR, offsetof(CrashEditCfg, color_fg) + COL_TAGLINE * sizeof(int), 0},
+        {5, "Match Search", FT_COLORPAIR, offsetof(CrashEditCfg, color_fg) + COL_SEARCH_MATCH * sizeof(int), 0},
+};
 
 #define ST_FIELD_COUNT ((int)(sizeof(st_fields) / sizeof(st_fields[0])))
 
@@ -247,6 +271,123 @@ static void st_format_value(const CrashEditCfg *w, const SetupField *fld, char *
     {
         int v = *(const int *)(base + fld->off);
         snprintf(buf, bufsz, "%s", st_mode_name(v));
+        break;
+    }
+    case FT_COLORPAIR:
+    {
+        int pair_index = (fld->off - offsetof(CrashEditCfg, color_fg)) / sizeof(int);
+        int fg = *(const int *)(base + fld->off);
+        int bg = *(const int *)(base + offsetof(CrashEditCfg, color_bg) + pair_index * sizeof(int));
+
+        /* Color names for display */
+        const char *fg_name = "unknown";
+        const char *bg_name = "unknown";
+
+        switch (fg)
+        {
+        case 0:
+            fg_name = "black";
+            break;
+        case 1:
+            fg_name = "red";
+            break;
+        case 2:
+            fg_name = "green";
+            break;
+        case 3:
+            fg_name = "yellow";
+            break;
+        case 4:
+            fg_name = "blue";
+            break;
+        case 5:
+            fg_name = "magenta";
+            break;
+        case 6:
+            fg_name = "cyan";
+            break;
+        case 7:
+            fg_name = "white";
+            break;
+        case 8:
+            fg_name = "br-black";
+            break;
+        case 9:
+            fg_name = "br-red";
+            break;
+        case 10:
+            fg_name = "br-green";
+            break;
+        case 11:
+            fg_name = "br-yellow";
+            break;
+        case 12:
+            fg_name = "br-blue";
+            break;
+        case 13:
+            fg_name = "br-magenta";
+            break;
+        case 14:
+            fg_name = "br-cyan";
+            break;
+        case 15:
+            fg_name = "br-white";
+            break;
+        }
+
+        switch (bg)
+        {
+        case 0:
+            bg_name = "black";
+            break;
+        case 1:
+            bg_name = "red";
+            break;
+        case 2:
+            bg_name = "green";
+            break;
+        case 3:
+            bg_name = "yellow";
+            break;
+        case 4:
+            bg_name = "blue";
+            break;
+        case 5:
+            bg_name = "magenta";
+            break;
+        case 6:
+            bg_name = "cyan";
+            break;
+        case 7:
+            bg_name = "white";
+            break;
+        case 8:
+            bg_name = "br-black";
+            break;
+        case 9:
+            bg_name = "br-red";
+            break;
+        case 10:
+            bg_name = "br-green";
+            break;
+        case 11:
+            bg_name = "br-yellow";
+            break;
+        case 12:
+            bg_name = "br-blue";
+            break;
+        case 13:
+            bg_name = "br-magenta";
+            break;
+        case 14:
+            bg_name = "br-cyan";
+            break;
+        case 15:
+            bg_name = "br-white";
+            break;
+        }
+
+        snprintf(buf, bufsz, "%s on %s", fg_name, bg_name);
         break;
     }
     }
@@ -521,6 +662,37 @@ static void st_edit_field(CrashEditCfg *w, const SetupField *fld)
 
         break;
     }
+    case FT_COLORPAIR:
+    {
+        int pair_index = (fld->off - offsetof(CrashEditCfg, color_fg)) / sizeof(int);
+        int *fg = (int *)(base + fld->off);
+        int *bg = (int *)(base + offsetof(CrashEditCfg, color_bg) + pair_index * sizeof(int));
+
+        /* Color names and their values */
+        static const char *color_names[] =
+            {
+                "black", "red", "green", "yellow", "blue", "magenta", "cyan", "white",
+                "bright black", "bright red", "bright green", "bright yellow",
+                "bright blue", "bright magenta", "bright cyan", "bright white"};
+
+        /* Select foreground color */
+        int fg_result = ui_popup_list("Select Foreground", color_names, 16, *fg);
+
+        if (fg_result < 0)
+            return; /* User canceled */
+
+        /* Select background color */
+        int bg_result = ui_popup_list("Select Background", color_names, 16, *bg);
+
+        if (bg_result < 0)
+            return; /* User canceled */
+
+        /* Apply colors only if both selections were confirmed */
+        *fg = fg_result;
+        *bg = bg_result;
+
+        break;
+    }
     }
 }
 
@@ -644,7 +816,15 @@ int ui_setup_run(UiApp *app)
             if (valw < 1)
                 valw = 1; /* never pass a negative precision to printf */
 
+#ifdef PLATFORM_AMIGA
+            /* Workaround for AmigaOS mvprintw bug with "0" value */
+            if (strcmp(val, "0") == 0)
+                mvprintw(row, 2, "%-16s : %s", st_fields[i].label, "0");
+            else
+                mvprintw(row, 2, "%-16s : %-.*s", st_fields[i].label, valw, val);
+#else
             mvprintw(row, 2, "%-16s : %-.*s", st_fields[i].label, valw, val);
+#endif
 
             attroff(COLOR_PAIR(COL_SELECTED));
             attroff(COLOR_PAIR(COL_NORMAL));
@@ -653,9 +833,15 @@ int ui_setup_run(UiApp *app)
             c++;
         }
 
-        if (nfields > visible_fields && scroll_offset + visible_fields < nfields)
+        if (nfields > visible_fields)
         {
-            mvprintw(LINES - 2, COLS - 2, "↓");
+            /* Show up arrow if not at top */
+            if (scroll_offset > 0)
+                mvprintw(LINES - 2, COLS - 3, "↑");
+
+            /* Show down arrow if not at bottom */
+            if (scroll_offset + visible_fields < nfields)
+                mvprintw(LINES - 2, COLS - 2, "↓");
         }
 
         /* Footer */
@@ -749,6 +935,49 @@ int ui_setup_run(UiApp *app)
                 if (sel >= scroll_offset + visible_fields)
                     scroll_offset = sel - visible_fields + 1;
             }
+
+            continue;
+        }
+
+        if (key == KEY_HOME || key == CTRL('B'))
+        {
+            sel = 0;
+            scroll_offset = 0;
+            continue;
+        }
+
+        if (key == KEY_END || key == CTRL('E'))
+        {
+            sel = nfields - 1;
+
+            if (sel >= scroll_offset + visible_fields)
+                scroll_offset = sel - visible_fields + 1;
+
+            continue;
+        }
+
+        if (key == KEY_PPAGE || key == CTRL('U'))
+        {
+            sel -= visible_fields;
+
+            if (sel < 0)
+                sel = 0;
+
+            if (sel < scroll_offset)
+                scroll_offset = sel;
+
+            continue;
+        }
+
+        if (key == KEY_NPAGE || key == CTRL('D'))
+        {
+            sel += visible_fields;
+
+            if (sel >= nfields)
+                sel = nfields - 1;
+
+            if (sel >= scroll_offset + visible_fields)
+                scroll_offset = sel - visible_fields + 1;
 
             continue;
         }

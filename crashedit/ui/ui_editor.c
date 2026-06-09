@@ -1345,6 +1345,19 @@ UiView ui_editor_run(UiApp *app)
         /* Recalculate effective width each frame for resize handling */
         eff_wrap = editor_eff_wrap(app);
 
+        /* Calculate width for line numbers BEFORE resize check - TinyEdit style */
+        int width = COLS;
+        if (app->cfg && app->cfg->show_line_numbers)
+        {
+            EdInfo info;
+
+            ed_get_info(app->editor, &info);
+            width = COLS - lineno_width(info.line_count);
+
+            if (width < 1)
+                width = 1;
+        }
+
         /* On resize, reset goal column to re-sync from new layout */
         if (COLS != s_soft_last_width)
         {
@@ -1556,7 +1569,7 @@ UiView ui_editor_run(UiApp *app)
 
         /* Body input: separate special-key and printable paths to avoid spurious KEY_* matches */
         soft_active = !(app->cfg && app->cfg->hard_wrap);
-        body_width = COLS < 1 ? 1 : COLS;
+        body_width = width; /* Use the width calculated earlier like TinyEdit */
         preserve_desired = 0;
 
         ae_body = &app->areas->entries[app->sess.area_idx];

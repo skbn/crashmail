@@ -30,6 +30,9 @@ void draw_edit_header(UiApp *app);
 /* Editor body drawing */
 void draw_edit_body(UiApp *app);
 
+/* Calculate width needed for line numbers (digits + 1 space) */
+int lineno_width(int line_count);
+
 /* Position cursor in active field after status bar redraw */
 void position_edit_cursor(UiApp *app);
 

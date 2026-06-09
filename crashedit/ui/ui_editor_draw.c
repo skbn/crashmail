@@ -32,7 +32,7 @@
 #include <wchar.h>
 
 /* Calculate width needed for line numbers (digits + 1 space) */
-static int lineno_width(int line_count)
+int lineno_width(int line_count)
 {
     int width = 1;
     int n = line_count;

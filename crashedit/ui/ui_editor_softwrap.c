@@ -126,7 +126,19 @@ void soft_cursor_vpos(UiApp *app, int width, int *out_vrow, int *out_vcol)
             {
                 if (out_vcol)
                 {
-                    int vc = col - pos;
+                    int vc = 0;
+                    int i;
+
+                    /* Calculate visual column width using wcswidth for multi-byte UTF-8 */
+                    for (i = pos; i < col && i < len; i++)
+                    {
+                        int w = wcswidth(&l[i], 1);
+
+                        if (w < 0)
+                            w = 1; /* Fallback for unprintable chars */
+
+                        vc += w;
+                    }
 
                     if (vc < 0)
                         vc = 0;

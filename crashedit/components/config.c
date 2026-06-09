@@ -958,9 +958,9 @@ int cfg_load(CrashEditCfg *cfg, const char *path)
                 cfg->cursor_color_rgb[sizeof(cfg->cursor_color_rgb) - 1] = '\0';
                 cfg->cursor_color = -1;
             }
-            else if (val[0] >= '0' && val[0] <= '9')
+            else if ((val[0] >= '0' && val[0] <= '9') || val[0] == '-')
             {
-                /* Numeric pen / color index */
+                /* Numeric pen / color index (including negative values) */
                 cfg->cursor_color = atoi(val);
                 cfg->cursor_color_rgb[0] = '\0';
             }
@@ -1250,7 +1250,7 @@ int cfg_save(const CrashEditCfg *cfg, const char *path)
     /* Cursor and background colors */
     if (cfg->cursor_color_rgb[0])
         KV_STR("CURSORCOLOR", cfg->cursor_color_rgb);
-    else if (cfg->cursor_color >= 0)
+    else
         KV_INT("CURSORCOLOR", cfg->cursor_color);
 
     KV_INT("DEFAULT_BG_COLOR", cfg->default_bg_color);
