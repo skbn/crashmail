@@ -77,6 +77,7 @@ static const char *EDITOR_HELP[] =
 #endif
         "    Ctrl-W          Rewrap paragraph",
         "    Alt+W           Toggle hard-wrap",
+        "    Alt+Q           Toggle wrap mode",
         "    Ctrl+Left/Right Word movement",
         "",
         "  Block (selection):",
@@ -122,7 +123,7 @@ static const char *EDITOR_HELP[] =
         "    F11 Alt+V       Nodelist browser",
 #endif
         "    ESC             Cancel (confirm)",
-        "    F1 ?            This help"};
+        "    F1              This help"};
 #define EDITOR_HELP_N ((int)(sizeof(EDITOR_HELP) / sizeof(EDITOR_HELP[0])))
 
 /* Cycle header field in direction dir (+1=next, -1=prev). Skips DADDR for non-netmail */
@@ -396,6 +397,14 @@ static int handle_function_keys(UiApp *app, int ch, int is_key)
             ed_set_hard_wrap(app->editor, 0);
             ui_status(app, "Hard wrap: OFF");
         }
+
+        return 1;
+    }
+
+    /* Alt+Q : toggle wrapmode */
+    if (ch == KEY_ALT('Q'))
+    {
+        app->cfg->hard_wrap = !app->cfg->hard_wrap;
 
         return 1;
     }
@@ -1569,3 +1578,4 @@ UiView ui_editor_run(UiApp *app)
 
     return app->edit_return_view;
 }
+

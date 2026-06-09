@@ -289,7 +289,7 @@ static void build_status_right(const UiApp *app, char *out, int outsz)
         EdInfo info;
 
         ed_get_info(app->editor, &info);
-        snprintf(out, (size_t)outsz, " %s %s ", info.insert_mode ? "INS" : "OVR", tbuf);
+        snprintf(out, (size_t)outsz, " %s %s %s ", app->cfg->hard_wrap ? "HARD" : "SOFT", info.insert_mode ? "INS" : "OVR", tbuf);
     }
     else
     {
