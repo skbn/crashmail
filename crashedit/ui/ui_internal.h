@@ -33,7 +33,9 @@
 #include "../wrapper.h"
 #include <wchar.h>
 
-#ifdef PLATFORM_AMIGA
+#ifdef PLATFORM_AMIGA &&defined(AMIGA_TTF_TE)
+#include "../ncursesw_amiga_te.h"
+#elif defined(PLATFORM_AMIGA)
 #include "../ncursesw_amiga.h"
 #elif defined(PLATFORM_WIN32)
 #include "../ncursesw_win32.h"
@@ -334,5 +336,8 @@ int ui_popup_nodelist(UiApp *app, int allow_pick, char *out_name, int name_sz, c
 
 /* Compute centered popup geometry, clamped to LINES/COLS */
 void ui_popup_center(int want_h, int want_w, int *y, int *x, int *h, int *w);
+
+/* Draw popup frame (used by ui_glyph_picker) */
+void draw_popup_frame(int y, int x, int h, int w, const char *title);
 
 #endif /* UI_INTERNAL_H */

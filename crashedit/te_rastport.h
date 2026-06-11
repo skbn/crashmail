@@ -3,7 +3,7 @@
  *
  * This file is part of the crashedit project.
  *
- * Copyright (C) 2026 Tanausu M. 39:190/101@amiganet 2:341/207@fidonet
+ * Copyright (C) 2026 Tanausú M. 39:190/101@amiganet 2:341/207@fidonet
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by

@@ -548,6 +548,14 @@ void cfg_defaults(CrashEditCfg *cfg)
     cfg->ttf_size = 14;
     cfg->ttf_antialias = 0; /* auto */
     cfg->ttf_use_utf8 = 1;  /* UTF-8 for full Unicode/emoji support */
+
+    /* Fallback slots empty by default -- user opts in by setting any of
+     * TTF_FALLBACK1..TTF_FALLBACK8 in the config file */
+    for (i = 0; i < CFG_TTF_FALLBACKS; i++)
+    {
+        cfg->ttf_fallback[i][0] = '\0';
+        cfg->ttf_fallback_size[i] = 0;
+    }
 }
 
 int cfg_load(CrashEditCfg *cfg, const char *path)
@@ -1103,6 +1111,49 @@ int cfg_load(CrashEditCfg *cfg, const char *path)
             else
                 cfg->ttf_use_utf8 = 1; /* default to UTF-8 */
         }
+        else if (strncasecmp(word, "TTF_FALLBACK", 12) == 0)
+        {
+            /*const char *suffix = word + 12;
+            int is_size = 0;
+            int slot;
+
+            if (strncasecmp(suffix, "_SIZE", 5) == 0)
+            {
+                is_size = 1;
+                suffix += 5;
+            }
+
+            slot = atoi(suffix);
+
+            if (slot >= 1 && slot <= CFG_TTF_FALLBACKS)
+            {
+                int idx = slot - 1;
+
+                if (is_size)
+                {
+                    char val[16];
+                    int v;
+
+                    get_token(rest, val, sizeof(val));
+                    v = atoi(val);
+
+                    if (v >= 6 && v <= 96)
+                        cfg->ttf_fallback_size[idx] = v;
+                    else
+                        cfg->ttf_fallback_size[idx] = 0;
+                }
+                else
+                {
+                    char tmp[CFG_STR_MAX];
+
+                    copy_rest(rest, tmp, sizeof(tmp));
+                    strip_quotes(tmp);
+                    strncpy(cfg->ttf_fallback[idx], tmp, sizeof(cfg->ttf_fallback[idx]) - 1);
+
+                    cfg->ttf_fallback[idx][sizeof(cfg->ttf_fallback[idx]) - 1] = '\0';
+                }
+            }*/
+        }
     }
 
     fclose(f);
@@ -1159,6 +1210,8 @@ int cfg_save(const CrashEditCfg *cfg, const char *path)
     char line[1024];
     int i;
     const char *aa_str;
+    int fi;
+    char keybuf[40];
 
 #define KV_STR(k, s)                  \
     do                                \
@@ -1246,6 +1299,23 @@ int cfg_save(const CrashEditCfg *cfg, const char *path)
 
     KV_STR("TTF_ANTIALIAS", aa_str);
     KV_YN("TTF_USE_UTF8", cfg->ttf_use_utf8);
+
+    /* TTF fallbacks -- written one per non-empty slot, plus its size
+     * override if set. Reload uses TTF_FALLBACK<N>/_SIZE<N> keys */
+    for (fi = 0; fi < CFG_TTF_FALLBACKS; fi++)
+    {
+        if (cfg->ttf_fallback[fi][0])
+        {
+            snprintf(keybuf, sizeof(keybuf), "TTF_FALLBACK%d", fi + 1);
+            KV_STR(keybuf, cfg->ttf_fallback[fi]);
+
+            if (cfg->ttf_fallback_size[fi] > 0)
+            {
+                snprintf(keybuf, sizeof(keybuf), "TTF_FALLBACK_SIZE%d", fi + 1);
+                KV_INT(keybuf, cfg->ttf_fallback_size[fi]);
+            }
+        }
+    }
 
     /* Cursor and background colors */
     if (cfg->cursor_color_rgb[0])

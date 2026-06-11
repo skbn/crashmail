@@ -227,7 +227,26 @@ void ui_reapply_config(UiApp *app)
     if (app->cfg->ttf_enabled)
     {
         extern int amiga_reload_ttf(const char *font_path, int new_size);
+        extern void amiga_clear_ttf_fallbacks(void);
+        extern int amiga_add_ttf_fallback(const char *path, int size);
+        int fi;
+
+        /* Reload primary font */
         amiga_reload_ttf(app->cfg->ttf_font, app->cfg->ttf_size);
+
+        /* Reload fallback fonts */
+#ifdef AMIGA_TTF_TE
+        amiga_clear_ttf_fallbacks();
+
+        for (fi = 0; fi < CFG_TTF_FALLBACKS; fi++)
+        {
+            if (app->cfg->ttf_fallback[fi][0])
+            {
+                int sz = app->cfg->ttf_fallback_size[fi] > 0 ? app->cfg->ttf_fallback_size[fi] : app->cfg->ttf_size;
+                amiga_add_ttf_fallback(app->cfg->ttf_fallback[fi], sz);
+            }
+        }
+#endif
     }
 
     amiga_set_default_bg_color(app->cfg->default_bg_color);
@@ -611,6 +630,7 @@ UiApp *ui_init(CrashEditCfg *cfg, AreaList *areas)
     char *s;
     int k;
     const char *default_net;
+    int fi;
 
     if (!cfg || !areas)
         return NULL;
@@ -629,11 +649,29 @@ UiApp *ui_init(CrashEditCfg *cfg, AreaList *areas)
     {
         amiga_set_ttf(cfg->ttf_font, cfg->ttf_size, cfg->ttf_antialias);
         amiga_set_ttf_encoding(cfg->ttf_use_utf8);
+
+        /* Pass any TTF_FALLBACK<N> entries to the engine. Empty slots
+         * are skipped by amiga_add_ttf_fallback() */
+#ifdef AMIGA_TTF_TE
+        amiga_clear_ttf_fallbacks();
+
+        for (fi = 0; fi < CFG_TTF_FALLBACKS; fi++)
+        {
+            if (cfg->ttf_fallback[fi][0])
+            {
+                int sz = cfg->ttf_fallback_size[fi] > 0 ? cfg->ttf_fallback_size[fi] : cfg->ttf_size;
+                amiga_add_ttf_fallback(cfg->ttf_fallback[fi], sz);
+            }
+        }
+#endif
     }
     else
     {
         /* Explicitly disable TTF when ttf_enabled=0 */
         amiga_set_ttf(NULL, 0, 0);
+#ifdef AMIGA_TTF_TE
+        amiga_clear_ttf_fallbacks();
+#endif
     }
 #endif
 

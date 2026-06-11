@@ -3,7 +3,7 @@
  *
  * This file is part of the crashedit project.
  *
- * Copyright (C) 2026 Tanausu M. 39:190/101@amiganet 2:341/207@fidonet
+ * Copyright (C) 2026 Tanausú M. 39:190/101@amiganet 2:341/207@fidonet
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -2050,8 +2050,7 @@ static struct TEGlyph *te_glyph_from_chain(struct TERenderContext *dc, ULONG cp,
 /* Measurement */
 void TE_GetMetrics(struct TERenderContext *dc, struct TEGlyphMetrics *out)
 {
-    struct TEFont *f;
-    WORD maxA = 0, maxD = 0;
+    struct TEFont *primary;
 
     if (!out)
         return;
@@ -2064,17 +2063,13 @@ void TE_GetMetrics(struct TERenderContext *dc, struct TEGlyphMetrics *out)
     if (!dc)
         return;
 
-    for (f = dc->fonts; f; f = f->next)
+    primary = dc->fonts;
+
+    if (primary)
     {
-        if (f->ascender > maxA)
-            maxA = f->ascender;
-
-        if (f->descender > maxD)
-            maxD = f->descender;
+        out->height = (WORD)(primary->ascender + primary->descender);
+        out->baseY = primary->ascender;
     }
-
-    out->height = (WORD)(maxA + maxD);
-    out->baseY = maxA;
 }
 
 void TE_MeasureText(struct TERenderContext *dc, CONST_STRPTR utf8, LONG maxChars, struct TEGlyphMetrics *out)
@@ -2254,7 +2249,7 @@ void TE_RenderText(struct RastPort *rp, struct TERenderContext *dc, struct TEDra
     }
 
     /* AA path: try to lock the destination bitmap once for the whole
-     * string.  If it works, te_draw_glyph() will blend each GRAY glyph
+     * string. If it works, te_draw_glyph() will blend each GRAY glyph
      * directly into bitmap memory in the screen's native pixel format
      * If the lock fails (unsupported format, planar bitmap, etc.) the
      * per-glyph fallback chain (CLUT or MONO threshold) is used */
@@ -2328,23 +2323,18 @@ void TE_RenderText(struct RastPort *rp, struct TERenderContext *dc, struct TEDra
 
         te_draw_glyph(dc, rp, g, penX, baseY);
 
-        /* Advance.  FIXEDWIDTH preferred; defensively fall back to
+        /* Advance. FIXEDWIDTH preferred; defensively fall back to
          * monospace_advance if g->advance is zero or absurdly small
          * (some fonts -- notably GNU Unifont in GRAY mode -- have been
          * observed to return 0 for valid glyphs, which would stack every
-         * letter on the same X and produce an invisible run). */
+         * letter on the same X and produce an invisible run) */
         if (dc->prefs & TE_FLAG_FIXEDWIDTH)
-        {
             penX += dc->fonts->monospace_advance;
-        }
+
         else if (g->advance > 0)
-        {
             penX += g->advance;
-        }
         else
-        {
             penX += dc->fonts->monospace_advance;
-        }
     }
 
     /* Release the bitmap lock taken at the start of the function */

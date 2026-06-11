@@ -75,7 +75,7 @@ static const char *sort_preset_labels[] =
 #define SORT_PRESETS_N ((int)(sizeof(sort_preset_specs) / sizeof(sort_preset_specs[0])))
 
 /* Common: centered window helper */
-static void draw_popup_frame(int y, int x, int h, int w, const char *title)
+void draw_popup_frame(int y, int x, int h, int w, const char *title)
 {
     int i, j;
 

@@ -74,7 +74,7 @@ UI_OBJS   = $(OBJDIR)/ui_app.o \
             $(OBJDIR)/ui_editor_softwrap.o $(OBJDIR)/ui_editor_search.o $(OBJDIR)/ui_editor_paste.o $(OBJDIR)/ui_editor_draw.o $(OBJDIR)/ui_editor_helper.o \
             $(OBJDIR)/ui_aka.o $(OBJDIR)/ui_attr.o $(OBJDIR)/ui_files.o \
             $(OBJDIR)/ui_popup_attach.o $(OBJDIR)/ui_popup_freq.o $(OBJDIR)/ui_setup.o \
-            $(OBJDIR)/ui_search.o $(OBJDIR)/ui_popup_nodelist.o
+            $(OBJDIR)/ui_search.o $(OBJDIR)/ui_popup_nodelist.o $(OBJDIR)/ui_glyph_picker.o
 ALL_OBJS = $(CORE_OBJS) $(COMP_OBJS)
 
 all: $(TARGET) crashedit
@@ -214,6 +214,9 @@ $(OBJDIR)/nodelist.o: $(COREDIR)/nodelist.c $(COREDIR)/nodelist.h | $(OBJDIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(OBJDIR)/ui_popup_nodelist.o: $(UIDIR)/ui_popup_nodelist.c $(UIDIR)/ui_internal.h $(COREDIR)/nodelist.h | $(OBJDIR)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(OBJDIR)/ui_glyph_picker.o: $(UIDIR)/ui_glyph_picker.c $(UIDIR)/ui_glyph_picker.h | $(OBJDIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 # Application

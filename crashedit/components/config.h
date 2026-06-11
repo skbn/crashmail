@@ -109,6 +109,15 @@ typedef struct
     int ttf_antialias;          /* 0=auto, 1=off, 2=on */
     int ttf_use_utf8;           /* 0=UTF-16 BE (BMP only), 1=UTF-8 (full Unicode/emojis) */
 
+    /* TTF fallback fonts. Loaded into the FreeType chain after
+     * ttf_font, in order, so codepoints missing from the primary face
+     * are looked up here. Typical setup: primary = monospace Latin,
+     * fallback 1 = CJK font, fallback 2 = colour emoji. Empty entries
+     * are ignored */
+#define CFG_TTF_FALLBACKS 8
+    char ttf_fallback[CFG_TTF_FALLBACKS][CFG_STR_MAX];
+    int ttf_fallback_size[CFG_TTF_FALLBACKS]; /* 0 = inherit ttf_size */
+
     /* Amiga color palette (0-15) */
     int color_map[16];
     int color_map_initialized;

@@ -31,11 +31,11 @@
 #include "../core/ftn.h"
 #include "../core/freq.h"
 
-#define ST_TAB_COUNT 6
+#define ST_TAB_COUNT 7
 
 static const char *st_tab_names[ST_TAB_COUNT] =
     {
-        "Identity", "Paths", "Display", "Editor", "Messages", "Colour/Font"};
+        "Identity", "Paths", "Display", "Editor", "Messages", "Colour/Font", "TTF Fallbacks"};
 
 typedef enum
 {
@@ -164,6 +164,26 @@ static const SetupField st_fields[] =
         {5, "Error", FT_COLORPAIR, offsetof(CrashEditCfg, color_fg) + COL_ERROR * sizeof(int), 0},
         {5, "Tagline", FT_COLORPAIR, offsetof(CrashEditCfg, color_fg) + COL_TAGLINE * sizeof(int), 0},
         {5, "Match Search", FT_COLORPAIR, offsetof(CrashEditCfg, color_fg) + COL_SEARCH_MATCH * sizeof(int), 0},
+
+/* TTF Fallbacks */
+#ifdef PLATFORM_AMIGA
+        {6, "Fallback 1", FT_STR, offsetof(CrashEditCfg, ttf_fallback[0]), CFG_STR_MAX},
+        {6, "Fallback 1 Size", FT_INT, offsetof(CrashEditCfg, ttf_fallback_size[0]), 0},
+        {6, "Fallback 2", FT_STR, offsetof(CrashEditCfg, ttf_fallback[1]), CFG_STR_MAX},
+        {6, "Fallback 2 Size", FT_INT, offsetof(CrashEditCfg, ttf_fallback_size[1]), 0},
+        {6, "Fallback 3", FT_STR, offsetof(CrashEditCfg, ttf_fallback[2]), CFG_STR_MAX},
+        {6, "Fallback 3 Size", FT_INT, offsetof(CrashEditCfg, ttf_fallback_size[2]), 0},
+        {6, "Fallback 4", FT_STR, offsetof(CrashEditCfg, ttf_fallback[3]), CFG_STR_MAX},
+        {6, "Fallback 4 Size", FT_INT, offsetof(CrashEditCfg, ttf_fallback_size[3]), 0},
+        {6, "Fallback 5", FT_STR, offsetof(CrashEditCfg, ttf_fallback[4]), CFG_STR_MAX},
+        {6, "Fallback 5 Size", FT_INT, offsetof(CrashEditCfg, ttf_fallback_size[4]), 0},
+        {6, "Fallback 6", FT_STR, offsetof(CrashEditCfg, ttf_fallback[5]), CFG_STR_MAX},
+        {6, "Fallback 6 Size", FT_INT, offsetof(CrashEditCfg, ttf_fallback_size[5]), 0},
+        {6, "Fallback 7", FT_STR, offsetof(CrashEditCfg, ttf_fallback[6]), CFG_STR_MAX},
+        {6, "Fallback 7 Size", FT_INT, offsetof(CrashEditCfg, ttf_fallback_size[6]), 0},
+        {6, "Fallback 8", FT_STR, offsetof(CrashEditCfg, ttf_fallback[7]), CFG_STR_MAX},
+        {6, "Fallback 8 Size", FT_INT, offsetof(CrashEditCfg, ttf_fallback_size[7]), 0},
+#endif
 };
 
 #define ST_FIELD_COUNT ((int)(sizeof(st_fields) / sizeof(st_fields[0])))
@@ -418,7 +438,8 @@ static void st_edit_field(CrashEditCfg *w, const SetupField *fld)
             strcmp(fld->label, "Template file") == 0 ||
             strcmp(fld->label, "Font") == 0 ||
             strcmp(fld->label, "ANSI font") == 0 ||
-            strcmp(fld->label, "TTF font") == 0)
+            strcmp(fld->label, "TTF font") == 0 ||
+            strncmp(fld->label, "Fallback", 8) == 0)
         {
             char tmp[CFG_STR_MAX];
             strncpy(tmp, s, sizeof(tmp) - 1);

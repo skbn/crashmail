@@ -41,7 +41,7 @@ CC         := $(CROSS)gcc -noixemul -mcpu=68020 -msoft-float -DPLATFORM_AMIGA -D
 AR         := $(CROSS)ar
 RANLIB     := $(CROSS)ranlib
 
-CFLAGS     := -Wall -std=gnu89 -O2 -Wno-pointer-sign -Wno-unused-result
+CFLAGS     := -Wall -std=gnu89 -O2 -Wno-pointer-sign -Wno-unused-result -DAMIGA_TTF_TE
 
 # External tree locations -- relative to HERE
 FTDIR      := $(HERE)freetype
@@ -78,7 +78,7 @@ UI_OBJS    = $(OBJDIR)/ui_app.o \
              $(OBJDIR)/ui_editor_softwrap.o $(OBJDIR)/ui_editor_search.o $(OBJDIR)/ui_editor_paste.o $(OBJDIR)/ui_editor_draw.o $(OBJDIR)/ui_editor_helper.o \
              $(OBJDIR)/ui_aka.o $(OBJDIR)/ui_attr.o $(OBJDIR)/ui_files.o \
              $(OBJDIR)/ui_popup_attach.o $(OBJDIR)/ui_popup_freq.o $(OBJDIR)/ui_setup.o \
-             $(OBJDIR)/ui_search.o $(OBJDIR)/ui_popup_nodelist.o
+             $(OBJDIR)/ui_search.o $(OBJDIR)/ui_popup_nodelist.o $(OBJDIR)/ui_glyph_picker.o
 ALL_OBJS   = $(CORE_OBJS) $(COMP_OBJS) $(UI_OBJS)
 
 # FreeType objects (with gzip + lzw modules) - all in OBJDIR
@@ -495,6 +495,9 @@ $(OBJDIR)/ui_search.o: $(UIDIR)/ui_search.c $(UIDIR)/ui_search.h $(UIDIR)/ui_int
 	$(CC) $(TEFLAGS) -c $< -o $@
 
 $(OBJDIR)/ui_popup_nodelist.o: $(UIDIR)/ui_popup_nodelist.c $(UIDIR)/ui_internal.h $(COREDIR)/nodelist.h | $(OBJDIR)
+	$(CC) $(TEFLAGS) -c $< -o $@
+
+$(OBJDIR)/ui_glyph_picker.o: $(UIDIR)/ui_glyph_picker.c $(UIDIR)/ui_glyph_picker.h | $(OBJDIR)
 	$(CC) $(TEFLAGS) -c $< -o $@
 
 

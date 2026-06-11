@@ -40,6 +40,7 @@
 #include "ui_aka.h"
 #include "ui_attr.h"
 #include "ui_files.h"
+#include "ui_glyph_picker.h"
 #include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -122,6 +123,7 @@ static const char *EDITOR_HELP[] =
 #else
         "    F11 Alt+V       Nodelist browser",
 #endif
+        "    Alt+U           Glyph Picker",
         "    ESC             Cancel (confirm)",
         "    F1 Alt+Y        This help"};
 #define EDITOR_HELP_N ((int)(sizeof(EDITOR_HELP) / sizeof(EDITOR_HELP[0])))
@@ -701,6 +703,22 @@ static int handle_alt_keys(UiApp *app, int ch, int is_key)
 
             if (n >= 1)
                 ed_goto_line(app->editor, n - 1);
+        }
+
+        return 1;
+    }
+
+    /* Alt+U : Unicode glyph picker -- pop a grid of glyphs from symbol
+     * blocks (arrows, math, dingbats, emoji, etc.) plus a hex input to
+     * jump straight to a codepoint. ENTER inserts at cursor */
+    if (ch == KEY_ALT('U'))
+    {
+        long cp = ui_glyph_pick();
+
+        if (cp >= 0)
+        {
+            ed_insert_char(app->editor, (wchar_t)cp);
+            reset_search(app);
         }
 
         return 1;
