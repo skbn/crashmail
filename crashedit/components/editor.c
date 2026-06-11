@@ -1765,7 +1765,7 @@ static int undo_push_op(Ed *ed, UndoOpType type, int row, int col, const wchar_t
     op->text = NULL;
     op->utf8_snapshot = NULL;
 
-    if ((type == OP_INSERT || type == OP_DELETE) && text && len > 0)
+    if ((type == OP_INSERT || type == OP_DELETE) && text && (len > 0 || (type == OP_DELETE && col == 0)))
     {
         op->text = (wchar_t *)malloc((size_t)(len + 1) * sizeof(wchar_t));
 
@@ -2081,6 +2081,7 @@ static int apply_group_reverse(Ed *ed, UndoGroup *g)
     EdLine *cur;
     EdLine *nl;
     int min_row = 0;
+    int lines_inserted = 0; /* Track how many lines we've inserted to adjust row indices */
 
     for (i = g->count - 1; i >= 0; i--)
     {
@@ -2107,12 +2108,16 @@ static int apply_group_reverse(Ed *ed, UndoGroup *g)
                 /* Line deletion: insert as a new line at op->row */
                 if (op->col == 0)
                 {
+                    int adjusted_row = op->row + lines_inserted;
                     EdLine *nl = line_new(op->text, op->len);
+
                     if (nl)
                     {
-                        doc_insert_line(ed, op->row, nl);
-                        if (op->row < min_row)
-                            min_row = op->row;
+                        doc_insert_line(ed, adjusted_row, nl);
+                        lines_inserted++;
+
+                        if (adjusted_row < min_row)
+                            min_row = adjusted_row;
                     }
                 }
                 else
