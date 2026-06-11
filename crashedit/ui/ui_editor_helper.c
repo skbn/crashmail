@@ -28,41 +28,7 @@
 #include "ui_editor_helper.h"
 #include "ui.h"
 #include "ui_internal.h"
-
-#if defined(PLATFORM_AMIGA) && !defined(wcswidth)
-/* wcswidth implementation based on Markus Kuhn's wcwidth.c
- * https://www.cl.cam.ac.uk/~mgk25/ucs/wcwidth.c
- * Returns number of column positions needed for wide-character string
- * Compatible with POSIX.1-2001 standard for Unicode terminal display
- */
-int wcswidth(const wchar_t *wcs, size_t n)
-{
-    int width = 0;
-    size_t i;
-
-    for (i = 0; i < n && wcs[i] != L'\0'; i++)
-    {
-        /* Based on Markus Kuhn's wcwidth.c implementation
-         * Wide (W) and Full-width (F) characters = 2 columns
-         * All other printable characters = 1 column
-         * Implementation follows Unicode TR#11 and POSIX standards
-         */
-        if ((wcs[i] >= 0x1100 && wcs[i] <= 0x115F) ||   /* Hangul Jamo */
-            (wcs[i] >= 0x2E80 && wcs[i] <= 0xA4CF) ||   /* CJK...Yi */
-            (wcs[i] >= 0xAC00 && wcs[i] <= 0xD7A3) ||   /* Hangul Syllables */
-            (wcs[i] >= 0xF900 && wcs[i] <= 0xFAFF) ||   /* CJK Compatibility */
-            (wcs[i] >= 0xFE30 && wcs[i] <= 0xFE6F) ||   /* CJK Compatibility Forms */
-            (wcs[i] >= 0xFF00 && wcs[i] <= 0xFF60) ||   /* Fullwidth Forms */
-            (wcs[i] >= 0x20000 && wcs[i] <= 0x2FFFD) || /* Supplementary Planes */
-            (wcs[i] >= 0x30000 && wcs[i] <= 0x3FFFD))   /* More Supplementary */
-            width += 2;
-        else
-            width += 1;
-    }
-
-    return width;
-}
-#endif
+#include "../core/utf8.h"
 
 int wcs_vwidth(const wchar_t *s, int n)
 {

@@ -841,31 +841,17 @@ int ed_rewrap_document(Ed *ed, int width)
     char *snapshot_before = NULL;
     char *snapshot_after = NULL;
     UndoGroup *g;
-    int do_undo;
-
-/* Threshold over which we skip the full-document undo snapshot */
-#define ED_REWRAP_UNDO_LINE_LIMIT 5000
 
     if (!ed || width < 20 || ed->count <= 0)
         return -1;
 
-    do_undo = (ed->count <= ED_REWRAP_UNDO_LINE_LIMIT);
-
     cursor_row_before = ed->row;
     cursor_col_before = ed->col;
 
-    if (do_undo)
-    {
-        snapshot_before = ed_to_string(ed);
+    snapshot_before = ed_to_string(ed);
 
-        if (!snapshot_before)
-        {
-            /* If snapshot allocation failed (out of memory) but the doc
-             * is below the threshold, give up on undo silently and
-             * proceed. Better than refusing the whole operation */
-            do_undo = 0;
-        }
-    }
+    if (!snapshot_before)
+        return -1;
 
     /* Enable snapshot mode to block individual undo operations */
     ed->undo_snapshot_mode = 1;
@@ -944,18 +930,8 @@ int ed_rewrap_document(Ed *ed, int width)
     cursor_col_after = ed->col;
 
     /* Invalidate the soft-wrap prefix cache regardless of undo path -- the
-     * line shapes changed so any cached vrow positions are stale. */
+     * line shapes changed so any cached vrow positions are stale */
     ed_prefix_invalidate(ed);
-
-    if (!do_undo)
-    {
-        /* Large-document path: rewrap done, no undo entry generated
-         * The redo stack is also cleared so the user doesn't accidentally
-         * restore stale state */
-        ed_redo_clear(ed);
-
-        return 0;
-    }
 
     /* Save snapshot after rewrap for redo */
     snapshot_after = ed_to_string(ed);

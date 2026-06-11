@@ -24,6 +24,7 @@
 #include "ui_internal.h"
 #include "ui_editor_helper.h"
 #include "../components/editor.h"
+#include "../core/utf8.h"
 
 /* Soft-wrap viewport state
  * No prefix-sum cache. No scanning from line 0. The viewport is anchored

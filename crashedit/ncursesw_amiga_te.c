@@ -158,10 +158,6 @@ static int s_key_queue_pos = 0;
  */
 #define TE_CELL_WIDE_TRAILING 0x0000FFFEUL
 
-/* wcswidth() lives in ui_editor_helper.c; declare it here since there's no
- * shared header for it */
-extern int wcswidth(const wchar_t *wcs, size_t n);
-
 static int px(int col) { return bx + col * fw; }
 
 static int py(int row) { return by + row * fh; }
