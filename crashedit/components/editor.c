@@ -2104,13 +2104,28 @@ static int apply_group_reverse(Ed *ed, UndoGroup *g)
             /* Undo delete: re-insert the deleted chars */
             if (op->row < ed->count && op->text)
             {
-                int j;
+                /* Line deletion: insert as a new line at op->row */
+                if (op->col == 0)
+                {
+                    EdLine *nl = line_new(op->text, op->len);
+                    if (nl)
+                    {
+                        doc_insert_line(ed, op->row, nl);
+                        if (op->row < min_row)
+                            min_row = op->row;
+                    }
+                }
+                else
+                {
+                    /* Character/range deletion: insert inline */
+                    int j;
 
-                for (j = 0; j < op->len; j++)
-                    line_insert(ed->lines[op->row], op->col + j, op->text[j]);
+                    for (j = 0; j < op->len; j++)
+                        line_insert(ed->lines[op->row], op->col + j, op->text[j]);
 
-                if (op->row < min_row)
-                    min_row = op->row;
+                    if (op->row < min_row)
+                        min_row = op->row;
+                }
             }
 
             break;
