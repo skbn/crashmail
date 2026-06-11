@@ -195,6 +195,7 @@ struct UiApp
     Reader *reader;
     MsgHdr *hdr;
     char msg_charset[32];     /* charset detected when reading */
+    char original_chrs[32];   /* original CHRS from message (before override) */
     char view_charset[32];    /* charset chosen for display */
     char decoded_charset[32]; /* actual decode charset (may differ from view_charset) */
     uint32_t cur_msgnum;      /* JAM msgnum of currently shown msg */

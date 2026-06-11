@@ -317,9 +317,13 @@ AREALISTFORMAT "A E PNU C D G"
 #             This changes what number each color name points to. Use this to
 #             customize your palette. Once you define at least one COLORMAP,
 #             the custom mapping is enabled for all color operations
-#             <color> is one of: black, red, green, yellow, blue, magenta, cyan, white
-#             <number> is the target number (0..255, typically 0..7)
-# Default: standard mapping (black=0, red=1, green=2, yellow=3, blue=4, magenta=5, cyan=6, white=7)
+#             <color> is one of: black, red, green, yellow, blue, magenta, cyan, white,
+#             brightblack, brightred, brightgreen, brightyellow, brightblue, brightmagenta,
+#             brightcyan, brightwhite
+#             <number> is the target number (0..255, typically 0..15)
+# Default: standard mapping (black=0, red=1, green=2, yellow=3, blue=4, magenta=5, cyan=6, white=7,
+#          brightblack=8, brightred=9, brightgreen=10, brightyellow=11, brightblue=12, brightmagenta=13,
+#          brightcyan=14, brightwhite=15)
 #COLORMAP red 5      # Make "red" point to number 5 instead of 1
 #COLORMAP blue 1     # Make "blue" point to number 1 instead of 4
 #COLORMAP green 3    # Make "green" point to number 3 instead of 2
@@ -331,7 +335,9 @@ AREALISTFORMAT "A E PNU C D G"
 #          TEAR, ORIGIN, SEENBY, VIA, UNREAD, DELETED, POPUP, POPUPSEL,
 #          ERROR, TAGLINE, SEARCH_MATCH
 #          <fg> and <bg> are color names: black, red, green, yellow,
-#          blue, magenta, cyan, white (these will use your COLORMAP if defined)
+#          blue, magenta, cyan, white, brightblack, brightred, brightgreen,
+#          brightyellow, brightblue, brightmagenta, brightcyan, brightwhite
+#          (these will use your COLORMAP if defined)
 # Default: built-in palette (see below for defaults)
 #COLOR TAGLINE cyan black
 #COLOR QUOTE1 green black

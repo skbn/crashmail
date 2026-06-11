@@ -285,6 +285,11 @@ static int load_msg(UiApp *app, uint32_t msgnum)
     /* Read raw body for ANSI mode (needs original bytes, not UTF-8) */
     raw_bytes = jam_read_body(&s->jam, msgnum, &raw_len);
 
+    /* Save original chrs */
+    memset(app->original_chrs, 0, sizeof(app->original_chrs));
+
+    charset_detect(raw_bytes, app->original_chrs, sizeof(app->original_chrs));
+
     if (!raw_bytes)
     {
         free(body_utf8);
@@ -881,7 +886,7 @@ UiView ui_reader_run(UiApp *app)
 
         /* Status: msg_charset (CHRS or ?) -> decoded_charset (actual decode) */
         ui_status(app, "Charset: %s -> %s | c = Change charset%s | Ln %d/%d",
-                  app->msg_charset[0] ? app->msg_charset : "?",
+                  strlen(app->original_chrs) ? app->original_chrs : (app->msg_charset[0] ? app->msg_charset : "?"),
                   (app->view_charset[0]) ? app->decoded_charset : "Auto",
                   rd_ansi_visible(app->reader) ? " | ANSI" : "",
                   rd_top(app->reader) + 1, rd_total(app->reader));

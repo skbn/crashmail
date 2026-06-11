@@ -138,6 +138,54 @@ static int s_shadow_dirty = 1; /* force full redraw on next render_all */
 static unsigned char s_dirty_row[SHADOW_DIRTY_MAX_COLS];
 static unsigned char s_dirty_tmp[SHADOW_DIRTY_MAX_COLS];
 
+static UBYTE s_key_queue[16];
+static int s_key_queue_len = 0;
+static int s_key_queue_pos = 0;
+
+/* Cell helpers */
+static int px(int col) { return bx + col * fw; }
+
+static int py(int row) { return by + row * fh; }
+
+/* Convert UTF-32 codepoint to UTF-8 string. Returns number of bytes written (1-4)
+ * Buffer must have at least 5 bytes */
+static int utf32_to_utf8(uint32_t codepoint, char *buf)
+{
+    if (codepoint <= 0x7F)
+    {
+        buf[0] = (char)codepoint;
+        return 1;
+    }
+    else if (codepoint <= 0x7FF)
+    {
+        buf[0] = (char)(0xC0 | (codepoint >> 6));
+        buf[1] = (char)(0x80 | (codepoint & 0x3F));
+        return 2;
+    }
+    else if (codepoint <= 0xFFFF)
+    {
+        buf[0] = (char)(0xE0 | (codepoint >> 12));
+        buf[1] = (char)(0x80 | ((codepoint >> 6) & 0x3F));
+        buf[2] = (char)(0x80 | (codepoint & 0x3F));
+        return 3;
+    }
+    else if (codepoint <= 0x10FFFF)
+    {
+        buf[0] = (char)(0xF0 | (codepoint >> 18));
+        buf[1] = (char)(0x80 | ((codepoint >> 12) & 0x3F));
+        buf[2] = (char)(0x80 | ((codepoint >> 6) & 0x3F));
+        buf[3] = (char)(0x80 | (codepoint & 0x3F));
+        return 4;
+    }
+
+    /* Invalid codepoint - replace with replacement character */
+    buf[0] = (char)0xEF;
+    buf[1] = (char)0xBF;
+    buf[2] = (char)0xBD;
+
+    return 3;
+}
+
 /* Compute dirty bitmap for row r into s_dirty_row[0..COLS-1]
  * Returns 1 if any cell in the row is dirty, 0 otherwise */
 static int compute_dirty_row(int r)
@@ -208,54 +256,6 @@ static int compute_dirty_row(int r)
     }
 
     return 1;
-}
-
-static UBYTE s_key_queue[16];
-static int s_key_queue_len = 0;
-static int s_key_queue_pos = 0;
-
-/* Cell helpers */
-static int px(int col) { return bx + col * fw; }
-
-static int py(int row) { return by + row * fh; }
-
-/* Convert UTF-32 codepoint to UTF-8 string. Returns number of bytes written (1-4)
- * Buffer must have at least 5 bytes */
-static int utf32_to_utf8(uint32_t codepoint, char *buf)
-{
-    if (codepoint <= 0x7F)
-    {
-        buf[0] = (char)codepoint;
-        return 1;
-    }
-    else if (codepoint <= 0x7FF)
-    {
-        buf[0] = (char)(0xC0 | (codepoint >> 6));
-        buf[1] = (char)(0x80 | (codepoint & 0x3F));
-        return 2;
-    }
-    else if (codepoint <= 0xFFFF)
-    {
-        buf[0] = (char)(0xE0 | (codepoint >> 12));
-        buf[1] = (char)(0x80 | ((codepoint >> 6) & 0x3F));
-        buf[2] = (char)(0x80 | (codepoint & 0x3F));
-        return 3;
-    }
-    else if (codepoint <= 0x10FFFF)
-    {
-        buf[0] = (char)(0xF0 | (codepoint >> 18));
-        buf[1] = (char)(0x80 | ((codepoint >> 12) & 0x3F));
-        buf[2] = (char)(0x80 | ((codepoint >> 6) & 0x3F));
-        buf[3] = (char)(0x80 | (codepoint & 0x3F));
-        return 4;
-    }
-
-    /* Invalid codepoint - replace with replacement character */
-    buf[0] = (char)0xEF;
-    buf[1] = (char)0xBF;
-    buf[2] = (char)0xBD;
-
-    return 3;
 }
 
 /* Apply color pair + attributes to RastPort */
@@ -670,8 +670,8 @@ static void render_all()
                         UBYTE saved2;
                         UBYTE fg_pen;
 
-                        if (wc < 0x20)
-                            wc = (uint32_t)' ';
+                        /*if (wc < 0x20)
+                            wc = (uint32_t)' ';*/
 
                         /* Re-clear this cell's exact rectangle so any spillover
                          * from a wider neighbor glyph in the previous frame is
@@ -723,8 +723,8 @@ static void render_all()
                         uint32_t wc = (uint32_t)(cc->ch & 0xFFFFFFFF);
 
                         /* Replace control chars < 0x20 with space (same as bitmap path) */
-                        if (wc < 0x20)
-                            wc = (uint32_t)' ';
+                        /*if (wc < 0x20)
+                            wc = (uint32_t)' ';*/
 
                         urun_len += utf32_to_utf8(wc, urun + urun_len);
                     }
@@ -744,8 +744,8 @@ static void render_all()
                         UWORD wc = (UWORD)(cc->ch & 0xFFFF);
 
                         /* Replace control chars < 0x20 with space (same as bitmap path) */
-                        if (wc < 0x20)
-                            wc = (UWORD)' ';
+                        /*if (wc < 0x20)
+                            wc = (UWORD)' ';*/
 
                         urun[u] = wc;
                     }

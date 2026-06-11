@@ -65,7 +65,7 @@ CORE_OBJS = $(OBJDIR)/jam_wrap.o $(OBJDIR)/utf8.o $(OBJDIR)/charset.o \
             $(OBJDIR)/ftn.o $(OBJDIR)/msghdr.o $(OBJDIR)/wrapper_io.o \
             $(OBJDIR)/clipboard.o $(OBJDIR)/attach.o $(OBJDIR)/freq.o $(OBJDIR)/keys.o \
             $(OBJDIR)/ansi.o $(OBJDIR)/ncursesw_win32.o $(OBJDIR)/search.o $(OBJDIR)/nodelist.o
-COMP_OBJS = $(OBJDIR)/editor.o $(OBJDIR)/reader.o $(OBJDIR)/areafile.o $(OBJDIR)/config.o
+COMP_OBJS = $(OBJDIR)/editor.o $(OBJDIR)/editor_helper.o $(OBJDIR)/reader.o $(OBJDIR)/areafile.o $(OBJDIR)/config.o
 UI_OBJS   = $(OBJDIR)/ui_app.o \
             $(OBJDIR)/ui_session.o $(OBJDIR)/ui_popup.o $(OBJDIR)/ui_arealist.o \
             $(OBJDIR)/ui_arealist_layout.o \
@@ -134,6 +134,9 @@ $(OBJDIR)/areafile.o: $(COMPDIR)/areafile.c $(COMPDIR)/areafile.h | $(OBJDIR)
 	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
 
 $(OBJDIR)/editor.o: $(COMPDIR)/editor.c $(COMPDIR)/editor.h | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
+$(OBJDIR)/editor_helper.o: $(COMPDIR)/editor_helper.c $(COMPDIR)/editor.h | $(OBJDIR)
 	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
 
 $(OBJDIR)/reader.o: $(COMPDIR)/reader.c $(COMPDIR)/reader.h $(COREDIR)/ftn.h | $(OBJDIR)
