@@ -1336,7 +1336,8 @@ UiView ui_editor_run(UiApp *app)
     eff_wrap = editor_eff_wrap(app);
 
     /* Fresh soft-wrap viewport for this editing session */
-    s_soft_vtop = 0;
+    s_soft_top_line = 0;
+    s_soft_top_sub = 0;
     s_soft_desired_vcol = -1;
     s_soft_last_width = COLS;
 
@@ -1360,6 +1361,7 @@ UiView ui_editor_run(UiApp *app)
 
         /* Calculate width for line numbers BEFORE resize check - TinyEdit style */
         int width = COLS;
+
         if (app->cfg && app->cfg->show_line_numbers)
         {
             EdInfo info;

@@ -25,10 +25,16 @@
 #include "../components/editor.h"
 #include "ui.h"
 
-/* Soft-wrap viewport state (reset on editor entry, only for soft-wrap mode) */
-extern int s_soft_vtop;
+/* Soft-wrap viewport state
+ * The viewport is anchored by (top_line, top_sub): logical line at top
+ * of screen, and which sub-row of that line is first visible */
+extern int s_soft_top_line;
+extern int s_soft_top_sub;
 extern int s_soft_desired_vcol;
 extern int s_soft_last_width;
+
+/* Legacy alias kept zero for backward compatibility */
+extern int s_soft_vtop;
 
 /* Reset desired column on horizontal moves */
 void soft_reset_desired(void);
@@ -39,17 +45,30 @@ int wrap_next(const wchar_t *line, int len, int width, int start);
 /* Number of visual sub-rows a logical line occupies (>= 1) */
 int wrap_count(const wchar_t *line, int len, int width);
 
-/* Visual row/col of cursor within soft-wrapped text */
+/* Visual row/col of cursor. The returned vrow is RELATIVE to the
+ * viewport top (0 = first visible row) */
 void soft_cursor_vpos(UiApp *app, int width, int *out_vrow, int *out_vcol);
 
-/* Total visual rows occupied by logical lines [0..upto) at the given width */
+/* Cursor screen row (0-based from viewport top); negative if cursor is
+ * above viewport, >= body_rows if below */
+int soft_cursor_screen_row(UiApp *app, int width);
+
+/* Visual column of cursor within its sub-row */
+int soft_cursor_vcol(Ed *ed, int width);
+
+/* Adjust viewport (s_soft_top_line, s_soft_top_sub) so the cursor is
+ * inside [0, body_rows). Called by draw.c before painting. */
+void soft_ensure_visible_for_draw(UiApp *app, int width, int body_rows);
+
+/* Legacy stub -- returns an approximation, no longer scanned exactly */
 int soft_count_rows_before(Ed *ed, int upto, int width);
 
 /* Within one logical line, find the logical column that corresponds to
  * (vrow_in_line, target_vcol) */
 int soft_seg_at(const wchar_t *l, int len, int width, int vrow_in_line, int target_vcol, int *out_col);
 
-/* Convert an absolute visual position to (row, col) for ed_set_pos */
+/* Legacy: convert absolute visual position to (row, col). Slow path
+ * kept for compatibility -- new code should use the helpers above */
 void soft_visual_to_logical(Ed *ed, int width, int target_vrow, int target_vcol, int *out_row, int *out_col);
 
 /* Move cursor one visual row up */

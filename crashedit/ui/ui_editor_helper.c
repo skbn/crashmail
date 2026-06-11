@@ -64,6 +64,27 @@ int wcswidth(const wchar_t *wcs, size_t n)
 }
 #endif
 
+int wcs_vwidth(const wchar_t *s, int n)
+{
+    int v = 0;
+    int i;
+
+    if (!s || n <= 0)
+        return 0;
+
+    for (i = 0; i < n; i++)
+    {
+        int w = wcswidth(&s[i], 1);
+
+        if (w == 2)
+            v += 2;
+        else
+            v += 1; /* narrow, zero-width, control -> 1 */
+    }
+
+    return v;
+}
+
 /* Effective wrap column. Clamp AUTOWRAP to COLS-1; 0=disabled */
 int editor_eff_wrap(const UiApp *app)
 {

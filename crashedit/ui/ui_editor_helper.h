@@ -27,4 +27,10 @@
 /* Effective wrap column. Clamp AUTOWRAP to COLS-1; 0=disabled */
 int editor_eff_wrap(const UiApp *app);
 
+/* Visual width in display columns of n wchars starting at s. Wide chars
+ * (CJK ideographs, wide emoji) count 2, narrow 1, control/non-printable 1
+ * Used by ui_editor.c to convert wchar offsets into visual column offsets
+ * when positioning mvaddnwstr() within a line that contains wide glyphs */
+int wcs_vwidth(const wchar_t *s, int n);
+
 #endif /* UI_EDITOR_HELPER_H */

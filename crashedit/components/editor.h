@@ -115,6 +115,16 @@ struct Ed
     int undo_last_col_end;  /* col after last recorded char */
     int undo_snapshot_mode; /* 1 = only allow snapshot operations, block individual ops */
     int hard_wrap;          /* 0=soft-wrap, 1=hard-wrap */
+
+    /* Prefix sum array for soft-wrap: prefix[i] = total visual rows up to line i */
+    int *prefix;           /* prefix sum array */
+    int prefix_alloc;      /* allocated capacity */
+    int prefix_valid;      /* 0 = invalid, 1 = valid */
+    int prefix_width;      /* width for which prefix was calculated */
+    int prefix_dirty_from; /* -1 = clean, >=0 = dirty from this line onwards */
+    int prefix_start;      /* start line of current prefix range (for range rebuild) */
+    int prefix_end;        /* end line of current prefix range (for range rebuild) */
+    int prefix_base;       /* visual rows before prefix_start (for absolute positioning) */
 };
 
 #define INIT_ALLOC 256
@@ -212,6 +222,14 @@ void ed_set_modified(Ed *ed, int modified);
 int ed_get_hard_wrap(const Ed *ed);
 void ed_set_hard_wrap(Ed *ed, int hard_wrap);
 
+/* Prefix sum for soft-wrap performance */
+void ed_prefix_invalidate(Ed *ed);
+int ed_prefix_rebuild(Ed *ed, int width);
+int ed_prefix_rebuild_range(Ed *ed, int width, int start_line, int end_line);
+int ed_prefix_rebuild_to(Ed *ed, int width, int max_line);
+int ed_prefix_rebuild_from_row(Ed *ed, int from_row, int width);
+int ed_prefix_get(const Ed *ed, int line);
+
 /* Soft-wrap helpers */
 int ed_wrap_next(const wchar_t *line, int len, int width, int start);
 int ed_wrap_count(const wchar_t *line, int len, int width);
@@ -220,6 +238,8 @@ int ed_wrap_count(const wchar_t *line, int len, int width);
 void ed_clamp(Ed *ed);
 void ed_redo_clear(Ed *ed);
 int ed_undo_open_group(Ed *ed);
+void ed_prefix_invalidate(Ed *ed);
+void ed_prefix_invalidate_from(Ed *ed, int from_line);
 int ed_undo_stack_make_room(UndoGroup **stack, int *top, int *cap, int max);
 void ed_set_pos(Ed *ed, int row, int col);
 int ed_detect_quote_prefix(const wchar_t *line);

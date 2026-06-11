@@ -49,6 +49,16 @@ wchar_t *line_to_wcs(EdLine *ln);
 wchar_t *line_to_wcs_range(EdLine *ln, int start, int end);
 char *ed_block_to_string(Ed *ed, int r1, int c1, int r2, int c2);
 
+/* Prefix sum functions */
+static int prefix_init(Ed *ed);
+static void prefix_free(Ed *ed);
+void ed_prefix_invalidate(Ed *ed);
+static int prefix_rebuild(Ed *ed, int width, int max_line);
+static int prefix_rebuild_from(Ed *ed, int from_line, int width);
+
+/* Soft-wrap helper: number of visual sub-rows a logical line occupies */
+static int wrap_count(const wchar_t *line, int len, int width);
+
 static EdLine *line_new(const wchar_t *src, int len)
 {
     EdLine *ln = (EdLine *)malloc(sizeof(EdLine));
@@ -255,6 +265,418 @@ static void doc_clear(Ed *ed)
     ed->count = 0;
 }
 
+/* Prefix sum implementation */
+static int prefix_init(Ed *ed)
+{
+    ed->prefix_alloc = INIT_ALLOC;
+    ed->prefix = (int *)malloc((size_t)ed->prefix_alloc * sizeof(int));
+
+    if (!ed->prefix)
+        return -1;
+
+    ed->prefix_valid = 0;
+    ed->prefix_width = 0;
+    ed->prefix_dirty_from = -1;
+    ed->prefix_base = 0;
+
+    return 0;
+}
+
+static void prefix_free(Ed *ed)
+{
+    if (ed->prefix)
+    {
+        free(ed->prefix);
+        ed->prefix = NULL;
+    }
+
+    ed->prefix_alloc = 0;
+    ed->prefix_valid = 0;
+}
+
+void ed_prefix_invalidate(Ed *ed)
+{
+    if (!ed)
+        return;
+
+    ed->prefix_valid = 0;
+    ed->prefix_dirty_from = -1;
+}
+
+void ed_prefix_invalidate_from(Ed *ed, int from_line)
+{
+    if (!ed)
+        return;
+
+    /* Don't invalidate during snapshot mode (paste/undo/redo) */
+    if (ed->undo_snapshot_mode)
+        return;
+
+    if (from_line < 0)
+        from_line = 0;
+
+    if (ed->prefix_dirty_from == -1 || from_line < ed->prefix_dirty_from)
+        ed->prefix_dirty_from = from_line;
+}
+
+/* Public prefix functions */
+int ed_prefix_rebuild(Ed *ed, int width)
+{
+    if (!ed)
+        return -1;
+
+    return prefix_rebuild(ed, width, -1);
+}
+
+int ed_prefix_rebuild_to(Ed *ed, int width, int max_line)
+{
+    if (!ed)
+        return -1;
+
+    return prefix_rebuild(ed, width, max_line);
+}
+
+int ed_prefix_rebuild_range(Ed *ed, int width, int start_line, int end_line)
+{
+    int i;
+    int range_size;
+    int total;
+    int old_start, old_end, old_width, old_base;
+    int need_capacity;
+
+    if (!ed)
+        return -1;
+
+    if (start_line < 0)
+        start_line = 0;
+
+    if (end_line >= ed->count)
+        end_line = ed->count - 1;
+
+    if (start_line > end_line)
+        return -1;
+
+    range_size = end_line - start_line + 1;
+
+    /* Ensure prefix array has enough capacity */
+    need_capacity = range_size + 1;
+    while (need_capacity > ed->prefix_alloc)
+    {
+        int na;
+        int *t;
+
+        na = ed->prefix_alloc > 0 ? ed->prefix_alloc * 2 : INIT_ALLOC;
+
+        if (na < need_capacity)
+            na = need_capacity;
+
+        t = (int *)realloc(ed->prefix, (size_t)na * sizeof(int));
+
+        if (!t)
+            return -1;
+
+        ed->prefix = t;
+        ed->prefix_alloc = na;
+    }
+
+    old_start = ed->prefix_start;
+    old_end = ed->prefix_end;
+    old_width = ed->prefix_width;
+    old_base = ed->prefix_base;
+
+    /* CASE A: cache invalid, width changed, or dirty marked
+     * No sliding possible -- but we can still avoid the O(n) base scan if
+     * the new window is anchored where we can reuse the old base
+     * If we have a valid cache with same width and start_line >= old_start
+     * we can incrementally bump base forward without iterating from 0
+     * Otherwise (jump backward or width change) we MUST iterate 0..start-1
+     * which is O(start) -- unavoidable for cold cache */
+    if (!ed->prefix_valid || old_width != width)
+    {
+        /* COLD start: compute base by iterating 0..start_line-1. O(start) */
+        ed->prefix_base = 0;
+        for (i = 0; i < start_line; i++)
+        {
+            const wchar_t *l = ed_line_wcs(ed, i);
+            int len = ed_line_len(ed, i);
+
+            ed->prefix_base += ed_wrap_count(l ? l : L"", l ? len : 0, width);
+        }
+    }
+    else
+    {
+        /* Cache exists with right width. Slide the base incrementally */
+        if (start_line == old_start)
+        {
+            /* TODO */
+        }
+        else if (start_line > old_start)
+        {
+            /* Window moved forward -- add wrap_count of old_start..start_line-1 to base */
+            for (i = old_start; i < start_line; i++)
+            {
+                const wchar_t *l = ed_line_wcs(ed, i);
+                int len = ed_line_len(ed, i);
+
+                ed->prefix_base += ed_wrap_count(l ? l : L"", l ? len : 0, width);
+            }
+        }
+        else /* start_line < old_start */
+        {
+            /* Window moved backward.  How far?
+             * If close (within old window), subtract wrap_counts from base
+             * If far (before old start, no overlap), we have no choice but to
+             * iterate from 0 to start_line */
+            if (start_line >= 0 && old_start - start_line <= range_size * 2)
+            {
+                /* Close: subtract */
+                for (i = start_line; i < old_start; i++)
+                {
+                    const wchar_t *l = ed_line_wcs(ed, i);
+                    int len = ed_line_len(ed, i);
+
+                    ed->prefix_base -= ed_wrap_count(l ? l : L"", l ? len : 0, width);
+                }
+
+                if (ed->prefix_base < 0)
+                    ed->prefix_base = 0; /* safety net for corrupted state */
+            }
+            else
+            {
+                /* Far jump -- recompute base from 0. O(start_line) but rare */
+                ed->prefix_base = 0;
+
+                for (i = 0; i < start_line; i++)
+                {
+                    const wchar_t *l = ed_line_wcs(ed, i);
+                    int len = ed_line_len(ed, i);
+
+                    ed->prefix_base += ed_wrap_count(l ? l : L"", l ? len : 0, width);
+                }
+            }
+        }
+    }
+
+    /* Build prefix[] for the new range.  prefix[i] = visual rows from
+     * start_line up to and including start_line+i */
+    total = 0;
+
+    for (i = start_line; i <= end_line; i++)
+    {
+        const wchar_t *l = ed_line_wcs(ed, i);
+        int len = ed_line_len(ed, i);
+
+        total += ed_wrap_count(l ? l : L"", l ? len : 0, width);
+        ed->prefix[i - start_line] = total;
+    }
+
+    ed->prefix_valid = 1;
+    ed->prefix_width = width;
+    ed->prefix_start = start_line;
+    ed->prefix_end = end_line;
+    ed->prefix_dirty_from = -1; /* fresh */
+
+    return 0;
+}
+
+int ed_prefix_get(const Ed *ed, int line)
+{
+    if (!ed || line < 0)
+        return 0;
+
+    if (line >= ed->count)
+        line = ed->count - 1;
+
+    if (!ed->prefix_valid)
+        return 0;
+
+    /* Inside window: O(1) */
+    if (line >= ed->prefix_start && line <= ed->prefix_end)
+    {
+        /* prefix[i] = sum of wrap_count(start_line .. start_line+i) */
+        return ed->prefix_base + ed->prefix[line - ed->prefix_start];
+    }
+
+    /* Just before the window: by definition prefix_base == vrows up to
+     * prefix_start - 1 (inclusive).  O(1) */
+    if (line == ed->prefix_start - 1)
+        return ed->prefix_base;
+
+    /* Outside the window.  The caller forgot to ed_prefix_rebuild_range()
+     * to cover this line.  We could iterate to compute it, but that's the
+     * O(n) trap we're trying to avoid.  Instead return a conservative
+     * approximation -- the caller should detect this and rebuild
+     *
+     * For lines AFTER the window: extrapolate using prefix_end's value
+     * plus an estimate of 1 vrow per missing line (correct for narrow
+     * lines, undercount for long ones)
+     * For lines BEFORE the window: extrapolate prefix_base backward by
+     * 1 vrow per missing line */
+    if (line > ed->prefix_end)
+    {
+        int last = ed->prefix_base + ed->prefix[ed->prefix_end - ed->prefix_start];
+
+        return last + (line - ed->prefix_end);
+    }
+    else /* line < ed->prefix_start - 1 */
+    {
+        int est = ed->prefix_base - (ed->prefix_start - 1 - line);
+        return est < 0 ? 0 : est;
+    }
+}
+
+int ed_prefix_rebuild_from_row(Ed *ed, int from_row, int width)
+{
+    if (!ed)
+        return -1;
+
+    return prefix_rebuild_from(ed, from_row, width);
+}
+
+static int prefix_rebuild(Ed *ed, int width, int max_line)
+{
+    int i;
+    int total;
+    int from_line;
+    int to_line;
+
+    if (ed->prefix_valid && ed->prefix_width == width && ed->prefix_dirty_from == -1)
+        return 0;
+
+    /* If width changed or prefix not valid, rebuild everything */
+    if (ed->prefix_width != width || !ed->prefix_valid)
+    {
+        from_line = 0;
+    }
+    else
+    {
+        /* Rebuild from dirty line onwards */
+        from_line = (ed->prefix_dirty_from >= 0) ? ed->prefix_dirty_from : 0;
+    }
+
+    /* Determine how many lines to rebuild */
+    if (max_line < 0 || max_line >= ed->count)
+        to_line = ed->count;
+    else
+        to_line = max_line + 1;
+
+    /* Ensure prefix has enough capacity */
+    while (ed->count >= ed->prefix_alloc)
+    {
+        int na;
+        int *t;
+
+        na = ed->prefix_alloc > 0 ? ed->prefix_alloc * 2 : INIT_ALLOC;
+        t = (int *)realloc(ed->prefix, (size_t)na * sizeof(int));
+
+        if (!t)
+            return -1;
+
+        ed->prefix = t;
+        ed->prefix_alloc = na;
+    }
+
+    /* Calculate visual rows before from_line for absolute positioning */
+    total = 0;
+
+    for (i = 0; i < from_line; i++)
+    {
+        const wchar_t *l = ed_line_wcs(ed, i);
+        int len = ed_line_len(ed, i);
+
+        total += ed_wrap_count(l ? l : L"", l ? len : 0, width);
+    }
+
+    /* Calculate prefix sum from from_line to to_line */
+    for (i = from_line; i < to_line; i++)
+    {
+        const wchar_t *l;
+        int len;
+
+        l = ed_line_wcs(ed, i);
+        len = ed_line_len(ed, i);
+
+        total += ed_wrap_count(l ? l : L"", l ? len : 0, width);
+        ed->prefix[i] = total;
+    }
+
+    /* If we didn't rebuild everything, mark the rest as dirty */
+    if (to_line < ed->count)
+        ed->prefix_dirty_from = to_line;
+
+    else
+        ed->prefix_dirty_from = -1;
+
+    ed->prefix_valid = 1;
+    ed->prefix_width = width;
+    ed->prefix_start = from_line;
+    ed->prefix_end = to_line - 1;
+    ed->prefix_base = total;
+
+    return 0;
+}
+
+/* Rebuild prefix incrementally from a specific line onwards */
+static int prefix_rebuild_from(Ed *ed, int from_line, int width)
+{
+    int i;
+    int total;
+
+    if (!ed || from_line < 0 || from_line >= ed->count)
+        return -1;
+
+    /* If width changed, rebuild everything */
+    if (ed->prefix_width != width)
+        return prefix_rebuild(ed, width, -1);
+
+    /* Ensure prefix has enough capacity */
+    while (ed->count >= ed->prefix_alloc)
+    {
+        int na;
+        int *t;
+
+        na = ed->prefix_alloc > 0 ? ed->prefix_alloc * 2 : INIT_ALLOC;
+        t = (int *)realloc(ed->prefix, (size_t)na * sizeof(int));
+
+        if (!t)
+            return -1;
+
+        ed->prefix = t;
+        ed->prefix_alloc = na;
+    }
+
+    /* Calculate visual rows before from_line for absolute positioning */
+    total = 0;
+    for (i = 0; i < from_line; i++)
+    {
+        const wchar_t *l = ed_line_wcs(ed, i);
+        int len = ed_line_len(ed, i);
+
+        total += ed_wrap_count(l ? l : L"", l ? len : 0, width);
+    }
+
+    /* Recalculate from from_line to end */
+    for (i = from_line; i < ed->count; i++)
+    {
+        const wchar_t *l;
+        int len;
+
+        l = ed_line_wcs(ed, i);
+        len = ed_line_len(ed, i);
+
+        total += ed_wrap_count(l ? l : L"", l ? len : 0, width);
+        ed->prefix[i] = total;
+    }
+
+    ed->prefix_valid = 1;
+    ed->prefix_width = width;
+    ed->prefix_start = from_line;
+    ed->prefix_end = ed->count - 1;
+    ed->prefix_base = total;
+
+    return 0;
+}
+
 /* Soft-wrap helper: returns end of current visual segment */
 int ed_wrap_next(const wchar_t *line, int len, int width, int start)
 {
@@ -376,6 +798,16 @@ Ed *ed_new(void)
 
     ed->count = 1;
 
+    if (prefix_init(ed) != 0)
+    {
+        doc_clear(ed);
+
+        free(ed->lines);
+        free(ed);
+
+        return NULL;
+    }
+
     return ed;
 }
 
@@ -388,6 +820,8 @@ void ed_free(Ed *ed)
 
     free(ed->lines);
     free(ed->killbuf);
+
+    prefix_free(ed);
 
     if (ed->undo_stack)
     {
@@ -879,6 +1313,8 @@ int ed_insert_char(Ed *ed, wchar_t ch)
     ed->col++;
     ed->modified = 1;
 
+    ed_prefix_invalidate_from(ed, ed->row);
+
     return 0;
 }
 
@@ -905,6 +1341,7 @@ int ed_enter(Ed *ed)
     ed->row++;
     ed->col = 0;
     ed->modified = 1;
+    ed_prefix_invalidate_from(ed, ed->row - 1);
     ed_ensure_visible(ed);
 
     return 0;
@@ -927,6 +1364,7 @@ int ed_backspace(Ed *ed)
 
         ed->col--;
         ed->modified = 1;
+        ed_prefix_invalidate_from(ed, ed->row);
     }
     else if (ed->row > 0)
     {
@@ -941,6 +1379,7 @@ int ed_backspace(Ed *ed)
 
         ed->row--;
         ed->modified = 1;
+        ed_prefix_invalidate_from(ed, ed->row);
 
         ed_ensure_visible(ed);
     }
@@ -964,6 +1403,7 @@ int ed_delete(Ed *ed)
         line_delete(ln, ed->col);
 
         ed->modified = 1;
+        ed_prefix_invalidate_from(ed, ed->row);
     }
     else if (ed->row < ed->count - 1)
     {
@@ -975,6 +1415,7 @@ int ed_delete(Ed *ed)
         line_free(doc_remove_line(ed, ed->row + 1));
 
         ed->modified = 1;
+        ed_prefix_invalidate_from(ed, ed->row);
     }
 
     return 0;
@@ -1036,6 +1477,7 @@ int ed_delete_line(Ed *ed)
     }
 
     ed->modified = 1;
+    ed_prefix_invalidate_from(ed, deleted_row);
     ed_ensure_visible(ed);
 
     return 0;
@@ -1076,6 +1518,7 @@ int ed_delete_to_eol(Ed *ed)
     }
 
     ed->modified = 1;
+    ed_prefix_invalidate_from(ed, ed->row);
 
     return 0;
 }
@@ -1129,6 +1572,7 @@ int ed_delete_word_left(Ed *ed)
     }
 
     ed->modified = 1;
+    ed_prefix_invalidate_from(ed, ed->row);
 
     return 0;
 }
@@ -1181,6 +1625,7 @@ int ed_delete_word_right(Ed *ed)
     }
 
     ed->modified = 1;
+    ed_prefix_invalidate_from(ed, ed->row);
 
     return 0;
 }
@@ -1208,6 +1653,7 @@ int ed_duplicate_line(Ed *ed)
 
     ed->row++;
     ed->modified = 1;
+    ed_prefix_invalidate_from(ed, ed->row - 1);
     ed_ensure_visible(ed);
 
     return 0;
@@ -1530,6 +1976,7 @@ int ed_block_cut(Ed *ed)
     ed->undo_open = 0;
 
     ed->modified = 1;
+    ed_prefix_invalidate_from(ed, r1);
     ed_ensure_visible(ed);
 
     free(cut_text);
@@ -1630,6 +2077,7 @@ int ed_block_delete(Ed *ed)
     ed->undo_open = 0;
 
     ed->modified = 1;
+    ed_prefix_invalidate_from(ed, r1);
     ed_ensure_visible(ed);
 
     return 0;
@@ -2054,6 +2502,8 @@ static int ed_backspace_no_undo(Ed *ed)
 
         ed->col--;
         ed->modified = 1;
+
+        ed_prefix_invalidate_from(ed, ed->row);
     }
     else if (ed->row > 0)
     {
@@ -2067,6 +2517,7 @@ static int ed_backspace_no_undo(Ed *ed)
         ed->row--;
         ed->modified = 1;
 
+        ed_prefix_invalidate_from(ed, ed->row);
         ed_ensure_visible(ed);
     }
 
@@ -2407,6 +2858,7 @@ int ed_undo(Ed *ed)
     ed_clamp(ed);
     ed_ensure_visible(ed);
     ed->modified = 1;
+    ed_prefix_invalidate_from(ed, min_row);
 
     return 0;
 }
@@ -2444,6 +2896,7 @@ int ed_redo(Ed *ed)
     ed_clamp(ed);
     ed_ensure_visible(ed);
     ed->modified = 1;
+    ed_prefix_invalidate_from(ed, min_row);
 
     return 0;
 }
@@ -2729,6 +3182,9 @@ int ed_paste_text_with_undo(Ed *ed, const char *utf8_text)
     g->ops[g->count].end_col = cursor_col_after;
     g->count++;
     ed->undo_open = 0;
+
+    /* Invalidate prefix after paste */
+    ed_prefix_invalidate_from(ed, cursor_row_before);
 
     return 0;
 }

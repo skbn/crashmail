@@ -54,7 +54,7 @@ UI_OBJS   = $(OBJDIR)/ui_app.o \
             $(OBJDIR)/ui_aka.o $(OBJDIR)/ui_attr.o $(OBJDIR)/ui_files.o \
             $(OBJDIR)/ui_popup_attach.o $(OBJDIR)/ui_popup_freq.o $(OBJDIR)/ui_setup.o \
             $(OBJDIR)/ui_search.o $(OBJDIR)/ui_popup_nodelist.o
-ALL_OBJS = $(CORE_OBJS) $(COMP_OBJS)
+ALL_OBJS = $(CORE_OBJS) $(COMP_OBJS) $(UI_OBJS)
 
 all: $(TARGET) crashedit
 
@@ -202,8 +202,8 @@ CRASHEDIT = $(HERE)../bin/crashedit
 
 crashedit: $(CRASHEDIT)
 
-$(CRASHEDIT): $(HERE)main_ui.c $(TARGET) $(UI_OBJS) $(JAMLIB)
-	$(CC) $(CFLAGS) $(HERE)main_ui.c $(UI_OBJS) $(TARGET) $(JAMLIB) -o $@
+$(CRASHEDIT): $(HERE)main_ui.c $(TARGET) $(JAMLIB)
+	$(CC) $(CFLAGS) $(HERE)main_ui.c $(TARGET) $(JAMLIB) -o $@
 
 clean:
 	rm -rf $(OBJDIR) $(TARGET) $(CRASHEDIT)

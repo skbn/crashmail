@@ -792,6 +792,8 @@ int ed_rewrap_paragraph(Ed *ed, int width)
         g->count++;
         ed->undo_open = 0;
 
+        ed_prefix_invalidate(ed);
+
         /* Push snapshot to redo stack */
         if (ed_undo_stack_make_room(&ed->redo_stack, &ed->redo_top, &ed->redo_cap, ed->redo_max) == 0)
         {
@@ -851,8 +853,10 @@ int ed_rewrap_document(Ed *ed, int width)
     if (!snapshot_before)
         return -1;
 
+    /* Enable snapshot mode to block individual undo operations */
     ed->undo_snapshot_mode = 1;
 
+    /* Process document paragraph by paragraph */
     while (para_start < ed->count)
     {
         const wchar_t *l;
@@ -864,6 +868,7 @@ int ed_rewrap_document(Ed *ed, int width)
         if (para_start >= ed->count)
             break;
 
+        /* Skip empty lines - preserve them as-is */
         l = ed->lines[para_start]->wcs;
 
         if (!l || !l[0])
@@ -872,6 +877,7 @@ int ed_rewrap_document(Ed *ed, int width)
             continue;
         }
 
+        /* Find paragraph end (consecutive non-empty lines with same quote prefix) */
         prefix_len = ed_detect_quote_prefix(l);
         para_end = para_start + 1;
 
@@ -881,16 +887,18 @@ int ed_rewrap_document(Ed *ed, int width)
             int next_prefix;
 
             if (!next_l || !next_l[0])
-                break;
+                break; /* Empty line ends paragraph */
 
             next_prefix = ed_detect_quote_prefix(next_l);
 
+            /* Different prefix ends paragraph */
             if (prefix_len != next_prefix)
                 break;
 
             para_end++;
         }
 
+        /* Check if any line in paragraph exceeds width (excluding prefix) */
         for (i = para_start; i < para_end && i < ed->count; i++)
         {
             const wchar_t *check_l = ed->lines[i]->wcs;
@@ -904,20 +912,24 @@ int ed_rewrap_document(Ed *ed, int width)
             }
         }
 
+        /* Only rewrap if needed */
         if (needs_rewrap)
         {
             ed_set_pos(ed, para_start, 0);
             ed_rewrap_paragraph(ed, width);
         }
 
+        /* Move to next paragraph */
         para_start = para_end;
     }
 
+    /* Disable snapshot mode */
     ed->undo_snapshot_mode = 0;
 
     cursor_row_after = ed->row;
     cursor_col_after = ed->col;
 
+    /* Save snapshot after rewrap for redo */
     snapshot_after = ed_to_string(ed);
 
     if (!snapshot_after)
@@ -974,6 +986,8 @@ int ed_rewrap_document(Ed *ed, int width)
     g->ops[g->count].hard_wrap_mode = ed->hard_wrap;
     g->count++;
     ed->undo_open = 0;
+
+    ed_prefix_invalidate(ed);
 
     /* Push snapshot to redo stack */
     if (ed_undo_stack_make_room(&ed->redo_stack, &ed->redo_top, &ed->redo_cap, ed->redo_max) == 0)
@@ -1152,6 +1166,7 @@ int ed_load_file_at_cursor(Ed *ed, const char *path, const char *charset_in)
                 free(content_to_paste);
             else
                 free(buf);
+
             return -1;
         }
 
@@ -1191,6 +1206,9 @@ int ed_load_file_at_cursor(Ed *ed, const char *path, const char *charset_in)
         free(content_to_paste);
     else
         free(buf);
+
+    /* Invalidate prefix after paste */
+    ed_prefix_invalidate_from(ed, cursor_row_before);
 
     return 0;
 }

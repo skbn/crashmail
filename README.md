@@ -92,6 +92,39 @@ your C-compiler supports some common POSIX-functions which CrashMail uses.
 Screenshots
 =========
 
+```
+For AmigaOS the program use ttengine or freetype with libpng and zlib
+
+https://aminet.net/package/util/libs/ttengine-68k
+
+libpng: https://www.libpng.org/
+zlib: https://zlib.net/
+FreeType: https://freetype.org/
+
+To compile:
+
+In crashmail directory:
+make cleanamiga
+make amiga
+
+In crashedit directory:
+
+To ttengine.library: make -f Makefile.amiga
+
+To static freetype with libpng and zlib:
+Extract the files freetype-2.14.3.tar.xz, libpng-1.6.58.tar.xz and, zlib.tar.gz
+into CrashEdit and rename them to freetype, zlib, and libpng.
+
+To prepair headers:
+make -f Makefile.amiga.te unprep
+make -f Makefile.amiga.te prep
+make -f Makefile.amiga.te clean all
+
+For freetype, the antialiasing is still buggy; I need to fix it.
+
+The executable is large, but you don't need any libraries. It's optimized for RTG and also works with OCS, ECS, or AGA.
+```
+
 ![AmigaOS 3.2](img/amiga.png)
 
 ![FreeBSD](img/freebsd.png)
