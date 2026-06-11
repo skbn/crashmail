@@ -99,25 +99,24 @@ static const char *EDITOR_HELP[] =
         "    Ctrl-R          Find & replace",
         "    F3 Alt+P        Prev match (search mode)",
         "    F4 Alt+N        Next match (search mode)",
-        "    Alt+M           Goto line",
-        "    Alt+G           Clear search highlights",
+        "    Alt+G           Goto line",
         "    Ctrl-G          Go to start of document",
         "    Ctrl-K          Go to end of document",
         "    F7 Alt+O        Insert file",
         "    F8 Alt+K        Kludges (Enter del)",
         "",
         "  Attachments:",
-        "    Ctrl+F          Add attachment (file)",
-        "    Ctrl-Q          Remove attachment",
-        "    Ctrl-L          List attachments",
-        "    Alt+L           Clear all attachments",
+        "    Alt+A           Add attachment (file)",
+        "    Alt+X           Remove attachment",
+        "    Alt+M           List attachments",
+        "    Alt+C           Clear all attachments",
         "",
         "  Header / send:",
         "    F2 Ctrl-S       Save",
-        "    F3 ALT-C        Charset",
+        "    F3 Alt+H        Charset",
         "    F4 Ctrl-A       AKA (netmail)",
-        "    F9 Alt+A        Attr (Priv/Crash/Hold)",
-        "    F10 Alt+T       Nodelist picker",
+        "    F9 Alt+R        Attr (Priv/Crash/Hold)",
+        "    F10 Alt+P       Nodelist picker",
 #ifdef PLATFORM_AMIGA
         "    Alt+V           Nodelist browser",
 #else
@@ -191,8 +190,8 @@ static int handle_function_keys(UiApp *app, int ch, int is_key)
         return 1;
     }
 
-    /* F3 / Alt+C / Alt+P : charset OR Previous match in search mode */
-    if ((is_key && ch == KEY_F(3)) || (is_key && ch == KEY_ALT('C')) || (is_key && ch == KEY_ALT('P')))
+    /* F3 / Alt+H / Alt+P : charset OR Previous match in search mode */
+    if ((is_key && ch == KEY_F(3)) || (is_key && ch == KEY_ALT('H')) || (is_key && ch == KEY_ALT('P')))
     {
         if (app->edit_search.is_mode || app->edit_search.only_mode)
         {
@@ -201,7 +200,7 @@ static int handle_function_keys(UiApp *app, int ch, int is_key)
         }
         else
         {
-            /* Alt+C: charset picker */
+            /* Alt+H: charset picker */
             char new_view[32], new_out[32];
 
             new_view[0] = '\0';
@@ -366,8 +365,8 @@ static int handle_function_keys(UiApp *app, int ch, int is_key)
         return 1;
     }
 
-    /* F9 / Alt+A : attribute flags toggle */
-    if ((is_key && ch == KEY_F(9)) || (ch == KEY_ALT('A')))
+    /* F9 / Alt+R : attribute flags toggle */
+    if ((is_key && ch == KEY_F(9)) || (ch == KEY_ALT('R')))
     {
         editor_attr_popup(app);
         return 1;
@@ -410,8 +409,8 @@ static int handle_function_keys(UiApp *app, int ch, int is_key)
         return 1;
     }
 
-    /* F10 / Alt+T : nodelist picker (header only) */
-    if (((is_key && (int)ch == KEY_F(10) || (is_key && ch == KEY_ALT('T'))) && app->edit_active_field != EF_BODY))
+    /* F10 / Alt+P : nodelist picker (header only) */
+    if (((is_key && (int)ch == KEY_F(10) || (is_key && ch == KEY_ALT('P'))) && app->edit_active_field != EF_BODY))
     {
         char picked_name[NODELIST_NAME_MAX];
         char picked_addr[NODELIST_ADDR_MAX];
@@ -586,22 +585,22 @@ static int handle_control_keys(UiApp *app, int ch, int is_key)
         return 1;
     }
 
-    /* Ctrl+F : Add attachment */
-    if (!is_key && ch == CTRL('F'))
+    /* Alt+A : Add attachment */
+    if (ch == KEY_ALT('A'))
     {
         ui_popup_attach_add(app);
         return 1;
     }
 
-    /* Ctrl+Q : Remove attachment */
-    if (!is_key && ch == CTRL('Q'))
+    /* Alt+X : Remove attachment */
+    if (ch == KEY_ALT('X'))
     {
         ui_popup_attach_remove(app);
         return 1;
     }
 
-    /* Ctrl+L : List attachments */
-    if (!is_key && ch == CTRL('L'))
+    /* Alt+M : List attachments */
+    if (ch == KEY_ALT('M'))
     {
         ui_popup_attach_list(app);
         return 1;
@@ -683,8 +682,8 @@ static int handle_control_keys(UiApp *app, int ch, int is_key)
 /* Handle Alt key combinations (Alt+...). Returns 1 if handled, 0 otherwise */
 static int handle_alt_keys(UiApp *app, int ch, int is_key)
 {
-    /* Alt+M : goto line */
-    if (ch == KEY_ALT('M'))
+    /* Alt+G : goto line */
+    if (ch == KEY_ALT('G'))
     {
         wchar_t wbuf[16];
         wbuf[0] = L'\0';
@@ -707,17 +706,8 @@ static int handle_alt_keys(UiApp *app, int ch, int is_key)
         return 1;
     }
 
-    /* Alt+G : clear search highlights */
-    if (ch == KEY_ALT('G'))
-    {
-        reset_search(app);
-        ui_status(app, "Search highlights cleared");
-
-        return 1;
-    }
-
-    /* Alt+L : clear all attachments */
-    if (ch == KEY_ALT('L'))
+    /* Alt+C : clear all attachments */
+    if (ch == KEY_ALT('C'))
     {
         ui_popup_attach_clear(app);
         return 1;

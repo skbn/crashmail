@@ -40,7 +40,7 @@ static const char *READER_HELP[] =
     {
         "Message Reader - Key Bindings:",
         "",
-        "  Up/Down,j/k    Scroll body up/down",
+        "  Up/Down        Scroll body up/down",
 #ifdef PLATFORM_AMIGA
         "  Ctrl+U/D       Page scroll",
         "  Ctrl+B/E       First / last line",
@@ -54,7 +54,6 @@ static const char *READER_HELP[] =
         "  Enter          Page down or advance to next message",
         "  < >            First / last line (scroll)",
         "  , .            First / last message",
-        "  Ctrl-J         Jump to original (follow reply chain)",
         "  Ctrl+Left      Jump to original (follow reply chain)",
         "  Ctrl+Right     Jump to reply (pick if multiple)",
         "",
@@ -65,17 +64,16 @@ static const char *READER_HELP[] =
         "  e              Edit this message",
         "  n, Ins         New message (in current area)",
         "  l, L           Show message list overlay (ESC returns here)",
-        "  Ctrl+H         Scroll to top of message",
+        "  Ctrl+G         Scroll to top of message",
         "  Ctrl+K         Scroll to bottom of message",
-        "  Ctrl+G         Goto line number",
+        "  Alt+G          Goto line number",
         "  Alt+J          Follow reply chain to original",
-        "  Alt+G          Clear search highlights",
         "  F5, /          Search in message body",
         "  F3 Alt+P       Previous match (search mode)",
         "  F4 Alt+N       Next match (search mode)",
         "  w, F7          Write message to text file",
         "  d, Del         Delete this message",
-        "  Ctrl+F         File request",
+        "  Alt+F          File request",
         "",
         "  ESC, q         Back to message list",
         "  F1 Alt+Y       This help"};
@@ -952,7 +950,7 @@ UiView ui_reader_run(UiApp *app)
             }
             break;
 
-        case CTRL('H'):
+        case CTRL('G'):
         case '<':
             /* Scroll to top of message */
             rd_set_page(app->reader, LINES - 8);
@@ -1341,7 +1339,7 @@ UiView ui_reader_run(UiApp *app)
                 rd_page_down(app->reader);
             break;
 
-        case CTRL('G'): /* Goto line number */
+        case KEY_ALT('G'): /* Goto line number */
         {
             wchar_t wbuf[16];
             wbuf[0] = L'\0';
@@ -1412,14 +1410,6 @@ UiView ui_reader_run(UiApp *app)
                 }
             }
             break;
-        }
-
-        case KEY_ALT('G'): /* Clear search highlights */
-        {
-            reader_clear_search(app);
-            ui_status(app, "Search highlights cleared");
-
-            continue; /* Force redraw */
         }
 
         /* Navigate to previous match in reader */
@@ -1616,7 +1606,7 @@ UiView ui_reader_run(UiApp *app)
             flushinp();
             load_msg(app, app->cur_msgnum);
             break;
-        case CTRL('F'):
+        case KEY_ALT('F'):
             ui_popup_freq(app);
             break;
         default:

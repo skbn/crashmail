@@ -738,6 +738,18 @@ UiApp *ui_init(CrashEditCfg *cfg, AreaList *areas)
     define_key("\033Y", KEY_ALT('Y')); /* Alt+Shift+Y */
     define_key("\033d", KEY_ALT('D')); /* Alt+D line numbers */
     define_key("\033D", KEY_ALT('D')); /* Alt+Shift+D */
+    define_key("\033a", KEY_ALT('A')); /* Alt+A add attachment */
+    define_key("\033A", KEY_ALT('A')); /* Alt+Shift+A */
+    define_key("\033x", KEY_ALT('X')); /* Alt+X remove attachment */
+    define_key("\033X", KEY_ALT('X')); /* Alt+Shift+X */
+    define_key("\033g", KEY_ALT('G')); /* Alt+G goto line */
+    define_key("\033G", KEY_ALT('G')); /* Alt+Shift+G */
+    define_key("\033h", KEY_ALT('H')); /* Alt+H charset */
+    define_key("\033H", KEY_ALT('H')); /* Alt+Shift+H */
+    define_key("\033r", KEY_ALT('R')); /* Alt+R attr */
+    define_key("\033R", KEY_ALT('R')); /* Alt+Shift+R */
+    define_key("\033p", KEY_ALT('P')); /* Alt+P nodelist picker */
+    define_key("\033P", KEY_ALT('P')); /* Alt+Shift+P */
 #endif
 
     app = (UiApp *)calloc(1, sizeof(UiApp));
