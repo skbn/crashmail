@@ -49,17 +49,59 @@ void soft_reset_desired(void)
  * Breaks at the last space boundary that fits within width columns
  * If no space fits (word longer than width), hard-cuts at start+width
  * The next segment starts exactly at the returned position - no chars skipped */
+/*int wrap_next(const wchar_t *line, int len, int width, int start)
+{
+   int hard_end;
+   int k;
+
+   if (width < 1)
+       width = 1;
+
+   hard_end = start + width;
+
+   if (hard_end >= len)
+       return len;*/
+
+/* Search backwards from hard_end for a space to break at */
+/*for (k = hard_end; k > start; k--)
+{
+    if (line[k - 1] == L' ' || line[k - 1] == L'\t')
+        return k;
+}*/
+
+/* No space found: hard cut */
+/*return hard_end;
+}*/
+
+/* Added wide character support 
+ * If no space fits (word longer than width), hard-cuts at visual boundary*/
 int wrap_next(const wchar_t *line, int len, int width, int start)
 {
+    int vcol = 0;
+    int k = start;
     int hard_end;
-    int k;
 
     if (width < 1)
         width = 1;
 
-    hard_end = start + width;
+    /* Walk forward from start, accumulating visual width with wcswidth */
+    while (k < len)
+    {
+        int w = wcswidth(&line[k], 1);
 
-    if (hard_end >= len)
+        if (w <= 0)
+            w = 1; /* control/zero-width -> 1 */
+
+        if (vcol + w > width)
+            break;
+
+        vcol += w;
+        k++;
+    }
+
+    hard_end = k;
+
+    if (k >= len)
         return len;
 
     /* Search backwards from hard_end for a space to break at */
@@ -69,7 +111,7 @@ int wrap_next(const wchar_t *line, int len, int width, int start)
             return k;
     }
 
-    /* No space found: hard cut */
+    /* No space found: hard cut at visual boundary */
     return hard_end;
 }
 
