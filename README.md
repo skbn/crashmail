@@ -94,6 +94,7 @@ Screenshots
 
 ```
 For AmigaOS the program use ttengine or freetype with libpng and zlib
+Using bebbo gcc
 
 https://aminet.net/package/util/libs/ttengine-68k
 

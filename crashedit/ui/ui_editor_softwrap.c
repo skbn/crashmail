@@ -73,7 +73,7 @@ void soft_reset_desired(void)
 /*return hard_end;
 }*/
 
-/* Added wide character support 
+/* Added wide character support
  * If no space fits (word longer than width), hard-cuts at visual boundary*/
 int wrap_next(const wchar_t *line, int len, int width, int start)
 {
