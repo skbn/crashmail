@@ -1,7 +1,5 @@
 /*
- * crashedit - Message area editor for AmigaOS
- *
- * This file is part of the crashedit project.
+ * te_rastport.c -- Glyph rendering with FreeType for tinyedit
  *
  * Copyright (C) 2026 Tanausú M. 39:190/101@amiganet 2:341/207@fidonet
  *
@@ -9,17 +7,6 @@
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 2 of the License, or
  * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <https://www.gnu.org/licenses/>.
- *
- * This program uses JAMLIB, which is licensed under the GNU Lesser
- * General Public License v2.1. See src/jamlib/LICENSE for details.
  */
 
 #include "te_rastport.h"
@@ -1435,12 +1422,14 @@ static void te_draw_mono(struct TERenderContext *dc, struct RastPort *rp, struct
     BltTemplate((PLANEPTR)(g->data + srcy * g->pitch), srcx, g->pitch, rp, dx, dy, w, h);
 }
 
-/* CLUT (AGA) path: write each glyph pixel through SetAPen+WritePixel. Slow but correct on any indexed-colour screen */
+/* CLUT (AGA) path: draw pixels via SetAPen+WritePixel. Saves/restores rp->FgPen to prevent side effects */
 static void te_draw_indexed_pixels(struct TERenderContext *dc, struct RastPort *rp, struct TEGlyph *g, int dx, int dy)
 {
     int x, y;
     int gw = g->width;
     int gh = g->height;
+    UBYTE saved_pen = rp->FgPen;
+    int pen_dirty = 0;
 
     if (!dc->aaRampValid)
         te_rebuild_aa_ramp(dc);
@@ -1466,6 +1455,8 @@ static void te_draw_indexed_pixels(struct TERenderContext *dc, struct RastPort *
 
                 SetAPen(rp, dc->aaRamp[level]);
                 WritePixel(rp, dx + x, dy + y);
+
+                pen_dirty = 1;
             }
             else if (g->format == FMT_RGBA)
             {
@@ -1496,9 +1487,14 @@ static void te_draw_indexed_pixels(struct TERenderContext *dc, struct RastPort *
 
                 SetAPen(rp, pen);
                 WritePixel(rp, dx + x, dy + y);
+                pen_dirty = 1;
             }
         }
     }
+
+    /* Restore caller's FgPen so the RastPort state is unchanged on return */
+    if (pen_dirty)
+        SetAPen(rp, saved_pen);
 }
 
 /* RTG path for GRAY / RGBA glyphs. Uses WritePixelArray for truecolor screens. We compose glyph into RGB24 scratch buffer, then single WritePixelArray call to CGX */

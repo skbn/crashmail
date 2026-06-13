@@ -137,3 +137,4 @@ The executable is large, but you don't need any libraries. It's optimized for RT
 ![TTF support](img/ttf%20amigaos.png)
 
 ![ansi art ttf](img/ttf%20utf8%20ansi.png)
+

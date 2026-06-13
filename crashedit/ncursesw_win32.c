@@ -1,7 +1,5 @@
 /*
- * crashedit - Message area editor for AmigaOS
- *
- * This file is part of the crashedit project.
+ * tinyedit - Text editor for AmigaOS
  *
  * Copyright (C) 2026 Tanausú M. 39:190/101@amiganet 2:341/207@fidonet
  *
@@ -9,17 +7,6 @@
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 2 of the License, or
  * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <https://www.gnu.org/licenses/>.
- *
- * This program uses JAMLIB, which is licensed under the GNU Lesser
- * General Public License v2.1. See src/jamlib/LICENSE for details.
  */
 
 /* ncursesw_win32.c - ncursesw for Windows using GDI (own window like Amiga) */
@@ -97,6 +84,61 @@ static int is_wide_cp(unsigned int cp)
         return 1; /* CJK Ext B..F */
     if (cp >= 0x30000 && cp <= 0x3FFFD)
         return 1; /* CJK Ext G */
+
+    return 0;
+}
+
+static int is_complex_cp(unsigned int cp)
+{
+    /* Combining diacritics for Latin and other scripts (visually attach to preceding glyph) */
+    if (cp >= 0x0300 && cp <= 0x036F)
+        return 1;
+
+    /* Hebrew (incl. vowel points and cantillation marks) */
+    if (cp >= 0x0590 && cp <= 0x05FF)
+        return 1;
+
+    /* Arabic, Syriac, Arabic Supplement, Thaana, NKo, Samaritan, Mandaic, Arabic Extended-A */
+    if (cp >= 0x0600 && cp <= 0x08FF)
+        return 1;
+
+    /* Indic block: Devanagari, Bengali, Gurmukhi, Gujarati, Oriya, Tamil, Telugu, Kannada, Malayalam, Sinhala, Thai, Lao, Tibetan */
+    if (cp >= 0x0900 && cp <= 0x0FFF)
+        return 1;
+
+    /* Myanmar, Georgian (Georgian has some shaping in modern forms) */
+    if (cp >= 0x1000 && cp <= 0x10FF)
+        return 1;
+
+    /* Khmer, Mongolian, Limbu, Tai Le, New Tai Lue, Khmer Symbols, Buginese, Tai Tham */
+    if (cp >= 0x1780 && cp <= 0x1AAF)
+        return 1;
+
+    /* Format controls: ZWNJ/ZWJ/LRM/RLM and bidi overrides */
+    if (cp >= 0x200C && cp <= 0x200F)
+        return 1;
+    if (cp >= 0x202A && cp <= 0x202E)
+        return 1;
+    if (cp >= 0x2066 && cp <= 0x2069)
+        return 1;
+
+    /* Variation selectors and combining half marks */
+    if (cp >= 0xFE00 && cp <= 0xFE2F)
+        return 1;
+
+    /* Hebrew presentation forms */
+    if (cp >= 0xFB1D && cp <= 0xFB4F)
+        return 1;
+
+    /* Arabic Presentation Forms-A and -B */
+    if (cp >= 0xFB50 && cp <= 0xFDFF)
+        return 1;
+    if (cp >= 0xFE70 && cp <= 0xFEFF)
+        return 1;
+
+    /* Variation selectors supplement */
+    if (cp >= 0xE0100 && cp <= 0xE01EF)
+        return 1;
 
     return 0;
 }
@@ -661,7 +703,7 @@ static int compute_dirty_row(int r)
         return 0;
     }
 
-    /* If row contains wide-glyph cells, force entire row dirty. Wide glyphs render pixels outside their reported cell width */
+    /* Force entire row dirty if it contains wide-glyph or complex-shaping cells (Arabic, Hebrew, Indic) to ensure correct rendering */
     has_wide = 0;
 
     for (c = 0; c < cols; c++)
@@ -672,7 +714,7 @@ static int compute_dirty_row(int r)
         /* Check if this is a wide character */
         if (ch != WIN32_CELL_WIDE_TRAILING)
         {
-            if (is_wide_cp((unsigned int)ch))
+            if (is_wide_cp((unsigned int)ch) || is_complex_cp((unsigned int)ch))
             {
                 has_wide = 1;
                 break;
@@ -960,9 +1002,25 @@ static void render_all(void)
     {
         Cell *cell = CELL(stdscr, prev_y, prev_x);
         int sync_lead = prev_x;
+        int row_has_complex = 0;
+        int cc_col;
 
-        /* GDI fonts (ClearType) anti-alias on subpixel boundaries -- glyph pixels can bleed into neighbouring cell. Repaint small bleed window around cell to avoid ghosting. Same idea as SHADOW_BLEED_CELLS in compute_dirty_row */
+        /* Skip per-cell render for complex-script rows to avoid breaking ligation already produced by batched TextOutW */
+        for (cc_col = 0; cc_col < COLS; cc_col++)
         {
+            Cell *cb = CELL(stdscr, prev_y, cc_col);
+            ULONG ch = (ULONG)cb->ch;
+
+            if (ch != WIN32_CELL_WIDE_TRAILING && is_complex_cp((unsigned int)ch))
+            {
+                row_has_complex = 1;
+                break;
+            }
+        }
+
+        if (!row_has_complex)
+        {
+            /* Repaint bleed window around cell to avoid ClearType anti-alias ghosting */
             int b;
             int bleed_lo = prev_x - SHADOW_BLEED_CELLS;
             int bleed_hi = prev_x + SHADOW_BLEED_CELLS;
@@ -978,6 +1036,7 @@ static void render_all(void)
                 render_cell(prev_y, b, cb->ch, cb->attrs);
             }
         }
+        /* For complex-script rows, skip the bleed: main render already redrew the row correctly with full shaping. */
 
         /* If prev was a TRAILING, the lead lives one to the left -- shadow sync target is the lead */
         if (cell->ch == WIN32_CELL_WIDE_TRAILING && prev_x > 0)
