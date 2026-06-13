@@ -1,4 +1,4 @@
-UTF-8 Test file for tinyedit
+UTF-8 Test file
 =============================
 
 Latin Extended:

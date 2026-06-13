@@ -148,6 +148,7 @@ static void copy_rest(const char *src, char *dst, int dstlen)
 static void normalize_charset(char *cs)
 {
     const char *canonical = charset_resolve(cs);
+
     if (canonical && canonical != cs)
     {
         strncpy(cs, canonical, CHARSET_NAME_MAX - 1);
@@ -575,8 +576,7 @@ int cfg_load(CrashEditCfg *cfg, const char *path)
 
     if (!f)
     {
-        /* If no config file exists, write defaults to disk and continue
-         * Parent dir must exist; fails silently if it doesn't */
+        /* Write defaults if no config exists, fail if parent dir missing */
         if (cfg_save(cfg, path) != 0)
             return -1; /* couldn't even create it (bad path / perms) */
 
@@ -648,8 +648,7 @@ int cfg_load(CrashEditCfg *cfg, const char *path)
         }
         else if (strcasecmp(word, "OUTBOUND") == 0)
         {
-            /* Base outbound directory where the freq popup writes its
-             * .req/.clo files for the mailer (binkd) to pick up */
+            /* Outbound dir for freq .req/.clo files picked up by mailer */
             copy_rest(rest, cfg->freq_outbound, sizeof(cfg->freq_outbound));
         }
         else if (strcasecmp(word, "OUTBOUNDMODE") == 0)
@@ -657,8 +656,7 @@ int cfg_load(CrashEditCfg *cfg, const char *path)
             char m[32];
             get_token(rest, m, sizeof(m));
 
-            /* aso | bso | bso-ext (a.k.a. bsoext / bso_ext). Anything
-             * else leaves freq_mode unset so the popup asks */
+            /* aso | bso | bso-ext. Other values leave freq_mode unset */
             if (strcasecmp(m, "aso") == 0)
                 cfg->freq_mode = FREQ_MODE_ASO;
             else if (strcasecmp(m, "bso") == 0)
@@ -672,7 +670,7 @@ int cfg_load(CrashEditCfg *cfg, const char *path)
         {
             get_token(rest, cfg->charset, sizeof(cfg->charset));
 
-            /* AUTO means empty string (auto-detect mode) */
+            /* AUTO = empty string (auto-detect) */
             if (strcasecmp(cfg->charset, "AUTO") == 0)
                 cfg->charset[0] = '\0';
             else
@@ -685,12 +683,12 @@ int cfg_load(CrashEditCfg *cfg, const char *path)
         }
         else if (strcasecmp(word, "HARDWRAP") == 0)
         {
-            /* YES=hard CR at wrap col; NO=soft-wrap (visual only) */
+            /* YES=hard CR at wrap col, NO=soft-wrap visual only */
             cfg->hard_wrap = parse_yesno(rest);
         }
         else if (strcasecmp(word, "LINENUMBERS") == 0)
         {
-            /* YES=show line numbers, NO=hide line numbers */
+            /* YES=show line numbers, NO=hide */
             cfg->show_line_numbers = parse_yesno(rest);
         }
         /* GoldED+ extended keywords */
@@ -719,10 +717,7 @@ int cfg_load(CrashEditCfg *cfg, const char *path)
         {
             cfg->search_max = atoi(rest);
 
-            /* <=0 means "use the search default". No upper clamp here:
-             * search_new() mallocs the buffer to this size and applies
-             * only the SEARCH_HITS_HARD_MAX sanity guard, so the real
-             * limit is available RAM */
+            /* <=0 = use default. No upper clamp; real limit is RAM */
             if (cfg->search_max < 0)
                 cfg->search_max = 0;
         }
@@ -731,7 +726,7 @@ int cfg_load(CrashEditCfg *cfg, const char *path)
             get_token(rest, cfg->arealistsort, sizeof(cfg->arealistsort));
             strip_quotes(cfg->arealistsort);
 
-            /* Save the config file value as default */
+            /* Save config value as default */
             strncpy(cfg->arealistsort_default, cfg->arealistsort, sizeof(cfg->arealistsort_default) - 1);
             cfg->arealistsort_default[sizeof(cfg->arealistsort_default) - 1] = '\0';
         }
@@ -801,7 +796,7 @@ int cfg_load(CrashEditCfg *cfg, const char *path)
         }
         else if (strcasecmp(word, "COLORMAP") == 0)
         {
-            /* COLORMAP <color_name> <number>  e.g. COLORMAP red 5 */
+            /* COLORMAP <color_name> <number> */
             char cname[16];
             const char *p = rest;
             int nc = 0;
@@ -903,7 +898,7 @@ int cfg_load(CrashEditCfg *cfg, const char *path)
         }
         else if (strcasecmp(word, "COLOR") == 0)
         {
-            /* COLOR <pair> <fg> <bg>  e.g. COLOR STATUS black white */
+            /* COLOR <pair> <fg> <bg> */
             char pname[32], fgname[16], bgname[16];
             const char *p = rest;
             int np, nf, nb;
@@ -942,10 +937,7 @@ int cfg_load(CrashEditCfg *cfg, const char *path)
         }
         else if (strcasecmp(word, "CURSORCOLOR") == 0)
         {
-            /* CURSORCOLOR <name-or-pen-or-#rgb>
-             *   - color name (e.g. "red", "cyan"): mapped via color_by_name
-             *   - bare number 0..255: Amiga pen index / ncurses color 0-7
-             *   - "#RRGGBB": stored as RGB string (used on Linux OSC 12) */
+            /* CURSORCOLOR <name|pen|#rgb>: name, pen index, or RGB hex */
             const char *p = rest;
             char val[24];
             int n = 0;
@@ -960,7 +952,7 @@ int cfg_load(CrashEditCfg *cfg, const char *path)
 
             if (val[0] == '#')
             {
-                /* RGB form: keep the literal "#RRGGBB" for OSC 12 */
+                /* Keep literal #RRGGBB for OSC 12 */
                 strncpy(cfg->cursor_color_rgb, val, sizeof(cfg->cursor_color_rgb) - 1);
 
                 cfg->cursor_color_rgb[sizeof(cfg->cursor_color_rgb) - 1] = '\0';
@@ -968,13 +960,13 @@ int cfg_load(CrashEditCfg *cfg, const char *path)
             }
             else if ((val[0] >= '0' && val[0] <= '9') || val[0] == '-')
             {
-                /* Numeric pen / color index (including negative values) */
+                /* Numeric pen/color index */
                 cfg->cursor_color = atoi(val);
                 cfg->cursor_color_rgb[0] = '\0';
             }
             else if (val[0])
             {
-                /* Color name -> ncurses color index */
+                /* Color name to ncurses index */
                 int ci = color_by_name(val, cfg);
                 if (ci >= 0)
                 {
@@ -985,7 +977,7 @@ int cfg_load(CrashEditCfg *cfg, const char *path)
         }
         else if (strcasecmp(word, "DEFAULT_BG_COLOR") == 0)
         {
-            /* Parse DEFAULT_BG_COLOR (name or 0-7 index) */
+            /* Parse DEFAULT_BG_COLOR (name or 0-7) */
             const char *p = rest;
             char val[24];
             int n = 0;
@@ -1113,7 +1105,7 @@ int cfg_load(CrashEditCfg *cfg, const char *path)
         }
         else if (strncasecmp(word, "TTF_FALLBACK", 12) == 0)
         {
-            /*const char *suffix = word + 12;
+            const char *suffix = word + 12;
             int is_size = 0;
             int slot;
 
@@ -1152,14 +1144,14 @@ int cfg_load(CrashEditCfg *cfg, const char *path)
 
                     cfg->ttf_fallback[idx][sizeof(cfg->ttf_fallback[idx]) - 1] = '\0';
                 }
-            }*/
+            }
         }
     }
 
     fclose(f);
 
 #ifdef PLATFORM_AMIGA
-    /* Ensure ttf_use_utf8 has a valid value (for old config files without this field) */
+    /* Fix ttf_use_utf8 for old configs missing this field */
     if (cfg->ttf_use_utf8 != 0 && cfg->ttf_use_utf8 != 1)
         cfg->ttf_use_utf8 = 1; /* default to UTF-8 */
 #endif
@@ -1182,7 +1174,7 @@ static const char *cfg_mode_str(int mode)
     }
 }
 
-/* Quote value if it contains ;, #, or leading/trailing whitespace */
+/* Quote if contains ;, #, or leading/trailing whitespace */
 static void cfg_emit(FILE *f, const char *key, const char *val)
 {
     int needq = 0;
@@ -1245,7 +1237,7 @@ int cfg_save(const CrashEditCfg *cfg, const char *path)
     if (!cfg || !path || !path[0])
         return -1;
 
-    /* Identity / paths */
+    /* Identity and paths */
     KV_STR("SYSOP", cfg->sysop);
     KV_STR("AREAFILE", cfg->areafile);
     KV_STR("OUTBOUND", cfg->freq_outbound);
@@ -1258,7 +1250,7 @@ int cfg_save(const CrashEditCfg *cfg, const char *path)
     if (cfg->timezone_is_manual)
         KV_INT("TIMEZONE", cfg->timezone_offset);
 
-    /* Display */
+    /* Display settings */
     KV_YN("VIEWHIDDEN", cfg->viewhidden);
     KV_YN("VIEWKLUDGE", cfg->viewkludge);
     KV_YN("VIEWANSI", cfg->viewansi);
@@ -1271,7 +1263,7 @@ int cfg_save(const CrashEditCfg *cfg, const char *path)
     KV_STR("AREALISTSORT", cfg->arealistsort_default[0] ? cfg->arealistsort_default : cfg->arealistsort);
     KV_STR("AREALISTFORMAT", cfg->arealistformat);
 
-    /* Editor / signature */
+    /* Editor and signature */
     KV_STR("ORIGIN", cfg->origin);
     KV_STR("TEARLINE", cfg->tearline);
     KV_STR("TAGLINEFILE", cfg->tagline_file);
@@ -1285,7 +1277,7 @@ int cfg_save(const CrashEditCfg *cfg, const char *path)
     KV_STR("FONT", cfg->font);
     KV_STR("ANSIFONT", cfg->ansifont);
 
-    /* TrueType font (Amiga only) */
+    /* TrueType font (Amiga) */
     KV_YN("TTF_ENABLED", cfg->ttf_enabled);
     KV_STR("TTF_FONT", cfg->ttf_font);
     KV_INT("TTF_SIZE", cfg->ttf_size);
@@ -1300,8 +1292,7 @@ int cfg_save(const CrashEditCfg *cfg, const char *path)
     KV_STR("TTF_ANTIALIAS", aa_str);
     KV_YN("TTF_USE_UTF8", cfg->ttf_use_utf8);
 
-    /* TTF fallbacks -- written one per non-empty slot, plus its size
-     * override if set. Reload uses TTF_FALLBACK<N>/_SIZE<N> keys */
+    /* TTF fallbacks: one per non-empty slot, with size override */
     for (fi = 0; fi < CFG_TTF_FALLBACKS; fi++)
     {
         if (cfg->ttf_fallback[fi][0])
@@ -1341,7 +1332,7 @@ int cfg_save(const CrashEditCfg *cfg, const char *path)
     if (!out)
         return -1;
 
-    /* Stream original (if any), rewriting managed keywords in place */
+    /* Stream original, rewriting managed keywords in place */
     in = fopen(path, "r");
 
     if (in)
@@ -1356,7 +1347,7 @@ int cfg_save(const CrashEditCfg *cfg, const char *path)
             while (*p == ' ' || *p == '\t')
                 p++;
 
-            /* Comment / blank: copy verbatim */
+            /* Comment/blank: copy verbatim */
             if (*p == '#' || *p == ';' || *p == '\0' || *p == '\r' || *p == '\n')
             {
                 fputs(line, out);
@@ -1392,7 +1383,7 @@ int cfg_save(const CrashEditCfg *cfg, const char *path)
         fclose(in);
     }
 
-    /* Append managed keywords that weren't already present */
+    /* Append managed keywords not already present */
     for (i = 0; i < nkv; i++)
     {
         if (!kv[i].done)
@@ -1422,11 +1413,10 @@ int cfg_save(const CrashEditCfg *cfg, const char *path)
         return -1;
     }
 
-    /* Atomic-ish replace. remove() first for Windows rename semantics */
+    /* Atomic replace: remove() first for Windows rename semantics */
     remove(path);
 
-    /* Last resort: copy tmp over path by re-reading. Keep it simple
-     * and just report failure; the .tmp is left for inspection */
+    /* Last resort: report failure, .tmp left for inspection */
     if (rename(tmp_path, path) != 0)
         return -1;
 

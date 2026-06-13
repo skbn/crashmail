@@ -31,21 +31,29 @@
 #include "../core/ftn.h"
 #include "../core/freq.h"
 
+#ifdef PLATFORM_AMIGA
 #define ST_TAB_COUNT 7
 
 static const char *st_tab_names[ST_TAB_COUNT] =
     {
         "Identity", "Paths", "Display", "Editor", "Messages", "Colour/Font", "TTF Fallbacks"};
+#else
+#define ST_TAB_COUNT 6
+
+static const char *st_tab_names[ST_TAB_COUNT] =
+    {
+        "Identity", "Paths", "Display", "Editor", "Messages", "Colour/Font"};
+#endif
 
 typedef enum
 {
     FT_STR,      /* free text */
-    FT_STR_AUTO, /* free text, but empty shows/saves as AUTO (charset) */
+    FT_STR_AUTO, /* free text, empty shows/saves as AUTO (charset) */
     FT_INT,      /* integer */
     FT_BOOL,     /* yes/no toggle */
     FT_MODE,     /* outbound layout: ASO / BSO / BSO+ext */
     FT_TRI,      /* tri-state 0/1/2 (e.g. forceintl: auto/always/never) */
-    FT_TZ,       /* timezone offset in minutes; editing marks it manual */
+    FT_TZ,       /* timezone offset in minutes, editing marks it manual */
     FT_TZAUTO,   /* yes/no: auto-detect TZ from OS (toggles timezone_is_manual) */
     FT_COLORMAP, /* integer 0-255, edit also marks color_map_initialized */
     FT_CYCLE,    /* cycle through predefined string options (e.g. TTF antialias: AUTO/OFF/ON) */
@@ -124,7 +132,11 @@ static const SetupField st_fields[] =
         {5, "TTF encoding", FT_CYCLE, F_OFF(ttf_use_utf8), 0},
 #endif
         {5, "Cursor color", FT_INT, F_OFF(cursor_color), 0},
+
+#if defined(PLATFORM_AMIGA) || defined(PLATFORM_WIN32)
         {5, "Default BG color", FT_INT, F_OFF(default_bg_color), 0},
+#endif
+
         {5, "Pen 0 (black)", FT_COLORMAP, offsetof(CrashEditCfg, color_map) + 0 * sizeof(int), 0},
         {5, "Pen 1 (red)", FT_COLORMAP, offsetof(CrashEditCfg, color_map) + 1 * sizeof(int), 0},
         {5, "Pen 2 (green)", FT_COLORMAP, offsetof(CrashEditCfg, color_map) + 2 * sizeof(int), 0},
@@ -203,7 +215,7 @@ static const char *st_mode_name(int mode)
     }
 }
 
-/* Render the value of a field into buf for display. */
+/* Render the value of a field into buf for display */
 static void st_format_value(const CrashEditCfg *w, const SetupField *fld, char *buf, int bufsz)
 {
     const char *base = (const char *)w;
@@ -218,7 +230,7 @@ static void st_format_value(const CrashEditCfg *w, const SetupField *fld, char *
     }
     case FT_STR_AUTO:
     {
-        /* Empty value means auto-detect; show AUTO so user sees what empty CHARSET means */
+        /* Empty value means auto-detect, show AUTO so user sees what empty CHARSET means */
         const char *s = base + fld->off;
         snprintf(buf, bufsz, "%s", s[0] ? s : "AUTO");
         break;
@@ -237,7 +249,7 @@ static void st_format_value(const CrashEditCfg *w, const SetupField *fld, char *
     }
     case FT_TRI:
     {
-        /* 0/1/2 — used by forceintl: auto/always/never */
+        /* 0/1/2, used by forceintl: auto/always/never */
         int v = *(const int *)(base + fld->off);
         const char *n = (v == 0) ? "auto" : (v == 1) ? "always"
                                         : (v == 2)   ? "never"
@@ -284,7 +296,7 @@ static void st_format_value(const CrashEditCfg *w, const SetupField *fld, char *
     }
     case FT_TZAUTO:
     {
-        /* Bound to timezone_is_manual, shown inverted: auto = NOT manual. Toggling returns to OS auto-detect */
+        /* Bound to timezone_is_manual, shown inverted: auto = NOT manual, toggling returns to OS auto-detect */
         int manual = *(const int *)(base + fld->off);
         snprintf(buf, bufsz, "%s", manual ? "no" : "yes");
         break;
@@ -421,7 +433,7 @@ static void st_format_value(const CrashEditCfg *w, const SetupField *fld, char *
     }
 }
 
-/* Edit one field in place on the working copy. */
+/* Edit one field in place on the working copy */
 static void st_edit_field(CrashEditCfg *w, const SetupField *fld)
 {
     char *base = (char *)w;
@@ -605,9 +617,7 @@ static void st_edit_field(CrashEditCfg *w, const SetupField *fld)
                 free(u);
             }
 
-            /* Amiga COLORMAP pens are physical pen numbers and can never be negative, so clamp those.
-             * Everything else -- timezone (zones west of UTC) AND colour fields cursor_color/default_bg_color,
-             * where -1 is the "unset, use terminal default" sentinel -- is left as typed */
+            /* Amiga COLORMAP pens are physical pen numbers and can never be negative, so clamp those, everything else (timezone, cursor_color/default_bg_color where -1 is "unset" sentinel) is left as typed */
             if (fld->type == FT_COLORMAP && parsed < 0)
                 parsed = 0;
 
@@ -633,8 +643,7 @@ static void st_edit_field(CrashEditCfg *w, const SetupField *fld)
     }
     case FT_TRI:
     {
-        /* Cycle 0 -> 1 -> 2 -> 0; for forceintl this maps to
-         * auto -> always -> never -> auto. */
+        /* Cycle 0 -> 1 -> 2 -> 0, for forceintl this maps to auto -> always -> never -> auto */
         int *v = (int *)(base + fld->off);
         *v = (*v + 1) % 3;
         break;
@@ -647,9 +656,7 @@ static void st_edit_field(CrashEditCfg *w, const SetupField *fld)
     }
     case FT_TZAUTO:
     {
-        /* Toggle timezone_is_manual: flipping to auto (manual=0)
-         * returns to OS detection; Timezone field shows detected
-         * value with "(auto)" tag. No popup needed -- SPACE/ENTER flips it like a bool */
+        /* Toggle timezone_is_manual: flipping to auto (manual=0) returns to OS detection, Timezone field shows detected value with "(auto)" tag, no popup needed, SPACE/ENTER flips it like a bool */
         int *v = (int *)(base + fld->off);
         *v = !*v;
         break;
@@ -725,8 +732,7 @@ static void st_edit_field(CrashEditCfg *w, const SetupField *fld)
     }
 }
 
-/* Count fields on a given tab and map a within-tab index to a global
- * st_fields[] index. Returns the global index, or -1. */
+/* Count fields on a given tab and map a within-tab index to a global st_fields[] index, returns the global index, or -1 */
 static int st_field_on_tab(int tab, int within)
 {
     int i, c = 0;
@@ -769,7 +775,7 @@ int ui_setup_run(UiApp *app)
     if (!app || !app->cfg)
         return 0;
 
-    work = *app->cfg; /* struct copy (shallow; all fields are inline arrays/ints) */
+    work = *app->cfg; /* struct copy (shallow, all fields are inline arrays/ints) */
 
     /* Save original font values to detect changes */
     strncpy(orig_ttf_font, work.ttf_font, sizeof(orig_ttf_font) - 1);
@@ -886,14 +892,13 @@ int ui_setup_run(UiApp *app)
 
         key = wrapper_getch();
 
-        /* ESC: cancel — confirm unsaved edits, mirroring message
-         * editor's "modified, discard?" prompt */
+        /* ESC: cancel, confirm unsaved edits, mirroring message editor's "modified, discard?" prompt */
         if (key == 27)
         {
             if (dirty)
             {
                 if (ui_popup_confirm("Setup", "Discard unsaved changes?") != 1)
-                    continue; /* user said no — stay in setup */
+                    continue; /* user said no, stay in setup */
             }
 
             return 0;
@@ -901,8 +906,7 @@ int ui_setup_run(UiApp *app)
 
         if (key == KEY_F(10) || key == 'S' || key == 's')
         {
-            /* Save working copy back to the file (preserving the rest),
-             * then ask the main loop to reload from disk */
+            /* Save working copy back to the file (preserving the rest), then ask the main loop to reload from disk */
             if (!app->cfg_path)
             {
                 ui_status(app, "No config path known; cannot save");

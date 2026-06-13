@@ -124,7 +124,7 @@ int ftn_find_original_by_msgid(const JamMsgInfo *msgs, int count, const char *re
 /* Find index of first reply to current message (returns index or -1) */
 int ftn_find_reply(const JamMsgInfo *msgs, int count, int cur_idx);
 
-/* Find all replies to current message; fills out[] with raw indices, returns count */
+/* Find all replies to current message, fills out[] with raw indices, returns count */
 int ftn_find_all_replies(const JamMsgInfo *msgs, int count, int cur_idx, int *out, int out_max);
 
 /* Find next/prev unread message (msgnum > lastread, returns index or -1) */

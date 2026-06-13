@@ -128,7 +128,7 @@ static const char *EDITOR_HELP[] =
         "    F1 Alt+Y        This help"};
 #define EDITOR_HELP_N ((int)(sizeof(EDITOR_HELP) / sizeof(EDITOR_HELP[0])))
 
-/* Cycle header field in direction dir (+1=next, -1=prev). Skips DADDR for non-netmail */
+/* Cycle header field in direction dir (+1=next, -1=prev), skips DADDR for non-netmail */
 static void editor_cycle_field(UiApp *app, int dir)
 {
     AreaEntry *ae = &app->areas->entries[app->sess.area_idx];
@@ -159,7 +159,7 @@ static void editor_cycle_field(UiApp *app, int dir)
     msghdr_edit_start(app->edit_hdr, hdr);
 }
 
-/* Handle function keys (F1-F11). Returns 1 if handled, 0 otherwise */
+/* Handle function keys (F1-F11), returns 1 if handled, 0 otherwise */
 static int handle_function_keys(UiApp *app, int ch, int is_key)
 {
     /* F1 / Alt+Y: help */
@@ -265,7 +265,7 @@ static int handle_function_keys(UiApp *app, int ch, int is_key)
             app->edit_aka_idx = sel;
             msghdr_set_utf8(app->edit_hdr, HDR_OADDR, aka_buf);
 
-            /* Regenerate kludges with new AKA; re-read MSGID for replies */
+            /* Regenerate kludges with new AKA, re-read MSGID for replies */
             if (app->saved_kludges)
             {
                 free(app->saved_kludges);
@@ -445,7 +445,7 @@ static int handle_function_keys(UiApp *app, int ch, int is_key)
     return 0;
 }
 
-/* Handle control key combinations (Ctrl+...). Returns 1 if handled, 0 otherwise */
+/* Handle control key combinations (Ctrl+...), returns 1 if handled, 0 otherwise */
 static int handle_control_keys(UiApp *app, int ch, int is_key)
 {
     /* Ctrl+V : paste */
@@ -536,8 +536,6 @@ static int handle_control_keys(UiApp *app, int ch, int is_key)
     /* Ctrl+W : rewrap paragraph */
     if (!is_key && ch == CTRL('W'))
     {
-        ed_save_undo(app->editor);
-
         if (ed_rewrap_paragraph(app->editor, app->cfg->autowrap_col > 0 ? app->cfg->autowrap_col : 75) == 0)
         {
             reset_search(app);
@@ -614,6 +612,23 @@ static int handle_control_keys(UiApp *app, int ch, int is_key)
         ed_set_pos(app->editor, 0, 0);
         ed_ensure_visible(app->editor);
 
+        /* In soft-wrap mode, reset viewport to cursor to avoid slow walking */
+        if (app->cfg && !app->cfg->hard_wrap)
+        {
+            EdInfo info;
+            const wchar_t *l;
+            int len;
+
+            ed_get_info(app->editor, &info);
+
+            l = ed_line_wcs(app->editor, info.row);
+            len = ed_line_len(app->editor, info.row);
+            s_soft_top_line = info.row;
+            s_soft_top_sub = line_subrow_of_col(l ? l : L"", l ? len : 0, COLS, info.col);
+
+            soft_reset_desired();
+        }
+
         return 1;
     }
 
@@ -630,6 +645,20 @@ static int handle_control_keys(UiApp *app, int ch, int is_key)
 
             ed_set_pos(app->editor, last_line, last_len);
             ed_ensure_visible(app->editor);
+
+            /* In soft-wrap mode, reset viewport to cursor to avoid slow walking */
+            if (app->cfg && !app->cfg->hard_wrap)
+            {
+                const wchar_t *l;
+                int len;
+
+                l = ed_line_wcs(app->editor, last_line);
+                len = ed_line_len(app->editor, last_line);
+                s_soft_top_line = last_line;
+                s_soft_top_sub = line_subrow_of_col(l ? l : L"", l ? len : 0, COLS, last_len);
+
+                soft_reset_desired();
+            }
         }
 
         return 1;
@@ -638,7 +667,6 @@ static int handle_control_keys(UiApp *app, int ch, int is_key)
     /* Ctrl+Y : delete line */
     if (!is_key && ch == CTRL('Y'))
     {
-        ed_save_undo(app->editor);
         ed_delete_line(app->editor);
         reset_search(app);
 
@@ -661,7 +689,6 @@ static int handle_control_keys(UiApp *app, int ch, int is_key)
     /* Ctrl+T : delete word right */
     if (!is_key && ch == CTRL('T'))
     {
-        ed_save_undo(app->editor);
         ed_delete_word_right(app->editor);
         reset_search(app);
 
@@ -671,7 +698,6 @@ static int handle_control_keys(UiApp *app, int ch, int is_key)
     /* Ctrl+_ : delete word left */
     if (!is_key && ch == CTRL('_'))
     {
-        ed_save_undo(app->editor);
         ed_delete_word_left(app->editor);
         reset_search(app);
 
@@ -681,7 +707,7 @@ static int handle_control_keys(UiApp *app, int ch, int is_key)
     return 0;
 }
 
-/* Handle Alt key combinations (Alt+...). Returns 1 if handled, 0 otherwise */
+/* Handle Alt key combinations (Alt+...), returns 1 if handled, 0 otherwise */
 static int handle_alt_keys(UiApp *app, int ch, int is_key)
 {
     /* Alt+G : goto line */
@@ -702,15 +728,32 @@ static int handle_alt_keys(UiApp *app, int ch, int is_key)
             }
 
             if (n >= 1)
+            {
                 ed_goto_line(app->editor, n - 1);
+
+                /* In soft-wrap mode, reset viewport to cursor to avoid slow walking */
+                if (app->cfg && !app->cfg->hard_wrap)
+                {
+                    EdInfo info;
+                    const wchar_t *l;
+                    int len;
+
+                    ed_get_info(app->editor, &info);
+
+                    l = ed_line_wcs(app->editor, info.row);
+                    len = ed_line_len(app->editor, info.row);
+                    s_soft_top_line = info.row;
+                    s_soft_top_sub = line_subrow_of_col(l ? l : L"", l ? len : 0, COLS, info.col);
+
+                    soft_reset_desired();
+                }
+            }
         }
 
         return 1;
     }
 
-    /* Alt+U : Unicode glyph picker -- pop a grid of glyphs from symbol
-     * blocks (arrows, math, dingbats, emoji, etc.) plus a hex input to
-     * jump straight to a codepoint. ENTER inserts at cursor */
+    /* Alt+U : Unicode glyph picker, pop grid of glyphs, hex input */
     if (ch == KEY_ALT('U'))
     {
         long cp = ui_glyph_pick();
@@ -746,8 +789,7 @@ static int handle_alt_keys(UiApp *app, int ch, int is_key)
     return 0;
 }
 
-/* Handle navigation keys (arrows, PgUp/PgDn, Home/End). Returns 1 if handled, 0 otherwise
- * preserve_desired is set to 1 for vertical moves to maintain visual column position in soft-wrap */
+/* Handle navigation keys, returns 1 if handled, preserve_desired=1 for vertical moves */
 static int handle_navigation_keys(UiApp *app, int ch, int is_key, int soft_active, int body_width, int body_rows, int *preserve_desired)
 {
     switch (ch)
@@ -835,7 +877,7 @@ static int handle_navigation_keys(UiApp *app, int ch, int is_key, int soft_activ
     }
 }
 
-/* Handle header field input (From, To, Subject, Daddr). Returns 1 if handled, 0 otherwise */
+/* Handle header field input, returns 1 if handled, 0 otherwise */
 static int handle_header_input(UiApp *app, int ch, int is_key)
 {
     int hdrfld = (app->edit_active_field == EF_FROM)      ? HDR_FROM
@@ -923,7 +965,7 @@ static int handle_header_input(UiApp *app, int ch, int is_key)
     }
 }
 
-/* Handle body input (editing the message body). Returns 1 if handled, 0 otherwise */
+/* Handle body input (editing the message body), returns 1 if handled, 0 otherwise */
 static int handle_body_input(UiApp *app, int ch, int is_key, wint_t wch, int soft_active, int body_width, int body_rows, int eff_wrap, int *preserve_desired)
 {
     if (is_key)
@@ -1012,7 +1054,6 @@ static int handle_body_input(UiApp *app, int ch, int is_key, wint_t wch, int sof
             if (info.block.active)
             {
                 /* Delete selected block (no clipboard copy) */
-                ed_save_undo(app->editor);
                 ed_block_delete(app->editor);
                 reset_search(app);
                 ui_status(app, "Block deleted");
@@ -1035,7 +1076,6 @@ static int handle_body_input(UiApp *app, int ch, int is_key, wint_t wch, int sof
             if (info.block.active)
             {
                 /* Delete selected block (no clipboard copy) */
-                ed_save_undo(app->editor);
                 ed_block_delete(app->editor);
                 reset_search(app);
                 ui_status(app, "Block deleted");
@@ -1063,7 +1103,7 @@ static int handle_body_input(UiApp *app, int ch, int is_key, wint_t wch, int sof
             ed_word_right(app->editor);
             return 1;
 
-        /* Alt-key chords: KEY_ALT() from shim (Amiga) or wrapper_read_key() fold (Linux) */
+        /* Alt-key chords: KEY_ALT() from shim (Amiga) or wrapper_read_key() fold */
         case KEY_ALT('L'):
             ui_popup_attach_clear(app);
             return 1;
@@ -1148,7 +1188,6 @@ static int handle_body_input(UiApp *app, int ch, int is_key, wint_t wch, int sof
             return 1;
 
         case CTRL('Y'):
-            ed_save_undo(app->editor);
             ed_delete_line(app->editor);
             reset_search(app);
 
@@ -1161,14 +1200,12 @@ static int handle_body_input(UiApp *app, int ch, int is_key, wint_t wch, int sof
             return 1;
 
         case CTRL('T'):
-            ed_save_undo(app->editor);
             ed_delete_word_right(app->editor);
             reset_search(app);
 
             return 1;
 
         case CTRL('_'):
-            ed_save_undo(app->editor);
             ed_delete_word_left(app->editor);
             reset_search(app);
             return 1;
@@ -1184,6 +1221,21 @@ static int handle_body_input(UiApp *app, int ch, int is_key, wint_t wch, int sof
         case CTRL('G'):
             ed_set_pos(app->editor, 0, 0);
             ed_ensure_visible(app->editor);
+
+            /* In soft-wrap mode, reset viewport to cursor to avoid slow walking */
+            if (app->cfg && !app->cfg->hard_wrap)
+            {
+                const wchar_t *l;
+                int len;
+
+                l = ed_line_wcs(app->editor, 0);
+                len = ed_line_len(app->editor, 0);
+                s_soft_top_line = 0;
+                s_soft_top_sub = line_subrow_of_col(l ? l : L"", l ? len : 0, COLS, 0);
+
+                soft_reset_desired();
+            }
+
             return 1;
 
         case CTRL('K'):
@@ -1198,6 +1250,20 @@ static int handle_body_input(UiApp *app, int ch, int is_key, wint_t wch, int sof
 
                 ed_set_pos(app->editor, last_line, last_len);
                 ed_ensure_visible(app->editor);
+
+                /* In soft-wrap mode, reset viewport to cursor to avoid slow walking */
+                if (app->cfg && !app->cfg->hard_wrap)
+                {
+                    const wchar_t *l;
+                    int len;
+
+                    l = ed_line_wcs(app->editor, last_line);
+                    len = ed_line_len(app->editor, last_line);
+                    s_soft_top_line = last_line;
+                    s_soft_top_sub = line_subrow_of_col(l ? l : L"", l ? len : 0, COLS, last_len);
+
+                    soft_reset_desired();
+                }
             }
 
             return 1;
@@ -1205,7 +1271,6 @@ static int handle_body_input(UiApp *app, int ch, int is_key, wint_t wch, int sof
 
         /* ESC handled by global handler above */
         case '\t':
-            ed_save_undo(app->editor);
             ed_insert_tab(app->editor, 4);
             reset_search(app);
 
@@ -1227,7 +1292,7 @@ static int handle_body_input(UiApp *app, int ch, int is_key, wint_t wch, int sof
                     return 1;
                 }
 
-                /* SOFT-WRAP: If cursor is at end of visual segment, move to start of next segment BEFORE inserting */
+                /* SOFT-WRAP: If cursor at end of visual segment, move to start of next segment */
                 if (!(app->cfg && app->cfg->hard_wrap) && body_width > 0)
                 {
                     EdInfo info;
@@ -1253,7 +1318,7 @@ static int handle_body_input(UiApp *app, int ch, int is_key, wint_t wch, int sof
                                 /* Cursor is in this segment */
                                 if (info.col >= end && np < len)
                                 {
-                                    /* Cursor is at end of segment: move to start of next segment */
+                                    /* Cursor at end of segment: move to start of next segment */
                                     ed_set_pos(app->editor, info.row, np);
                                 }
 
@@ -1413,10 +1478,10 @@ UiView ui_editor_run(UiApp *app)
 
         ch = (int)wch;
 
-        /* Distinguish special key codes (KEY_CODE_YES) from printable chars. Without guard, codepoint matching KEY_F(5) would trigger F5 */
+        /* Distinguish special key codes (KEY_CODE_YES) from printable chars, without guard codepoint matching KEY_F(5) triggers F5 */
         is_key = (wrc == KEY_CODE_YES);
 
-        /* Force is_key for navigation keys that may not have KEY_CODE_YES on some systems */
+        /* Force is_key for navigation keys that may not have KEY_CODE_YES */
         if (!is_key && (ch == KEY_UP || ch == KEY_DOWN || ch == KEY_LEFT || ch == KEY_RIGHT ||
                         ch == KEY_HOME || ch == KEY_END || ch == KEY_PPAGE || ch == KEY_NPAGE ||
                         ch == KEY_BACKSPACE || ch == KEY_DC || ch == KEY_ENTER))
@@ -1431,6 +1496,7 @@ UiView ui_editor_run(UiApp *app)
 
         /* Handle function keys (F1-F11) */
         int func_result = handle_function_keys(app, ch, is_key);
+
         if (func_result == 2)
         {
             /* Special return: exit editor */
@@ -1438,6 +1504,7 @@ UiView ui_editor_run(UiApp *app)
             BRACKET_PASTE_OFF();
             return app->edit_return_view;
         }
+
         if (func_result == 1)
             continue;
 
@@ -1492,6 +1559,7 @@ UiView ui_editor_run(UiApp *app)
             (!is_key && ch == CTRL('N')))
         {
             int dir = ((is_key && ch == KEY_STAB) || (!is_key && ch == CTRL('P'))) ? -1 : 1;
+
             editor_cycle_field(app, dir);
             continue;
         }
@@ -1606,10 +1674,7 @@ UiView ui_editor_run(UiApp *app)
         /* Handle body input */
         if (handle_body_input(app, ch, is_key, wch, soft_active, body_width, body_rows, eff_wrap, &preserve_desired))
         {
-            /* Reset desired column unless this was a vertical move that
-             * needs to preserve it (UP/DOWN/PgUp/PgDn set preserve_desired=1)
-             * Without this, LEFT/RIGHT/HOME/END leave a stale desired_vcol
-             * that makes the next UP/DOWN jump to a wrong column */
+            /* Reset desired column unless vertical move, otherwise LEFT/RIGHT/HOME/END leave stale desired_vcol */
             if (!preserve_desired)
                 soft_reset_desired();
 

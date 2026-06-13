@@ -355,7 +355,7 @@ static void compute_layout_cached(const UiApp *app, int maxcol, ArealistLayout *
     ui_arealist_layout_get(app->areas, app->cfg ? app->cfg->arealistformat : NULL, maxcol, L);
 }
 
-/* Write UTF-8 string left-aligned into buf[start..start+width]; fast ASCII path, wide-char fallback */
+/* Write UTF-8 string left-aligned into buf[start..start+width], fast ASCII path, wide-char fallback */
 static void put_field_utf8(char *buf, int maxcol, int start, int width, const char *utf8_in)
 {
     const char *src;
@@ -372,7 +372,7 @@ static void put_field_utf8(char *buf, int maxcol, int start, int width, const ch
 
     src = utf8_in ? utf8_in : "";
 
-    /* Cheap scan for high bits. break-early on first non-ASCII byte */
+    /* Cheap scan for high bits, break-early on first non-ASCII byte */
     for (i = 0; src[i]; i++)
     {
         if ((unsigned char)src[i] >= 0x80)
@@ -510,7 +510,7 @@ static void draw_row(int y, int x_start, int width, const UiApp *app, const Area
     if (L->desc_pos >= 0)
         put_field_utf8(buf, maxcol, L->desc_pos, L->desc_width, a->description ? a->description : "");
 
-    /* GroupID: GoldED+ shows A-Z (or 1-3 digit number); we use 1..26 -> letter */
+    /* GroupID: GoldED+ shows A-Z (or 1-3 digit number), we use 1..26 -> letter */
     if (L->groupid_pos >= 0 && a->groupid > 0)
     {
         if (L->groupid_width >= 3 || a->groupid > 26)
@@ -568,7 +568,7 @@ static void draw_header(int y, int width, const ArealistLayout *L)
 }
 
 /* Actions reachable from key bindings (sharable between hotkeys) */
-/* Catch up area: set LASTREAD to highest msgnum. Returns msg count or -1 on error */
+/* Catch up area: set LASTREAD to highest msgnum, returns msg count or -1 on error */
 static int catchup_one_area(UiApp *app, int area_idx)
 {
     AreaEntry *ae;
@@ -611,7 +611,7 @@ static int catchup_one_area(UiApp *app, int area_idx)
 
     jam_close(&jam);
 
-    /* Catchup marks area as read AND seen: sync in-memory AreaEntry with JAM */
+    /* Catchup marks area as read AND seen, sync in-memory AreaEntry with JAM */
     ae->lastread = hi;
     ae->lastseen = hi;
     ae->unread = 0;
@@ -1019,10 +1019,7 @@ UiView ui_arealist_run(UiApp *app)
                     continue; /* ignore everything else */
                 }
 
-                /* Re-partition area_order: matching areas first (in their
-                 * original relative order), then non-matching. Use the
-                 * saved snapshot as the source of truth so each keystroke
-                 * starts from the same base order */
+                /* Re-partition area_order: matching areas first (in original relative order), then non-matching, use saved snapshot as source of truth so each keystroke starts from same base order */
                 if (saved_order && saved_count > 0)
                 {
                     int t;

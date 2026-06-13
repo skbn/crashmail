@@ -33,16 +33,10 @@
 #define SEARCH_HIT_HEADER 0x01u
 #define SEARCH_HIT_BODY 0x02u
 
-/* Default hit cap when the config doesn't say otherwise. NOT a hard
- * ceiling -- the hits array is malloc'd to whatever max_hits the user
- * configures, so the real limit is available RAM. SEARCHMAX <= 0 in
- * the config means "use this default" */
+/* Default hit cap when config doesn't specify, not a hard ceiling, real limit is available RAM */
 #define SEARCH_DEFAULT_MAX 2048
 
-/* A sanity guard so a bogus/huge config value can't overflow the
- * malloc size computation. ~100k hits * ~108 bytes ~= 11 MB; if you
- * really need more you have bigger problems than this limit. Set it
- * high enough that it's effectively "as much as the box can hold" */
+/* Sanity guard to prevent bogus/huge config values from overflowing malloc, effectively "as much as box can hold" */
 #define SEARCH_HITS_HARD_MAX 1000000
 
 #define SEARCH_PATTERN_MAX 256
@@ -67,47 +61,31 @@ typedef struct
     int search_headers;
     int search_body;
 
-    /* Results buffer: malloc'd to max_hits entries in search_new
-     * The cap is whatever you configure (clamped only by
-     * SEARCH_HITS_HARD_MAX to keep the allocation sane). When it
-     * fills, hit_limit_reached is set and the scan stops */
+    /* Results buffer: malloc'd to max_hits entries, cap is configured (clamped by SEARCH_HITS_HARD_MAX), sets hit_limit_reached when full */
     SearchHit *hits;
     int n_hits;
     int max_hits; /* allocated capacity of hits[] */
     int hit_limit_reached;
 
-    /* Progress / cancellation. cancel is set from outside (by the UI)
-     * and polled inside the scan loop every N messages */
+    /* Progress/cancellation: cancel set from outside (by UI) and polled inside scan loop every N messages */
     int cancel;
     int scanned_areas;
     int total_areas;
     uint32_t scanned_msgs_current; /* reset per area */
 } SearchSession;
 
-/* Allocate a session. pattern is copied. Returns NULL on bad args or
- * OOM. case_sensitive=0 enables ASCII-insensitive matching (the
- * locale-aware kind isn't worth the trouble for a per-byte scan)
- * max_hits is the capacity of the results buffer, malloc'd here;
- * values <= 0 use SEARCH_DEFAULT_MAX, and it is capped only by
- * SEARCH_HITS_HARD_MAX. If the allocation for that many hits fails,
- * search_new returns NULL (the caller reports out-of-memory) */
+/* Allocate session, pattern is copied, returns NULL on bad args or OOM, case_sensitive=0 enables ASCII-insensitive matching */
 SearchSession *search_new(const char *pattern, int search_headers, int search_body, int case_sensitive, int max_hits);
 
 void search_free(SearchSession *s);
 
-/* Scan a single area. Opens the JAM, walks its headers, optionally
- * reads each body, records hits into s->hits
- * area_idx is the position of `area` inside the caller's AreaList; it
- * is stored verbatim in each SearchHit so the result UI can map back
- * Returns the number of hits APPENDED (>=0), or -1 if cancelled
- * (s->cancel was set during the scan) — partial results are kept */
+/* Scan single area, opens JAM, walks headers, optionally reads bodies, records hits, returns hits appended or -1 if cancelled */
 int search_scan_area(SearchSession *s, AreaEntry *area, int area_idx);
 
-/* How many distinct areas have at least one hit. Cheap walk over
- * s->hits, no allocation */
+/* How many distinct areas have at least one hit, cheap walk over s->hits, no allocation */
 int search_areas_with_hits(const SearchSession *s);
 
-/* How many hits in a specific area_idx */
+/* How many hits in specific area_idx */
 int search_count_in_area(const SearchSession *s, int area_idx);
 
 #endif /* CRASHEDIT_SEARCH_H */

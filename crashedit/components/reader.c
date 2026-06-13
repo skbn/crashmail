@@ -34,7 +34,7 @@
 #include "../core/charset.h"
 #include "../ui/ui_editor_softwrap.h"
 
-/* One display line. Non-ANSI: single colour. ANSI: per-cell attrs in cells[] */
+/* One display line: single color for non-ANSI, per-cell attrs for ANSI */
 typedef struct
 {
     wchar_t *wcs;    /* malloc'd, NUL-terminated */
@@ -143,7 +143,7 @@ static void rebuild_vis(Reader *rd)
 
     free(rd->vis);
 
-    /* Worst case: separator between every line (kludges interleaved) */
+    /* Worst case: separator between every line */
     cap = rd->count * 2 + 4;
     rd->vis = (int *)malloc((size_t)cap * sizeof(int));
 
@@ -260,7 +260,7 @@ void rd_free(Reader *rd)
     free(rd);
 }
 
-/* Convert AnsiCanvas to Reader lines (shared by rd_load and rd_load_ansi) */
+/* Convert AnsiCanvas to Reader lines */
 static void rd_apply_canvas(Reader *rd, AnsiCanvas *cv)
 {
     int i;
@@ -295,10 +295,7 @@ void rd_load_ansi(Reader *rd, const char *raw_bytes, int raw_len, const char *ch
     rd_clear(rd);
     rd->top = 0;
 
-    /* Force ANSI mode ON for display - caller is asserting they have
-     * an ANSI body. (rd_load and rd_load_ansi are independent entry
-     * points; the show_ansi flag still controls which one ui_reader
-     * picks) */
+    /* Force ANSI mode ON for display since caller asserts ANSI body */
     rd->show_ansi = 1;
 
     if (!raw_bytes || raw_len <= 0)
@@ -339,10 +336,7 @@ void rd_load(Reader *rd, const char *utf8_body, int wrap_width)
         return;
     }
 
-    /* Plain mode: split body into lines, convert to wchar_t, classify,
-     * wrap. ANSI escape sequences (if any) come through as literal
-     * text. ANSI-mode display goes via rd_load_ansi instead, which
-     * takes raw bytes and emulates a terminal */
+    /* Plain mode: split body, convert to wchar_t, classify, wrap. ANSI as literal text */
     p = utf8_body;
 
     while (*p)
@@ -397,7 +391,7 @@ void rd_set_page(Reader *rd, int v)
 
     rd->page = v;
 
-    /* clamp top after terminal resize */
+    /* Clamp top after terminal resize */
     if (rd->top > rd->vis_count - rd->page)
         rd->top = rd->vis_count - rd->page;
 
@@ -545,7 +539,7 @@ int rd_top(const Reader *rd)
     return rd ? rd->top : 0;
 }
 
-/* Convert global line index to visible index; returns -1 if not visible (e.g., hidden kludge) */
+/* Convert global line index to visible index, -1 if not visible */
 int rd_global_to_visible(const Reader *rd, int global_idx)
 {
     int i;
@@ -730,7 +724,7 @@ int rd_line_utf8(const Reader *rd, int vi, char *buf, int bufsz)
         wlen--;
     }
 
-    /* Fast path: convert directly to buf (hot path for redraws) */
+    /* Fast path: convert directly to buf for redraws */
     n = 0;
 
     for (i = 0; i < wlen && n < bufsz - 4; i++)
@@ -765,8 +759,7 @@ int rd_line_utf8(const Reader *rd, int vi, char *buf, int bufsz)
     return n;
 }
 
-/* Write message to file: uses a wide internal reader to avoid wrapped lines
- * converts UTF-8 to target charset if requested, Unix line endings */
+/* Write message to file with wide reader to avoid wrapped lines, Unix line endings */
 int rd_export_to_file(const Reader *src, const char *body_utf8, const char *path, const char *charset_out)
 {
     Reader *ex;
@@ -781,7 +774,7 @@ int rd_export_to_file(const Reader *src, const char *body_utf8, const char *path
     if (!path || !path[0] || !body_utf8)
         return -1;
 
-    /* If it's null, auto, or detects utf8, it's passed directly; otherwise, it's converted */
+    /* Convert charset if not AUTO/UTF-8 */
     needs_conv = charset_out && charset_out[0] && strcasecmp(charset_out, "AUTO") != 0 && strcasecmp(charset_out, "UTF-8") != 0 && strcasecmp(charset_out, "UTF8") != 0;
 
     f = fopen(path, "wb");
@@ -789,8 +782,7 @@ int rd_export_to_file(const Reader *src, const char *body_utf8, const char *path
     if (!f)
         return -1;
 
-    /* Private reader with a wrap width so wide that nothing realistic
-     * gets re-wrapped — logical lines pass through whole */
+    /* Private reader with wide wrap to pass logical lines through whole */
     ex = rd_new(src ? rd_kludges_visible(src) : 0, src ? rd_hidden_visible(src) : 0);
 
     if (!ex)
@@ -801,9 +793,7 @@ int rd_export_to_file(const Reader *src, const char *body_utf8, const char *path
 
     rd_load(ex, body_utf8, 1000000);
 
-    /* Mirror visibility flags from the live reader so the file matches
-     * what the user is looking at. rd_new() only takes two of the four
-     * flags as constructor args, so flip the rest with the toggles */
+    /* Mirror visibility flags from live reader to match user view */
     if (src)
     {
         if (rd_kludges_visible(ex) != rd_kludges_visible(src))

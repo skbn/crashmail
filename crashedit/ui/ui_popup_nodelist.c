@@ -32,8 +32,7 @@
 #include "../core/nodelist.h"
 #include "../core/keys.h"
 
-/* Match the current needle against an entry. Returns 1 on match
- * The needle is plain ASCII (case-insensitive). Empty needle = match all */
+/* Match current needle against entry, returns 1 on match, needle is plain ASCII (case-insensitive), empty needle = match all */
 static int entry_matches(const NodelistEntry *e, const char *needle)
 {
     return nodelist_entry_matches(e, needle);
@@ -425,8 +424,7 @@ int ui_popup_nodelist(UiApp *app, int allow_pick, char *out_name, int name_sz, c
             continue;
         }
 
-        /* Printable: append to needle. Restricted to 7-bit ASCII to keep
-         * the substring matcher simple; entries' names are romanised */
+        /* Printable: append to needle, restricted to 7-bit ASCII to keep substring matcher simple, entries' names are romanised */
         if (wch >= 0x20 && wch < 0x7F && nlen < (int)(sizeof(needle) - 1))
         {
             needle[nlen++] = (char)wch;

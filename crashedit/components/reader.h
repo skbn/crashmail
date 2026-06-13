@@ -80,16 +80,14 @@ int rd_line_utf8(const Reader *rd, int vis_idx, char *buf, int bufsz);
 int rd_get_ansi_color(const Reader *rd, int vis_idx); /* ncurses color pair or -1 */
 int rd_get_ansi_attrs(const Reader *rd, int vis_idx); /* ncurses attributes */
 
-/* Forward-declare AnsiCell so callers can use it without dragging in
- * the full canvas header through reader.h */
+/* Forward-declare AnsiCell to avoid dragging in full canvas header */
 struct AnsiCell;
 const struct AnsiCell *rd_get_ansi_cells(const Reader *rd, int vis_idx);
 
 /* Export the message currently loaded in 'src' to a text file */
 int rd_export_to_file(const Reader *src, const char *body_utf8, const char *path, const char *charset_out);
 
-/* Search: find all matches of needle in all lines, returns count
- * and malloc'd arrays of row and col indices (caller must free) */
+/* Search: find all matches, returns count and malloc'd arrays (caller frees) */
 int rd_search_all(const Reader *rd, const wchar_t *needle, int **out_rows, int **out_cols);
 
 #endif

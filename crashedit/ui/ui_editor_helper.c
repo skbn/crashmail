@@ -51,7 +51,7 @@ int wcs_vwidth(const wchar_t *s, int n)
     return v;
 }
 
-/* Effective wrap column. Clamp AUTOWRAP to COLS-1; 0=disabled */
+/* Effective wrap column, clamp AUTOWRAP to COLS-1, 0=disabled */
 int editor_eff_wrap(const UiApp *app)
 {
     int cfgw = (app && app->cfg) ? app->cfg->autowrap_col : 0;

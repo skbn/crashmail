@@ -130,7 +130,7 @@ int ftn_is_kludge_line(const char *line, int len, char *out_kw, int out_max)
 
         if (klen == kwlen && strncasecmp(line + i, kw, (size_t)klen) == 0)
         {
-            /* Without prefix: only PATH/Via/Recd match; others need ^A/@  */
+            /* Without prefix: only PATH/Via/Recd match; others need ^A/@ */
             if (skip == 0 && strcasecmp(kw, "PATH") != 0 && strcasecmp(kw, "Via") != 0 && strcasecmp(kw, "Recd") != 0)
                 return 0;
 

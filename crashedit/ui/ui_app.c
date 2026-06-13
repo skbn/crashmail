@@ -68,8 +68,7 @@ static void ui_apply_cursor_color(const CrashEditCfg *cfg)
     win32_set_cursor_pen(color_to_use);
 #else
 
-    /* Linux/Unix: send OSC 12 escape sequence to terminal emulator
-     * Need to write directly to /dev/tty because ncurses redirects stdout */
+    /* Linux/Unix: send OSC 12 escape sequence to terminal emulator via /dev/tty */
     tty = fopen("/dev/tty", "w");
 
     if (!tty)
@@ -115,7 +114,7 @@ static void setup_colors(const CrashEditCfg *cfg)
 
     if (cfg)
     {
-        /* Apply colors; remap non-explicit slots via color_map */
+        /* Apply colors, remap non-explicit slots via color_map */
         for (i = 1; i < CFG_COLOR_MAX; i++)
         {
             int fg = cfg->color_fg[i];
@@ -288,8 +287,7 @@ static void build_status_right(const UiApp *app, char *out, int outsz)
     struct tm *lt;
     tbuf[0] = '\0';
 
-    /* Apply effective TZ offset, then gmtime() for wall-clock fields
-     * On Amiga, time() already returns local time, no adjustment needed */
+    /* Apply effective TZ offset, then gmtime() for wall-clock fields */
 #ifndef PLATFORM_AMIGA
     if (app->cfg)
     {
@@ -384,7 +382,7 @@ void ui_draw_statusbar(UiApp *app)
     left_len = (int)strlen(app->status);
     rzone_len = (int)strlen(rzone);
 
-    /* Right block flush to edge; drop if window too narrow */
+    /* Right block flush to edge, drop if window too narrow */
     if (rzone_len + 2 < COLS)
         rzone_start = COLS - rzone_len - 1;
     else
@@ -578,11 +576,11 @@ int ui_is_netmail(const UiApp *app)
     return app->areas->entries[app->sess.area_idx].type == AREATYPE_NETMAIL;
 }
 
-/* UTF-8 locale init; Amiga/Win32 skip (wrappers handle encoding) */
+/* UTF-8 locale init, Amiga/Win32 skip (wrappers handle encoding) */
 static void ui_init_locale()
 {
 #if defined(PLATFORM_AMIGA) || defined(PLATFORM_WIN32)
-    /* Wrapper layers handle encoding; just set whatever the env says */
+    /* Wrapper layers handle encoding, just set whatever the env says */
     setlocale(LC_ALL, "");
 #else
 
@@ -604,9 +602,7 @@ static void ui_init_locale()
     if (codeset && (strcmp(codeset, "UTF-8") == 0 || strcmp(codeset, "utf8") == 0 || strcmp(codeset, "UTF8") == 0))
         return; /* environment already gives us UTF-8 */
 
-    /* Environment didn't yield UTF-8 (typical bare FreeBSD). Try to
-     * upgrade just LC_CTYPE to a UTF-8 locale so ncursesw can render
-     * wide characters. Leave the other categories at the env default */
+    /* Try to upgrade LC_CTYPE to UTF-8 locale for ncursesw wide char rendering */
     for (i = 0; utf8_fallbacks[i]; i++)
     {
         if (setlocale(LC_CTYPE, utf8_fallbacks[i]))
@@ -617,10 +613,6 @@ static void ui_init_locale()
                 return; /* success */
         }
     }
-
-    /* None available — fall back to the env default we already set
-     * Accented text may render as '?', but at least the program runs
-     * The user can still force a locale via LC_ALL in the environment */
 #endif
 }
 
@@ -644,14 +636,13 @@ UiApp *ui_init(CrashEditCfg *cfg, AreaList *areas)
     amiga_set_font_name(cfg->font);
     amiga_set_ansi_font_name(cfg->ansifont);
 
-    /* Optional TrueType (ignored if ttf_enabled=0 or path empty or ttengine.library missing) */
+    /* Optional TrueType (ignored if ttf_enabled=0 or path empty) */
     if (cfg->ttf_enabled)
     {
         amiga_set_ttf(cfg->ttf_font, cfg->ttf_size, cfg->ttf_antialias);
         amiga_set_ttf_encoding(cfg->ttf_use_utf8);
 
-        /* Pass any TTF_FALLBACK<N> entries to the engine. Empty slots
-         * are skipped by amiga_add_ttf_fallback() */
+        /* Pass TTF_FALLBACK<N> entries to engine, empty slots skipped */
 #ifdef AMIGA_TTF_TE
         amiga_clear_ttf_fallbacks();
 
@@ -676,10 +667,7 @@ UiApp *ui_init(CrashEditCfg *cfg, AreaList *areas)
 #endif
 
 #ifdef PLATFORM_WIN32
-    /* Windows setup (before initscr): font
-     * (ANSI mode no longer requires a font switch — the UTF-8 decoder
-     * in ncursesw_win32.c stores proper Unicode in cells regardless of
-     * mode, so any Unicode-capable monospaced font works for both) */
+    /* Windows setup (before initscr): font, UTF-8 decoder stores proper Unicode in cells */
     win32_set_font_name(cfg->font);
 #endif
 
@@ -807,21 +795,10 @@ UiApp *ui_init(CrashEditCfg *cfg, AreaList *areas)
     app->edit_aka_idx = cfg->aka_selected;
     app->edit_return_view = VIEW_MSGLIST;
 
-    /* view_charset is the RUNTIME override (popup "View:" pick)
-     * Initialise it EMPTY so the reader starts in Auto mode - the
-     * config's viewcs is the FALLBACK used when no CHRS kludge is
-     * present, not a permanent override. Copying viewcs in here
-     * would force every message to be decoded as the user's preferred
-     * view charset regardless of what the message itself says, which
-     * means CP437 art messages got mis-read as UTF-8 (or whichever
-     * viewcs the user had set) and looked like garbage until the
-     * user manually forced View=CP437 in the popup. The popup itself
-     * shows "Auto -> <viewcs>" as option 0, so this is the intended
-     * default state */
+    /* view_charset: runtime override (popup "View:" pick), init EMPTY for Auto mode */
     app->view_charset[0] = '\0';
 
-    /* edit_charset stays seeded from cfg->charset: when composing, the
-     * sensible default IS the user's preferred outgoing charset */
+    /* edit_charset stays seeded from cfg->charset: sensible default for composing */
     strncpy(app->edit_charset, cfg->charset, sizeof(app->edit_charset) - 1);
     app->edit_charset[sizeof(app->edit_charset) - 1] = '\0';
 
@@ -874,7 +851,7 @@ UiApp *ui_init(CrashEditCfg *cfg, AreaList *areas)
 
     ui_arealist_rebuild_order(app);
 
-    /* Load FTS-5000 nodelists / pointlists declared with INCLUDE in the config */
+    /* Load FTS-5000 nodelists / pointlists from config INCLUDE */
     nodelist_init(&app->nodelist);
 
     /* default_net = "fidonet"; */
@@ -925,12 +902,7 @@ int ui_run(UiApp *app)
     if (!app)
         return 0;
 
-    /* First-run / no-usable-config path: go straight into setup. The
-     * normal view loop is skipped entirely. ui_setup_run returns 1
-     * when the user saved (want_reload is set, so main reloads and
-     * re-checks the config + areas), or 0 if they quit out -- in which
-     * case we leave with no reload, ending the program. The user thus
-     * stays in setup until they either save or deliberately quit */
+    /* First-run / no-usable-config: go straight into setup, skip normal view loop */
     if (app->force_setup)
     {
         int saved = ui_setup_run(app);
@@ -999,7 +971,7 @@ void ui_cleanup(UiApp *app)
     if (app->saved_kludges)
         free(app->saved_kludges);
 
-    /* Release any pending search session (frees ss + the runs array) */
+    /* Release any pending search session */
     ui_search_cleanup(app);
 
     nodelist_free(&app->nodelist);

@@ -66,10 +66,7 @@ static const char *SEARCH_HELP[] =
         ""};
 #define SEARCH_HELP_N ((int)(sizeof(SEARCH_HELP) / sizeof(SEARCH_HELP[0])))
 
-/* Internal "summary": one entry per area that has hits, with its
- * count and the index of its first hit in ss->hits[]. Built once
- * after the scan. Hits are emitted in area order, so the runs are
- * contiguous */
+/* Internal summary: one entry per area with hits, with count and index of first hit in ss->hits[], built once after scan */
 typedef struct
 {
     int area_idx;
@@ -77,8 +74,7 @@ typedef struct
     int hit_count;
 } AreaRun;
 
-/* Non-blocking ESC poll. Used during long scans so the user can
- * cancel without waiting for the message loop to come around */
+/* Non-blocking ESC poll, used during long scans so user can cancel without waiting for message loop */
 static int poll_esc()
 {
     int ch;
@@ -88,9 +84,7 @@ static int poll_esc()
     return (ch == 27) ? 1 : 0;
 }
 
-/* Force a fresh paint of the background. The search popups are modal
- * and we paint over a black background -- no point trying to show the
- * underlying view */
+/* Force fresh paint of background, search popups are modal and paint over black background */
 static void wipe_background()
 {
     erase();
@@ -102,8 +96,7 @@ static void popup_geo(int want_h, int want_w, int *y, int *x, int *h, int *w)
     ui_popup_center(want_h, want_w, y, x, h, w);
 }
 
-/* Draw the search progress line. Updated rarely so it stays readable
- * even on slow terminals/serial */
+/* Draw the search progress line, updated rarely so it stays readable even on slow terminals/serial */
 static void draw_progress(int y, int x, int w, const SearchSession *s, AreaList *areas)
 {
     char buf[160];
@@ -427,8 +420,7 @@ static void run_scan(UiApp *app, SearchSession *ss, int scope_all_areas)
     int idx;
     const char *banner = "Searching... ESC to cancel";
 
-    /* Status row at bottom of screen. LINES/COLS are kept current by
-     * ncurses on KEY_RESIZE, so we use them directly */
+    /* Status row at bottom of screen, LINES/COLS are kept current by ncurses on KEY_RESIZE, so we use them directly */
     sty = LINES - 1;
 
     /* Clear the screen, leave a small banner */
@@ -515,9 +507,7 @@ static const char *flag_letters(uint16_t flags)
     return "  ";
 }
 
-/* Persistent result browser: reads search state, preserves cursor/scroll
- * position for reader round-trip, returns VIEW_READER on message open or
- * app->search_from_view on ESC */
+/* Persistent result browser: reads search state, preserves cursor/scroll position for reader round-trip, returns VIEW_READER on message open or app->search_from_view on ESC */
 UiView ui_search_results_run(UiApp *app)
 {
     SearchSession *ss;
@@ -544,20 +534,19 @@ UiView ui_search_results_run(UiApp *app)
 
     if (!app || !app->search || !app->search_runs)
     {
-        /* Defensive: if state vanished, bail to arealist. */
+        /* Defensive: if state vanished, bail to arealist */
         ui_search_cleanup(app);
         return VIEW_AREALIST;
     }
 
-    /* Clear from_search flag after reader excursion to avoid
-     * propagating to next reader entry */
+    /* Clear from_search flag after reader excursion to avoid propagating to next reader entry */
     app->from_search = 0;
 
     ss = (SearchSession *)app->search;
     runs = (AreaRun *)app->search_runs;
     n_runs = app->search_n_runs;
 
-    /* Load picks into locals for hot loop optimization; write back on transitions */
+    /* Load picks into locals for hot loop optimization, write back on transitions */
     mode = app->search_mode;
     area_pick = app->search_area_pick;
     area_top = app->search_area_top;
@@ -805,8 +794,7 @@ UiView ui_search_results_run(UiApp *app)
             case '\n':
             case '\r':
             case KEY_ENTER:
-                /* Save cursor state before opening reader to resume on
-                 * same hit when reader returns */
+                /* Save cursor state before opening reader to resume on same hit when reader returns */
                 h = &ss->hits[runs[area_pick].first_hit + hit_pick];
 
                 if (ui_session_open(app, h->area_idx) == 0)
@@ -820,7 +808,7 @@ UiView ui_search_results_run(UiApp *app)
                     app->search_hit_top = hit_top;
                     next_view = VIEW_READER;
 
-                    /* DO NOT free runs/search — we want them when we come back. Just return */
+                    /* DO NOT free runs/search, we want them when we come back, just return */
                     return next_view;
                 }
 
@@ -844,7 +832,7 @@ UiView ui_search_results_run(UiApp *app)
     return next_view;
 }
 
-/* Tear down search state; safe to call when empty, used on ESC and shutdown */
+/* Tear down search state, safe to call when empty, used on ESC and shutdown */
 void ui_search_cleanup(UiApp *app)
 {
     if (!app)
@@ -921,8 +909,7 @@ UiView ui_search_run(UiApp *app, int scope_all_areas)
         return caller_view;
     }
 
-    /* Pre-build per-area runs and stash in app for persistent browser;
-     * size to n_hits (worst case: one run per hit) */
+    /* Pre-build per-area runs and stash in app for persistent browser, size to n_hits (worst case: one run per hit) */
     runs = (AreaRun *)malloc((size_t)ss->n_hits * sizeof(AreaRun));
 
     if (!runs)

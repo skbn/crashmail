@@ -237,8 +237,7 @@ static int subj_flush(char ***subjects, int *count, int *cap, const char *buf)
     return 0;
 }
 
-/* Build subject lines for file-attach msgs: pack filenames
- * space-separated up to ATTACH_SUBJ_LIMIT per subject, one msg per subject */
+/* Build subject lines for file-attach msgs: pack filenames space-separated up to limit */
 char **attach_build_subjects(const AttachList *list, int *out_count)
 {
     char **subjects = NULL;
@@ -271,22 +270,19 @@ char **attach_build_subjects(const AttachList *list, int *out_count)
         if (name_len + 1 > sizeof(buf))
             continue;
 
-        /* +1 for the separating space between filenames (only when the
-         * buffer already has content) */
+        /* +1 for separating space between filenames (only when buffer has content) */
         want = buf_len + (buf_len ? 1 : 0) + name_len;
 
         if (buf_len > 0 && want > (size_t)ATTACH_SUBJ_LIMIT)
         {
-            /* Flush current buffer as a finished subject and start a
-             * fresh one with this filename */
+            /* Flush current buffer as finished subject and start fresh with this filename */
             if (subj_flush(&subjects, &subj_count, &subj_cap, buf) != 0)
             {
                 subj_free(subjects, subj_count);
                 return NULL;
             }
 
-            /* Reset buffer with the new filename; oversized names are allowed
-             * and flushed on the next iteration */
+            /* Reset buffer with new filename; oversized names allowed and flushed next iteration */
             memcpy(buf, name, name_len + 1);
             buf_len = name_len;
         }
@@ -300,7 +296,7 @@ char **attach_build_subjects(const AttachList *list, int *out_count)
         }
     }
 
-    /* Flush whatever is still in buf as the final subject */
+    /* Flush whatever is still in buf as final subject */
     if (buf_len > 0)
     {
         if (subj_flush(&subjects, &subj_count, &subj_cap, buf) != 0)

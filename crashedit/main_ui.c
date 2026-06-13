@@ -22,8 +22,6 @@
  * General Public License v2.1. See src/jamlib/LICENSE for details.
  */
 
-/* main_ui.c -- Entry point for new UI */
-
 #ifdef PLATFORM_AMIGA
 const char __attribute__((used)) binkd_stack_size[] = "$STACK:65536";
 #endif
@@ -34,6 +32,11 @@ const char __attribute__((used)) binkd_stack_size[] = "$STACK:65536";
 #include "wrapper.h"
 #include "ui/ui.h"
 
+#ifdef PLATFORM_AMIGA
+#include <proto/exec.h>
+extern struct Library *IFFParseBase;
+#endif
+
 int main(int argc, char *argv[])
 {
     CrashEditCfg cfg;
@@ -41,13 +44,13 @@ int main(int argc, char *argv[])
     UiApp *app;
     const char *cfgfile;
 
+#ifdef PLATFORM_AMIGA
+    IFFParseBase = OpenLibrary("iffparse.library", 37L);
+#endif
+
     if (argc < 2)
     {
-        /* No config path given: default to "crashedit.conf" in the
-         * current working directory -- i.e. wherever crashedit was
-         * launched from. cfg_load creates it (with defaults) if it
-         * isn't there, and we drop the user straight into setup
-         * below, so a bare first run "just works". */
+        /* No config path given: use default "crashedit.conf" */
         cfgfile = "crashedit.conf";
     }
     else
@@ -55,38 +58,26 @@ int main(int argc, char *argv[])
         cfgfile = argv[1];
     }
 
-    /* Restart-in-place loop: the setup screen saves the config and asks
-     * for a reload, which tears everything down and rebuilds from the
-     * (now-updated) file — same end state as quitting and relaunching,
-     * but without leaving the program. ui_run() returns 1 to request
-     * this, 0 to quit for real */
+    /* Restart-in-place loop: reload config without exiting (ui_run returns 1 to reload, 0 to quit) */
     for (;;)
     {
         int reload;
         int need_setup = 0;
 
-        /* Load main config (SYSOP, AKAs, AREAFILE). If the file is
-         * missing, cfg_load creates a default one in place; a failure
-         * here means it couldn't even be created -- almost always
-         * because the parent directory doesn't exist. */
+        /* Load main config (SYSOP, AKAs, AREAFILE); creates default if missing */
         if (cfg_load(&cfg, cfgfile) != 0)
         {
             fprintf(stderr, "Error: cannot load or create config file: %s\n       (does the directory exist?)\n", cfgfile);
             return 1;
         }
 
-        /* Load areas.golded. If it's missing or empty we do NOT bail
-         * out: areafile_load leaves the list in a valid empty state,
-         * and we force the setup screen so the user can point AREAFILE
-         * at a real file (or fix the path) and save. After saving, the
-         * reload re-runs this loop and re-checks. The user stays in
-         * setup until areas load or they quit. */
+        /* Load areas.golded; if missing/empty, force setup screen */
         if (areafile_load(&areas, cfg.areafile) <= 0)
             need_setup = 1;
         else
             areafile_calculate_counts(&areas, cfg.sysop);
 
-        /* Initialize UI (re-parses cfg file for VIEWHIDDEN, etc.) */
+        /* Initialize UI (re-parses cfg for VIEWHIDDEN, etc.) */
         app = ui_init(&cfg, &areas);
 
         if (!app)
@@ -96,14 +87,14 @@ int main(int argc, char *argv[])
             return 1;
         }
 
-        /* Let the setup screen know where to save. */
+        /* Set config path for setup screen */
         ui_set_cfg_path(app, cfgfile);
 
-        /* No usable areas yet -> straight into setup. */
+        /* No usable areas: go to setup */
         if (need_setup)
             ui_force_setup(app);
 
-        /* Run main loop; non-zero return = reload requested */
+        /* Run main loop (returns 1 to reload, 0 to quit) */
         reload = ui_run(app);
 
         /* Cleanup */
@@ -113,6 +104,11 @@ int main(int argc, char *argv[])
         if (!reload)
             break;
     }
+
+#ifdef PLATFORM_AMIGA
+    if (IFFParseBase)
+        CloseLibrary(IFFParseBase);
+#endif
 
     return 0;
 }

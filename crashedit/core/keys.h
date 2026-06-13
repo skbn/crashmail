@@ -40,7 +40,7 @@
 #define ALT_CHAR(k) ((int)((unsigned int)(k) & 0xFF))
 #define SHIFT_CHAR(k) ((int)((unsigned int)(k) & 0xFF))
 
-/* Read next keystroke; folds Linux ESC+letter into KEY_ALT(c). Same protocol as get_wch() */
+/* Read next keystroke, folds Linux ESC+letter into KEY_ALT(c), same protocol as get_wch() */
 int wrapper_read_key(wint_t *out_wch);
 
 /* Wrapper around wrapper_read_key returning int like getch() */

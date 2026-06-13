@@ -121,7 +121,7 @@ static void update_area_counts_in_memory(UiApp *app)
     ae->total_msgs = s->msg_count;
 }
 
-/* Update lastread and persist to JAM; skip if from search (browsing shouldn't mutate) */
+/* Update lastread and persist to JAM, skip if from search (browsing shouldn't mutate) */
 static void reader_save_lastread(UiApp *app)
 {
     UiSession *s;
@@ -156,8 +156,7 @@ static UiView reader_exit_view(const UiApp *app)
     return app->from_search ? VIEW_SEARCH_RESULTS : VIEW_MSGLIST;
 }
 
-/* Strip FTS-1 kludge lines and SEEN-BY/PATH trailers for ANSI rendering
- * Returns malloc'd buffer (caller frees), NULL on failure */
+/* Strip FTS-1 kludge lines and SEEN-BY/PATH trailers for ANSI rendering, returns malloc'd buffer (caller frees), NULL on failure */
 static char *strip_kludges_for_ansi(const char *raw, int raw_len, int *out_len)
 {
     char *out;
@@ -268,7 +267,7 @@ static int load_msg(UiApp *app, uint32_t msgnum)
     /* Fill header */
     msghdr_load(app->hdr, &s->msgs[idx], app->areas->entries[s->area_idx].name, idx + 1, s->msg_count, ftn_effective_tz_offset(app->cfg->timezone_offset, app->cfg->timezone_is_manual));
 
-    /* Body: ANSI->canvas, text->UTF-8. Charset: CHRS if present, else default */
+    /* Body: ANSI->canvas, text->UTF-8, Charset: CHRS if present, else default */
     override_enc = app->view_charset[0] ? app->view_charset : NULL;
 
     detected[0] = '\0';
@@ -311,8 +310,7 @@ static int load_msg(UiApp *app, uint32_t msgnum)
         app->msg_charset[0] = '\0';
     }
 
-    /* ANSI mode: force CP437 if UTF-8 came from default/fallback (not CHRS/override)
-     * Exception: when TTF is active, keep detected charset to preserve Unicode characters */
+    /* ANSI mode: force CP437 if UTF-8 came from default/fallback, exception: TTF active keeps detected charset */
     ansi_on = (app->cfg && app->cfg->viewansi);
     ansi_on_outer = ansi_on;
 
@@ -344,7 +342,7 @@ static int load_msg(UiApp *app, uint32_t msgnum)
 
     if (ansi_on)
     {
-        /* Strip kludge/SEEN-BY/PATH lines. Fall back to raw bytes on failure */
+        /* Strip kludge/SEEN-BY/PATH lines, fall back to raw bytes on failure */
         int stripped_len = 0;
         char *stripped = strip_kludges_for_ansi(raw_bytes, (int)raw_len, &stripped_len);
 
@@ -358,7 +356,7 @@ static int load_msg(UiApp *app, uint32_t msgnum)
             rd_load_ansi(app->reader, raw_bytes, (int)raw_len, chosen, wrap_w);
         }
 
-        /* Free unused UTF-8 buffer; ANSI mode uses raw bytes. Prevents leak */
+        /* Free unused UTF-8 buffer, ANSI mode uses raw bytes, prevents leak */
         free(body_utf8);
         body_utf8 = NULL; /* not used in this path */
     }
@@ -435,7 +433,7 @@ static int load_msg(UiApp *app, uint32_t msgnum)
     if (wrap_w < 20)
         wrap_w = 20;
 
-    /* ANSI: canvas loaded above, skip rd_load. Non-ANSI: rd_load handles wrap */
+    /* ANSI: canvas loaded above, skip rd_load, Non-ANSI: rd_load handles wrap */
     if (!ansi_on_outer)
         rd_load(app->reader, body_utf8, wrap_w);
 
@@ -450,7 +448,7 @@ static int load_msg(UiApp *app, uint32_t msgnum)
     return 0;
 }
 
-/* Try to go to next area in area_order. Returns 1 on success, 0 otherwise */
+/* Try to go to next area in area_order, returns 1 on success, 0 otherwise */
 static int try_goto_next_area(UiApp *app)
 {
     UiSession *s;
@@ -601,7 +599,7 @@ static void draw_header_bar(UiApp *app)
 }
 
 /* Body rendering */
-/* Convert one wchar_t to UTF-8 in buf. Returns bytes written */
+/* Convert one wchar_t to UTF-8 in buf, returns bytes written */
 static int wc_to_utf8_bytes(wchar_t wc, char *buf)
 {
     unsigned long cp = (unsigned long)wc;
@@ -658,7 +656,7 @@ static void draw_ansi_line(int row_y, const wchar_t *wcs, int len, const struct 
             int n;
 
             if (run_bytes + 4 >= (int)sizeof(run_buf))
-                break; /* Don't overflow run buffer; emit and continue */
+                break; /* Don't overflow run buffer, emit and continue */
 
             n = wc_to_utf8_bytes(wcs[i], &run_buf[run_bytes]);
             run_bytes += n;

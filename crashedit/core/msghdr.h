@@ -79,7 +79,7 @@ int msghdr_get_len(const MsgHdr *h, int field);
 /* Export field as UTF-8 (caller frees) */
 char *msghdr_get_utf8(const MsgHdr *h, int field);
 
-/* Export field as UTF-8 into rotating static buffer (8 slots). Don't free. Returns "" on NULL. */
+/* Export field as UTF-8 into rotating static buffer (8 slots), don't free, returns "" on NULL */
 const char *msghdr_get_utf8_tmp(const MsgHdr *h, int field);
 
 /* Formatted info (read-only) */

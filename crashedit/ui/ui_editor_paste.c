@@ -37,10 +37,10 @@ extern void reset_search(UiApp *app);
 /* Forward declaration for editor_eff_wrap (defined in ui_editor.c) */
 extern int editor_eff_wrap(const UiApp *app);
 
-/* Word-wrap UTF-8 paste to col columns, preserving newlines. No hard-breaks for URLs/code */
+/* Word-wrap UTF-8 paste to col columns, preserving newlines, no hard-breaks for URLs/code */
 int paste_char_width(wchar_t c)
 {
-    /* For FTN editing: does this char take 1 column or 0? Zero-width cases: combining marks, BOM. CJK treated as 1 */
+    /* For FTN editing: does this char take 1 column or 0, zero-width cases: combining marks, BOM, CJK treated as 1 */
     if (c == 0)
         return 0;
 
@@ -164,7 +164,7 @@ void deliver_paste(UiApp *app, const char *utf8)
         const char *to_insert = utf8;
         int reported_len;
 
-        /* HARD-WRAP only: reflow pasted text; soft-wrap inserts verbatim */
+        /* HARD-WRAP only: reflow pasted text, soft-wrap inserts verbatim */
         if (app->cfg && app->cfg->hard_wrap)
         {
             int pw = editor_eff_wrap(app);
@@ -296,19 +296,19 @@ char *collect_rapid_paste(wint_t first_wch)
         return NULL;
     }
 
-    /* At least one more char available - check for 2 more to confirm paste */
+    /* At least one more char available, check for 2 more to confirm paste */
     wint_t third_wch;
     int third_wrc = get_wch(&third_wch);
 
     if (third_wrc == ERR || third_wrc == KEY_CODE_YES)
     {
-        /* Only 2 chars total, probably manual typing - push back the second char */
+        /* Only 2 chars total, probably manual typing, push back the second char */
         nodelay(stdscr, FALSE);
         ungetch((int)next_wch);
         return NULL;
     }
 
-    /* We have at least 3 chars - this is a paste, collect them all */
+    /* We have at least 3 chars, this is a paste, collect them all */
     wbuf = (wchar_t *)malloc(256 * sizeof(wchar_t));
 
     if (!wbuf)

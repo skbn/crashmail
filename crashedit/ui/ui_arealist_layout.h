@@ -46,7 +46,7 @@ typedef struct
 /* Compute layout from cfg->arealistformat against current areas (caller passes max column width) */
 void ui_arealist_layout_compute(const AreaList *areas, const char *format, int maxcol, ArealistLayout *out);
 
-/* Cached wrapper: keyed on (areas, format, maxcol, areas->count), recompute only when changes (drop-in for compute() on hot paths) */
+/* Cached wrapper: keyed on (areas, format, maxcol, areas->count), recompute only when changes, drop-in for compute() on hot paths */
 void ui_arealist_layout_get(const AreaList *areas, const char *format, int maxcol, ArealistLayout *out);
 
 #endif /* UI_AREALIST_LAYOUT_H */

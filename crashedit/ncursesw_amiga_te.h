@@ -1,7 +1,5 @@
 /*
- * crashedit - Message area editor for AmigaOS
- *
- * This file is part of the crashedit project.
+ * tinyedit - Text editor for AmigaOS
  *
  * Copyright (C) 2026 Tanausú M. 39:190/101@amiganet 2:341/207@fidonet
  *
@@ -9,17 +7,6 @@
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 2 of the License, or
  * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <https://www.gnu.org/licenses/>.
- *
- * This program uses JAMLIB, which is licensed under the GNU Lesser
- * General Public License v2.1. See src/jamlib/LICENSE for details.
  */
 
 /* ncursesw_amiga.h - ncursesw for AmigaOS 3 */
@@ -184,10 +171,7 @@ extern int COLORS;
 #define KEY_EVENT 0x19B
 #define KEY_MAX 0x1FF
 
-/* Modifier-key codes returned by wgetch()
- * These intentionally sit above KEY_MAX so they cannot collide
- * with any standard KEY_* value. See ui/ui_internal.h for the
- * matching cross-platform definitions used by the editor */
+/* Modifier-key codes from wgetch() above KEY_MAX. See ui/ui_internal.h for cross-platform definitions */
 #ifndef KEY_ALT
 #define KEY_ALT(c) (0x800 + ((unsigned int)(c) & 0xFF))
 #endif
@@ -435,22 +419,10 @@ int amiga_set_default_bg_color(int color);
 int amiga_set_font_name(const char *font_name);
 int amiga_set_ansi_font_name(const char *font_name);
 
-/* TrueType font support (via ttengine.library v6+)
- * Call BEFORE initscr(). If ttf_file is non-empty and ttengine.library is
- * available at runtime, tinyedit will render text with the TTF instead of
- * the bitmap font set by amiga_set_font_name(). Falls back automatically
- * if either condition fails. Safe to call with NULL/empty path = disabled
- *
- *   ttf_file   : path to a .ttf file (e.g. "FONTS:_ttf/DejaVuSansMono.ttf")
- *   size       : point size 6..96 (typically 12..16 for editing)
- *   antialias  : 0=auto, 1=off, 2=on
- */
+/* TrueType font support (ttengine.library v6+). Call BEFORE initscr() */
 int amiga_set_ttf(const char *ttf_file, int size, int antialias);
 
-/* Optional: register up to AMI_TTF_FALLBACKS extra TTF fonts to cover
- * codepoints missing from the primary one (CJK, emoji, etc). Both
- * functions must be called BEFORE initscr(); the fonts are loaded as a
- * chain at startup */
+/* Optional: register extra TTF fonts for missing codepoints */
 int amiga_add_ttf_fallback(const char *path, int size);
 void amiga_clear_ttf_fallbacks(void);
 int amiga_set_ttf_encoding(int use_utf8);

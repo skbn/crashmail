@@ -181,9 +181,7 @@ static void extract_sf(void *vsp, JamMsgInfo *info)
             }
             break;
         case JAMSFLD_FTSKLUDGE:
-            /* crashmail stores unrecognized kludges (including TZUTC) here
-             * The kludge format is "TZUTC: +HHMM" (with a space after the
-             * colon), so the sign character is at index 7, not 6 */
+            /* crashmail stores unrecognized kludges (including TZUTC) here, format is "TZUTC: +HHMM" */
             if (sf->DatLen >= 8 && sf->Buffer[0] == 'T' && sf->Buffer[1] == 'Z' && sf->Buffer[2] == 'U' && sf->Buffer[3] == 'T' && sf->Buffer[4] == 'C' && sf->Buffer[5] == ':' && sf->Buffer[6] == ' ')
             {
                 char sign = sf->Buffer[7];

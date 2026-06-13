@@ -48,14 +48,14 @@
 
 #define ESC 0x1B
 
-/* Initial geometry. The canvas grows both axes on demand */
+/* Initial geometry, canvas grows on demand */
 #define INIT_ROWS 32
 #define INIT_ROW_CAP 80
 
-/* Per-CSI sequence parameter cap. Real terminals accept 16ish */
+/* Per-CSI sequence parameter cap */
 #define MAX_CSI_PARAMS 16
 
-/* Defaults, matching what BBSes assume on a fresh terminal */
+/* Defaults matching BBS terminal assumptions */
 #define DEFAULT_FG 7
 #define DEFAULT_BG 0
 
@@ -73,7 +73,7 @@ typedef struct
     int reverse;
     int max_cols;
 
-    /* ANSI escape sequence tracking (0=CSI, 1=OSC/DCS/PM/APS, 2=SOS, 3=ST) */
+    /* ANSI escape sequence tracking */
     int in_escape;
     char seq_buf[64];
     int seq_len;
@@ -144,7 +144,7 @@ static int canvas_ensure_row(AnsiCanvas *cv, int r)
         if (!nr)
             return -1;
 
-        /* Zero the newly-acquired slots so free() is safe on them */
+        /* Zero newly-acquired slots for safe free() */
         memset(&nr[cv->row_cap], 0, (size_t)(new_cap - cv->row_cap) * sizeof(AnsiRow));
 
         cv->rows = nr;
@@ -192,7 +192,7 @@ static int row_ensure_cap(AnsiRow *r, int need)
 
     if (!nc)
     {
-        /* cells realloc failed: shrink wcs back to old_cap to keep both buffers consistent */
+        /* cells realloc failed: shrink wcs to keep buffers consistent */
         wchar_t *shrink = (wchar_t *)realloc(r->wcs, (size_t)old_cap * sizeof(wchar_t));
 
         if (shrink || old_cap == 0)
@@ -203,7 +203,7 @@ static int row_ensure_cap(AnsiRow *r, int need)
 
     r->cells = nc;
 
-    /* Initialize newly allocated cells to avoid garbage data */
+    /* Initialize newly allocated cells to avoid garbage */
     for (i = old_cap; i < new_cap; i++)
     {
         r->wcs[i] = L' ';
@@ -216,7 +216,7 @@ static int row_ensure_cap(AnsiRow *r, int need)
     return 0;
 }
 
-/* Pad row with blank cells up to column (for cursor gaps) */
+/* Pad row with blank cells up to column for cursor gaps */
 static int row_pad_to(AnsiRow *r, int col)
 {
     AnsiCell blank;
@@ -241,7 +241,7 @@ static int row_pad_to(AnsiRow *r, int col)
     return 0;
 }
 
-/* Place glyph at cursor position. Advances column (clamped to max_cols) */
+/* Place glyph at cursor position, advance column clamped to max_cols */
 static int term_putch(AnsiCanvas *cv, TermState *st, wchar_t ch)
 {
     AnsiRow *r;
@@ -253,7 +253,7 @@ static int term_putch(AnsiCanvas *cv, TermState *st, wchar_t ch)
     if (st->col < 0)
         st->col = 0;
 
-    /* If it cannot advance further to the right, it creates a new line */
+    /* Create new line if cannot advance further right */
     if (st->col >= st->max_cols)
     {
         st->col = 0;
@@ -272,7 +272,7 @@ static int term_putch(AnsiCanvas *cv, TermState *st, wchar_t ch)
     if (row_ensure_cap(r, st->col + 1) != 0)
         return -1;
 
-    /* When reverse is active, swap fg/bg for the color pair */
+    /* Swap fg/bg for color pair when reverse active */
     if (st->reverse)
         c.color_pair = ANSI_PAIR(st->bg, st->fg);
     else
@@ -292,7 +292,7 @@ static int term_putch(AnsiCanvas *cv, TermState *st, wchar_t ch)
     return 0;
 }
 
-/*  SGR (colour / bold / reverse) handling */
+/* SGR (color/bold/reverse) handling */
 int ansi_color_to_ncurses(int ansi_color)
 {
     if (ansi_color >= 30 && ansi_color <= 37)
@@ -370,7 +370,7 @@ static void apply_sgr(TermState *st, int n)
         return;
     }
 
-    /* Use bold to make it brighter and simulate the color */
+    /* Use bold to simulate brighter color */
     if (n >= 90 && n <= 97)
     {
         st->fg = n - 90;
@@ -386,8 +386,7 @@ static void apply_sgr(TermState *st, int n)
 }
 
 /* CSI parser */
-/* Parse CSI sequence at p (after ESC). Returns bytes consumed or 0 on error
- * Output: params[], n_params, priv (1 if ESC[?), final byte */
+/* Parse CSI sequence at p (after ESC), returns bytes consumed or 0 on error */
 static int parse_csi(const char *p, int max_len, int params[MAX_CSI_PARAMS], int *n_params, int *priv, int *final)
 {
     int i = 1; /* skip '[' */
@@ -401,7 +400,7 @@ static int parse_csi(const char *p, int max_len, int params[MAX_CSI_PARAMS], int
     if (max_len < 2)
         return 0;
 
-    /* Detect private mode prefixes: < = > ? */
+    /* Detect private mode prefixes */
     if (i < max_len && (p[i] == '<' || p[i] == '=' || p[i] == '>' || p[i] == '?'))
     {
         *priv = 1;
@@ -432,22 +431,22 @@ static int parse_csi(const char *p, int max_len, int params[MAX_CSI_PARAMS], int
             continue;
         }
 
-        /* CSI parameter range: 0x30-0x3F (0-9:;<=>?) */
-        /* These are valid CSI body characters but not handled above */
+        /* CSI parameter range */
+        /* Valid CSI body characters not handled above */
         if (c >= 0x30 && c <= 0x3F)
         {
             i++;
             continue;
         }
 
-        /* Final byte: 0x40..0x7E */
+        /* Final byte range */
         if (c >= 0x40 && c <= 0x7E)
         {
             if (has_digit && *n_params < MAX_CSI_PARAMS)
                 params[(*n_params)++] = num;
             else if (!has_digit && *n_params > 0 && *n_params < MAX_CSI_PARAMS)
             {
-                /* Trailing semicolon with empty final param: ESC[1; -- */
+                /* Trailing semicolon with empty final param */
                 params[(*n_params)++] = 0;
             }
 
@@ -456,15 +455,15 @@ static int parse_csi(const char *p, int max_len, int params[MAX_CSI_PARAMS], int
             return i + 1;
         }
 
-        /* Stray byte inside CSI: treat as end-of-sequence, don't consume */
+        /* Stray byte inside CSI: treat as end-of-sequence */
         return 0;
     }
 
-    /* Ran off the end without seeing a final byte */
+    /* Ran off end without seeing final byte */
     return 0;
 }
 
-/* Default param value when absent ("ESC[H" -> ESC[1;1H semantics) */
+/* Default param value when absent */
 static int csi_param(const int *params, int n_params, int idx, int dflt)
 {
     if (idx >= n_params)
@@ -476,7 +475,7 @@ static int csi_param(const int *params, int n_params, int idx, int dflt)
     return params[idx];
 }
 
-/* Apply a fully-parsed CSI sequence to the terminal state and canvas */
+/* Apply fully-parsed CSI sequence to terminal state and canvas */
 static void apply_csi(AnsiCanvas *cv, TermState *st, int *params, int n_params, int priv, int final)
 {
     if (priv)
@@ -558,7 +557,7 @@ static void apply_csi(AnsiCanvas *cv, TermState *st, int *params, int n_params, 
             cv->row_count = 0;
         }
 
-        /* Erase modes 0/1: not fully supported (would need row rewrite) */
+        /* Erase modes 0/1: not fully supported */
         break;
     }
     case 'K': /* erase in line */
@@ -660,7 +659,7 @@ static AnsiCanvas *render_wcs_stream(const wchar_t *all, int all_len, int max_co
     if (!cv)
         return NULL;
 
-    /* Initialise to a fresh terminal */
+    /* Initialize to fresh terminal */
     memset(&st, 0, sizeof(st));
 
     st.fg = DEFAULT_FG;
@@ -682,11 +681,11 @@ static AnsiCanvas *render_wcs_stream(const wchar_t *all, int all_len, int max_co
 
         if (st.in_escape)
         {
-            /* Non-ASCII characters terminate any escape sequence */
+            /* Non-ASCII characters terminate escape sequence */
             if (ch > 0x7F)
             {
                 reset_escape(&st);
-                /* Don't continue - let this char be rendered as text */
+                /* Don't continue - render as text */
             }
             else
             {
@@ -725,7 +724,7 @@ static AnsiCanvas *render_wcs_stream(const wchar_t *all, int all_len, int max_co
                     }
                     else if (ch >= 0x40 && ch <= 0x7E)
                     {
-                        /* Simple 2-character escape sequence (e.g. ESC=, ESC7) */
+                        /* Simple 2-character escape sequence */
                         reset_escape(&st);
                         continue;
                     }
@@ -740,7 +739,7 @@ static AnsiCanvas *render_wcs_stream(const wchar_t *all, int all_len, int max_co
                 /* Check for sequence termination BEFORE adding to buffer */
                 if (st.seq_type == 0) /* CSI */
                 {
-                    /* CSI ends with final byte 0x40-0x7E (but not at position 0) */
+                    /* CSI ends with final byte 0x40-0x7E (not at position 0) */
                     if (st.seq_len > 0 && ch >= 0x40 && ch <= 0x7E)
                     {
                         /* Add final byte to buffer */
@@ -871,7 +870,7 @@ static AnsiCanvas *render_wcs_stream(const wchar_t *all, int all_len, int max_co
         }
 
         if (ch < 0x20)
-            continue; /* skip remaining controls (BEL, SO, etc) */
+            continue; /* Skip remaining controls (BEL, SO, etc) */
 
         if (term_putch(cv, &st, ch) != 0)
         {
@@ -943,7 +942,7 @@ AnsiCanvas *ansi_render_bytes(const char *bytes, int len, const char *charset, i
         stream_len = len;
     }
 
-    cv = render_wcs_stream(stream, stream_len, 80); /* force 80 cols, ignore param */
+    cv = render_wcs_stream(stream, stream_len, 80); /* Force 80 cols, ignore param */
     free(stream);
 
     return cv;

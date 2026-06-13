@@ -49,8 +49,7 @@ static const char *freq_mode_name(int mode)
     }
 }
 
-/* Ask the user to pick an outbound layout when none is configured
- * Returns a FREQ_MODE_* value, or FREQ_MODE_UNSET if cancelled */
+/* Ask user to pick outbound layout when none configured, returns FREQ_MODE_* value or FREQ_MODE_UNSET if cancelled */
 static int freq_pick_mode()
 {
     int key;
@@ -97,8 +96,7 @@ static int freq_pick_mode()
     }
 }
 
-/* Is c a character we accept into the FTN address field? digits, the
- * zone/net/node/point separators, and nothing else */
+/* Is c a character we accept into the FTN address field, digits and zone/net/node/point separators only */
 static int freq_addr_char(int c)
 {
     return (c >= '0' && c <= '9') || c == ':' || c == '/' || c == '.';
@@ -158,7 +156,7 @@ int ui_popup_freq(UiApp *app)
         int k;
         char meta[80];
 
-        /* Clear screen each iteration to remove sub-popup artefacts; arealist redraws on return */
+        /* Clear screen each iteration to remove sub-popup artefacts, arealist redraws on return */
         /*erase();*/
 
         attron(COLOR_PAIR(COL_POPUP));

@@ -83,8 +83,7 @@ uint32_t jam_write_msg(JamArea *a, const char *from, const char *to, const char 
 int jam_delete_msg(JamArea *a, uint32_t msgnum);
 int jam_mark_sent(JamArea *a, uint32_t msgnum);
 
-/* Bulk read: loads non-deleted headers (caller frees, *out_count=0 on error,
-   filter_mask=extra bits to skip, max_msgs=0 means all else last N) */
+/* Bulk read: loads non-deleted headers (caller frees, filter_mask=extra bits to skip, max_msgs=0 means all else last N) */
 JamMsgInfo *jam_load_headers(JamArea *a, int *out_count, uint32_t filter_mask, uint32_t max_msgs);
 
 /* Lightweight counting: reads only fixed-size headers (no subfield I/O, faster than jam_load_headers) */

@@ -49,14 +49,10 @@ typedef struct
 void nodelist_init(Nodelist *nl);
 void nodelist_free(Nodelist *nl);
 
-/* Parse one FTS-5000 nodelist or pointlist file and append entries
- * The default network suffix is appended to addresses that don't carry
- * one (e.g. "fidonet"). Returns number of entries appended, or -1 on
- * error opening the file */
+/* Parse FTS-5000 nodelist/pointlist file, append entries, default network suffix appended to addresses without one */
 int nodelist_load_file(Nodelist *nl, const char *path, const char *default_network);
 
-/* Returns 1 if the entry's name OR addr contain <needle>
- * (case-insensitive substring match). Empty needle matches everything */
+/* Returns 1 if entry's name OR addr contains needle (case-insensitive), empty needle matches everything */
 int nodelist_entry_matches(const NodelistEntry *e, const char *needle);
 
 #endif

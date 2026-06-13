@@ -174,13 +174,10 @@ struct UiApp
     CrashEditCfg *cfg;
     AreaList *areas;
 
-    /* Path to the loaded config file, so the setup screen can save
-     * back to it. Set by main after ui_init. */
+    /* Path to loaded config file for setup screen save, set by main after ui_init */
     const char *cfg_path;
 
-    /* Set by the setup screen when the user saves changes: signals the
-     * main loop to tear everything down and reload from disk (the
-     * "restart in place" behaviour). ui_run() returns this value */
+    /* Set by setup screen when user saves changes, signals main loop to tear down and reload from disk, ui_run() returns this value */
     int want_reload;
 
     UiView view;
@@ -228,7 +225,7 @@ struct UiApp
 
     int msglist_overlay_from_reader; /* 1 = msglist shown over reader; ESC returns to reader */
 
-    /* Search state for VIEW_SEARCH_RESULTS. Freed via ui_search_cleanup() */
+    /* Search state for VIEW_SEARCH_RESULTS, freed via ui_search_cleanup() */
     void *search;
     void *search_runs;
     int search_n_runs;
@@ -240,7 +237,7 @@ struct UiApp
     UiView search_from_view;
     int from_search;
 
-    /* Force setup mode on first run or missing config. ui_run() drops into setup screen */
+    /* Force setup mode on first run or missing config, ui_run() drops into setup screen */
     int force_setup;
 
     /* Nodelist/pointlist entries loaded from INCLUDE directives at startup */
@@ -274,13 +271,10 @@ UiView ui_msglist_run(UiApp *app);
 UiView ui_reader_run(UiApp *app);
 UiView ui_editor_run(UiApp *app);
 
-/* Persistent search-result browser. Driven by the search_* fields
- * in UiApp (see comments there). When app->search is NULL, this
- * just bounces back to VIEW_AREALIST */
+/* Persistent search-result browser, driven by search_* fields in UiApp, bounces back to VIEW_AREALIST when app->search is NULL */
 UiView ui_search_results_run(UiApp *app);
 
-/* Free the active search session if any; called by ui_cleanup and
- * by the result browser when the user ESCs out */
+/* Free active search session if any, called by ui_cleanup and result browser when user ESCs out */
 void ui_search_cleanup(UiApp *app);
 
 /* Session helpers */
@@ -306,8 +300,7 @@ int ui_popup_search_results(const char *title, const int *line_nums, const char 
 int ui_popup_charset(const char *title, const char *cur, char *out, int outsz);
 int ui_popup_charset_pair(const char *view_in, const char *output_in, const char *view_def, const char *output_def, char *view_out, int view_outsz, char *output_out, int output_outsz);
 
-/* Choose AKA from cfg->aka[] (cur_idx=preselected, returns selected index,
- * -1=cancel) */
+/* Choose AKA from cfg->aka[] (cur_idx=preselected, returns selected index, -1=cancel) */
 int ui_popup_aka(const UiApp *app, int cur_idx);
 
 /* Input text: prompt + prefilled buffer (0=ok, -1=cancel) */
@@ -331,7 +324,7 @@ int ui_popup_attach_remove(UiApp *app); /* 1=removed, 0=canceled */
 int ui_popup_attach_clear(UiApp *app);  /* 1=cleared, 0=canceled */
 int ui_popup_attach_list(UiApp *app);   /* 0=closed */
 
-/* Nodelist / pointlist picker. Type-ahead filtering by name or address */
+/* Nodelist / pointlist picker, type-ahead filtering by name or address */
 int ui_popup_nodelist(UiApp *app, int allow_pick, char *out_name, int name_sz, char *out_addr, int addr_sz);
 
 /* Compute centered popup geometry, clamped to LINES/COLS */

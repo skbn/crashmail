@@ -82,6 +82,9 @@ void editor_reset_state(UiApp *app)
 
     ed_load(app->editor, "");
     attach_clear(app->attach_list);
+
+    /* Clear undo/redo stacks to free memory when exiting editor mode */
+    ed_clear_undo_redo(app->editor);
 }
 
 /* Extract first name (first whitespace-delimited word) for greeting/signature */
@@ -242,8 +245,7 @@ static char *build_header_frame(const CrashEditCfg *cfg, const char *to_name, co
     return out;
 }
 
-/* Build the signature line that goes BELOW the body (before the
- * tearline). Returns malloc'd string ("" if disabled) */
+/* Build the signature line that goes BELOW the body (before the tearline), returns malloc'd string ("" if disabled) */
 static char *build_signature(const CrashEditCfg *cfg, const char *from_name)
 {
     char frf[96];
@@ -281,8 +283,7 @@ static char *build_signature(const CrashEditCfg *cfg, const char *from_name)
     return out;
 }
 
-/* Concatenate standard FTN kludges (ftn_build_* and wrapper_build_pid produce
- * ^A<NAME>:...\r lines) */
+/* Concatenate standard FTN kludges (ftn_build_* and wrapper_build_pid produce ^A<NAME>:...\r lines) */
 char *editor_build_kludge_block(const CrashEditCfg *cfg, const char *oaddr, const char *daddr, const char *raw_daddr, const char *reply_msgid_value, int is_netmail)
 {
     char msgid[160];
@@ -492,7 +493,7 @@ void ui_editor_prep_new(UiApp *app)
     app->edit_charset_saved[sizeof(app->edit_charset_saved) - 1] = '\0';
     app->edit_charset_manually_changed = 0;
 
-    /* Preserve user-forced edit_charset override; else cfg default */
+    /* Preserve user-forced edit_charset override, else cfg default */
     if (!app->edit_charset[0])
     {
         strncpy(app->edit_charset, app->cfg->charset, sizeof(app->edit_charset) - 1);
@@ -555,8 +556,7 @@ void ui_editor_prep_new(UiApp *app)
     load_template_if_any(app->editor, app->cfg->template_file);
 }
 
-/* Build quote source: keep only visible line categories; returns malloc'd UTF-8
- * (caller frees) */
+/* Build quote source: keep only visible line categories, returns malloc'd UTF-8 (caller frees) */
 static char *build_quote_source(const char *body_utf8, int want_klg, int want_via, int want_hid)
 {
     const char *p = body_utf8;
@@ -748,8 +748,7 @@ void ui_editor_prep_reply(UiApp *app, uint32_t orig_msgnum)
         int qmargin;
         int want_klg, want_via, want_hid;
 
-        /* SOFT-WRAP (default): quote without word-wrapping (margin 0)
-         * HARD-WRAP: keep the configured GoldED+ QUOTEMARGIN */
+        /* SOFT-WRAP (default): quote without word-wrapping (margin 0), HARD-WRAP: keep configured GoldED+ QUOTEMARGIN */
         qmargin = (app->cfg && app->cfg->hard_wrap) ? app->cfg->quotemargin : 0;
 
         ftn_extract_kludges(body_utf8, &orig_kludges, &clean_body);
@@ -1032,7 +1031,7 @@ void ui_editor_prep_edit(UiApp *app, uint32_t msgnum)
         }
 
         free(clean_out);
-        free(kludges_out); /* old kludges discarded; regenerated on save */
+        free(kludges_out); /* old kludges discarded, regenerated on save */
         free(body_utf8);
 
         daddr_edit = editor_daddr_for_intl(app, msghdr_get_utf8_tmp(app->edit_hdr, HDR_DADDR));
@@ -1051,7 +1050,7 @@ void ui_editor_prep_edit(UiApp *app, uint32_t msgnum)
     app->edit_is_new = 0;
     app->edit_reply_to_msgnum = s->msgs[idx].reply_to;
 
-    /* Keep original attrs; clear SENT/KILLSENT, force LOCAL */
+    /* Keep original attrs, clear SENT/KILLSENT, force LOCAL */
     app->edit_attr = s->msgs[idx].attr;
     app->edit_attr |= MSG_LOCAL;
     app->edit_attr &= ~((uint32_t)(MSG_SENT | MSG_KILLSENT));

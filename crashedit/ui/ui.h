@@ -34,16 +34,12 @@ typedef struct UiApp UiApp;
 UiApp *ui_init(CrashEditCfg *cfg, AreaList *areas);
 
 /* Run main event loop (returns when user quits) */
-int ui_run(UiApp *app); /* returns 1 if a config reload was requested, else 0 */
+int ui_run(UiApp *app); /* returns 1 if config reload requested, else 0 */
 
-/* Tell the UI where the config file lives (for the setup screen's
- * save). UiApp is opaque to callers of ui.h, so this is a setter
- * rather than direct field access */
+/* Tell UI where config file lives (for setup screen save), UiApp is opaque so this is a setter */
 void ui_set_cfg_path(UiApp *app, const char *path);
 
-/* Force the UI to start in the setup screen (first run / no usable
- * config or areas). The user must save (which requests a reload) or
- * quit out */
+/* Force UI to start in setup screen (first run/no usable config/areas), user must save or quit */
 void ui_force_setup(UiApp *app);
 
 /* Tear down ncurses and free all resources */

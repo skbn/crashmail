@@ -435,8 +435,7 @@ void draw_edit_body(UiApp *app)
 
     /* SOFT-WRAP: one logical line spans several screen rows */
 
-    /* Adjust viewport so cursor is visible. O(distance to cursor)
-     * bounded by rows */
+    /* Adjust viewport so cursor is visible, O(distance to cursor) bounded by rows */
     soft_ensure_visible_for_draw(app, width, rows);
 
     /* Clear body */
@@ -446,8 +445,7 @@ void draw_edit_body(UiApp *app)
         clrtoeol();
     }
 
-    /* Start drawing from s_soft_top_line, skipping the first
-     * s_soft_top_sub sub-rows of that line */
+    /* Start drawing from s_soft_top_line, skipping the first s_soft_top_sub sub-rows of that line */
     li = s_soft_top_line;
     sub_skip = s_soft_top_sub;
     sr = 0;
@@ -462,7 +460,7 @@ void draw_edit_body(UiApp *app)
 
         if (!l || len <= 0)
         {
-            /* Empty line: one blank sub-row.  Paint if not skipped. */
+            /* Empty line: one blank sub-row, paint if not skipped */
             if (sub_skip == 0)
             {
                 if (show_lnum)

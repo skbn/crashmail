@@ -85,7 +85,7 @@ static void unescape_name(char *s)
     }
 }
 
-/* Split next CSV field starting at *p. Returns pointer to field; advances *p past comma */
+/* Split next CSV field starting at *p, returns pointer to field, advances *p past comma */
 static char *next_field(char **p)
 {
     char *start, *q;
@@ -103,17 +103,14 @@ static char *next_field(char **p)
     }
     else
     {
-        /* last field — leave *p pointing at the terminating NUL so the
-         * next call returns an empty field rather than re-scanning the
-         * same chunk forever */
+        /* last field: leave *p at terminating NUL so next call returns empty field */
         *p = start + strlen(start);
     }
 
     return start;
 }
 
-/* Build a canonical FTN address into out[]. Appends "@network" only if
- * the input lacks one and a default_network was supplied */
+/* Build canonical FTN address into out[], append "@network" only if input lacks one */
 static void build_addr(char *out, int outsz, int zone, int net, int node, int point, const char *default_network)
 {
     char tmp[24]; /* "Z:N/F.P" with 5-digit numbers fits easily */
@@ -129,7 +126,7 @@ static void build_addr(char *out, int outsz, int zone, int net, int node, int po
         snprintf(out, (size_t)outsz, "%.23s", tmp);
 }
 
-/* Append a single entry. Returns 0 on success, -1 on OOM */
+/* Append a single entry, 0 on success, -1 on OOM */
 static int append_entry(Nodelist *nl, const char *name, const char *addr)
 {
     NodelistEntry *e;
@@ -173,8 +170,7 @@ static void trim_trailing(char *s)
         s[--n] = '\0';
 }
 
-/* Parse one line. Mutates zone, net, and boss_* to track context
- * boss_set != 0 means we're inside a pointlist segment */
+/* Parse one line, mutates zone/net/boss_* to track context, boss_set != 0 means in pointlist */
 static void parse_line(Nodelist *nl, char *line, int *zone, int *net, int *boss_set, int *boss_z, int *boss_n, int *boss_f, const char *default_network)
 {
     char *p, *type, *num, *system, *loc, *sysop;
@@ -183,7 +179,7 @@ static void parse_line(Nodelist *nl, char *line, int *zone, int *net, int *boss_
     if (!line || !line[0])
         return;
 
-    /* Strip CR/LF/spaces from the end before parsing */
+    /* Strip CR/LF/spaces from end before parsing */
     trim_trailing(line);
 
     /* Skip comments and section markers */

@@ -32,8 +32,6 @@
 #include "editor.h"
 #include "../core/utf8.h"
 
-/* Helper functions for undo operations */
-
 /* Convert entire line to wchar_t string (caller frees) */
 wchar_t *line_to_wcs(EdLine *ln)
 {
@@ -69,6 +67,7 @@ wchar_t *line_to_wcs_range(EdLine *ln, int start, int end)
         memcpy(result, &ln->wcs[start], len * sizeof(wchar_t));
 
     result[len] = L'\0';
+
     return result;
 }
 
@@ -122,10 +121,7 @@ char *ed_block_to_string(Ed *ed, int r1, int c1, int r2, int c2)
 
     result[0] = '\0';
 
-    /* Build result string. Use a write cursor + memcpy instead of
-     * strcat in a loop: strcat scans to the end of result on every
-     * call, turning the build into O(n^2). With the cursor this is
-     * O(n) -- noticeable on large selections */
+    /* Build result with cursor+memcpy instead of strcat to avoid O(n^2) */
     pos = 0;
 
     for (i = r1; i <= r2; i++)
@@ -146,9 +142,7 @@ char *ed_block_to_string(Ed *ed, int r1, int c1, int r2, int c2)
                 {
                     size_t n = strlen(temp);
 
-                    /* Defensive: total_len was an estimate; if any
-                     * quirk produced more bytes than expected, clamp
-                     * rather than overrun */
+                    /* Clamp if estimate exceeded to avoid overrun */
                     if (pos + n > total_len)
                         n = total_len - pos;
 
@@ -707,13 +701,17 @@ int ed_rewrap_paragraph(Ed *ed, int width)
     outw[out_used] = L'\0';
     free(joined);
 
-    /* Save snapshot before rewrap if needed */
+    /* Snapshot only affected paragraph to avoid O(N) undo for large files */
+    int old_count = 0;
+    int doc_count_before = ed->count;
+
     if (need_snapshot)
     {
         cursor_row_before = ed->row;
         cursor_col_before = ed->col;
+        old_count = last - first + 1;
 
-        snapshot_before = ed_to_string(ed);
+        snapshot_before = ed_range_to_string(ed, first, last + 1);
 
         if (!snapshot_before)
         {
@@ -746,18 +744,39 @@ int ed_rewrap_paragraph(Ed *ed, int width)
     /* Disable snapshot mode and save snapshot after rewrap if needed */
     if (need_snapshot)
     {
+        int new_count;
+
         cursor_row_after = ed->row;
         cursor_col_after = ed->col;
 
         ed->undo_snapshot_mode = 0;
 
-        snapshot_after = ed_to_string(ed);
+        /* Calculate new line count after rewrap */
+        new_count = ed->count - (doc_count_before - old_count);
+        if (new_count < 0)
+            new_count = 0;
 
-        if (!snapshot_after)
+        /* Handle empty result case */
+        if (new_count == 0)
         {
-            free(snapshot_before);
+            snapshot_after = (char *)malloc(1);
+            if (!snapshot_after)
+            {
+                free(snapshot_before);
+                return -1;
+            }
+            snapshot_after[0] = '\0';
+        }
+        else
+        {
+            snapshot_after = ed_range_to_string(ed, first, first + new_count);
 
-            return -1;
+            if (!snapshot_after)
+            {
+                free(snapshot_before);
+
+                return -1;
+            }
         }
 
         /* Push snapshot to undo stack */
@@ -802,52 +821,25 @@ int ed_rewrap_paragraph(Ed *ed, int width)
             g->cap = nc;
         }
 
-        g->ops[g->count].type = OP_SNAPSHOT;
-        g->ops[g->count].row = cursor_row_before;
+        g->ops[g->count].type = OP_SNAPSHOT_RANGE;
+        g->ops[g->count].row = first;
         g->ops[g->count].col = cursor_col_before;
         g->ops[g->count].len = 0;
         g->ops[g->count].join_col = 0;
         g->ops[g->count].text = NULL;
         g->ops[g->count].utf8_snapshot = snapshot_before;
+        g->ops[g->count].utf8_snapshot_new = snapshot_after;
         g->ops[g->count].hard_wrap_mode = ed->hard_wrap;
+        g->ops[g->count].end_row = old_count; /* OLD line count */
+        g->ops[g->count].end_col = new_count; /* NEW line count */
         g->count++;
         ed->undo_open = 0;
 
+        /* Ownership transferred to undo op, don't free */
+        snapshot_before = NULL;
+        snapshot_after = NULL;
+
         ed_prefix_invalidate(ed);
-
-        /* Push snapshot to redo stack */
-        if (ed_undo_stack_make_room(&ed->redo_stack, &ed->redo_top, &ed->redo_cap, ed->redo_max) == 0)
-        {
-            g = &ed->redo_stack[ed->redo_top];
-            g->ops = (UndoOp *)malloc(sizeof(UndoOp));
-
-            if (g->ops)
-            {
-                g->count = 1;
-                g->cap = 1;
-                g->cur_row = cursor_row_before;
-                g->cur_col = cursor_col_before;
-                g->end_row = cursor_row_after;
-                g->end_col = cursor_col_after;
-                g->ops[0].type = OP_SNAPSHOT;
-                g->ops[0].row = cursor_row_after;
-                g->ops[0].col = cursor_col_after;
-                g->ops[0].len = 0;
-                g->ops[0].join_col = 0;
-                g->ops[0].text = NULL;
-                g->ops[0].utf8_snapshot = snapshot_after;
-                g->ops[0].hard_wrap_mode = ed->hard_wrap;
-                ed->redo_top++;
-            }
-            else
-            {
-                free(snapshot_after);
-            }
-        }
-        else
-        {
-            free(snapshot_after);
-        }
     }
 
     return 0;
@@ -859,6 +851,7 @@ int ed_rewrap_document(Ed *ed, int width)
     int para_start = 0;
     int cursor_row_before, cursor_col_before;
     int cursor_row_after, cursor_col_after;
+    int doc_count_before;
     char *snapshot_before = NULL;
     char *snapshot_after = NULL;
     UndoGroup *g;
@@ -868,8 +861,9 @@ int ed_rewrap_document(Ed *ed, int width)
 
     cursor_row_before = ed->row;
     cursor_col_before = ed->col;
+    doc_count_before = ed->count;
 
-    snapshot_before = ed_to_string(ed);
+    snapshot_before = ed_range_to_string(ed, 0, ed->count);
 
     if (!snapshot_before)
         return -1;
@@ -950,12 +944,11 @@ int ed_rewrap_document(Ed *ed, int width)
     cursor_row_after = ed->row;
     cursor_col_after = ed->col;
 
-    /* Invalidate the soft-wrap prefix cache regardless of undo path -- the
-     * line shapes changed so any cached vrow positions are stale */
+    /* Invalidate prefix cache since line shapes changed */
     ed_prefix_invalidate(ed);
 
     /* Save snapshot after rewrap for redo */
-    snapshot_after = ed_to_string(ed);
+    snapshot_after = ed_range_to_string(ed, 0, ed->count);
 
     if (!snapshot_after)
     {
@@ -983,6 +976,10 @@ int ed_rewrap_document(Ed *ed, int width)
     }
 
     g = &ed->undo_stack[ed->undo_top - 1];
+    g->cur_row = cursor_row_before;
+    g->cur_col = cursor_col_before;
+    g->end_row = cursor_row_after;
+    g->end_col = cursor_col_after;
 
     if (g->count >= g->cap)
     {
@@ -1001,50 +998,22 @@ int ed_rewrap_document(Ed *ed, int width)
         g->cap = nc;
     }
 
-    g->ops[g->count].type = OP_SNAPSHOT;
+    /* Use OP_SNAPSHOT_RANGE with both snapshots for undo/redo */
+    g->ops[g->count].type = OP_SNAPSHOT_RANGE;
     g->ops[g->count].row = 0;
     g->ops[g->count].col = 0;
     g->ops[g->count].len = 0;
     g->ops[g->count].join_col = 0;
     g->ops[g->count].text = NULL;
     g->ops[g->count].utf8_snapshot = snapshot_before;
+    g->ops[g->count].utf8_snapshot_new = snapshot_after;
     g->ops[g->count].hard_wrap_mode = ed->hard_wrap;
+    g->ops[g->count].end_row = doc_count_before;
+    g->ops[g->count].end_col = ed->count;
     g->count++;
     ed->undo_open = 0;
 
-    /* Push snapshot to redo stack */
-    if (ed_undo_stack_make_room(&ed->redo_stack, &ed->redo_top, &ed->redo_cap, ed->redo_max) == 0)
-    {
-        g = &ed->redo_stack[ed->redo_top];
-        g->ops = (UndoOp *)malloc(sizeof(UndoOp));
-
-        if (g->ops)
-        {
-            g->count = 1;
-            g->cap = 1;
-            g->cur_row = 0;
-            g->cur_col = 0;
-            g->end_row = ed->count;
-            g->end_col = 0;
-            g->ops[0].type = OP_SNAPSHOT;
-            g->ops[0].row = 0;
-            g->ops[0].col = 0;
-            g->ops[0].len = 0;
-            g->ops[0].join_col = 0;
-            g->ops[0].text = NULL;
-            g->ops[0].utf8_snapshot = snapshot_after;
-            g->ops[0].hard_wrap_mode = ed->hard_wrap;
-            ed->redo_top++;
-        }
-        else
-        {
-            free(snapshot_after);
-        }
-    }
-    else
-    {
-        free(snapshot_after);
-    }
+    /* Ownership transferred to op */
 
     return 0;
 }
@@ -1069,7 +1038,7 @@ int ed_load_file_at_cursor(Ed *ed, const char *path, const char *charset_in)
     cursor_row_before = ed->row;
     cursor_col_before = ed->col;
 
-    /* If it's null, auto, or detects utf8, it's passed directly; otherwise, it's converted */
+    /* Convert charset if not AUTO/UTF-8 */
     needs_conv = charset_in && charset_in[0] && strcasecmp(charset_in, "AUTO") != 0 && strcasecmp(charset_in, "UTF-8") != 0 && strcasecmp(charset_in, "UTF8") != 0;
 
     f = fopen(path, "rb");
@@ -1081,7 +1050,7 @@ int ed_load_file_at_cursor(Ed *ed, const char *path, const char *charset_in)
     sz = ftell(f);
     fseek(f, 0, SEEK_SET);
 
-    if (sz < 0 || sz > 8 * 1024 * 1024)
+    if (sz < 0)
     {
         fclose(f);
         return -1;
@@ -1103,9 +1072,7 @@ int ed_load_file_at_cursor(Ed *ed, const char *path, const char *charset_in)
 
     if (needs_conv)
     {
-        /* Worst case for our supported single-byte charsets: each byte
-         * expands to at most 3 UTF-8 bytes (CP437 box-drawing, accented
-         * LATIN-1, etc.). Pad with +16 for safety / NUL */
+        /* Worst case: each byte expands to 3 UTF-8 bytes, pad for safety */
         size_t outsz = (size_t)r * 4 + 16;
         char *out = (char *)malloc(outsz);
         int wrote;
@@ -1248,7 +1215,7 @@ int ed_export_block_to_file(Ed *ed, const char *path, const char *charset_out)
     if (!ed || !path || !path[0] || !ed->block.active)
         return -1;
 
-    /* If it's null, auto, or detects utf8, it's passed directly; otherwise, it's converted */
+    /* Convert charset if not AUTO/UTF-8 */
     needs_conv = charset_out && charset_out[0] && strcasecmp(charset_out, "AUTO") != 0 && strcasecmp(charset_out, "UTF-8") != 0 && strcasecmp(charset_out, "UTF8") != 0;
 
     if (ed->block.anchor_row < ed->row || (ed->block.anchor_row == ed->row && ed->block.anchor_col <= ed->col))

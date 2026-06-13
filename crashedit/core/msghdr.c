@@ -270,30 +270,11 @@ int msghdr_field_width(const MsgHdr *h, int field)
     return h->fields[field].width;
 }
 
-/* Fill from JAM */
-/*static void format_date(uint32_t epoch, int reader_offset, int tzutc_offset, char *buf, int bufsz)
-{
-    time_t t = (time_t)epoch;
-
-    /* epoch is already UTC, just convert to reader's local time */
-/*if (reader_offset != 0)
-    t += (time_t)reader_offset * 60; /* Add reader's timezone offset to UTC */
-
-/*struct tm *tm = gmtime(&t);
-
-if (tm)
-    snprintf(buf, (size_t)bufsz, "%02d %s %02d %02d:%02d", tm->tm_mday, "Jan\0Feb\0Mar\0Apr\0May\0Jun\0Jul\0Aug\0Sep\0Oct\0Nov\0Dec" + (tm->tm_mon * 4), tm->tm_year % 100, tm->tm_hour, tm->tm_min);
-else
-    snprintf(buf, (size_t)bufsz, "(unknown)");
-}*/
-
 static void format_date(uint32_t epoch, int reader_offset, int tzutc_offset, char *buf, int bufsz)
 {
     time_t t = (time_t)epoch;
 
-    /* Same approach as the reply attribution line: add the effective
-     * timezone offset to the UTC epoch, then use gmtime() to render it
-     * localtime() cannot be used because the system TZ may not be set */
+    /* Add timezone offset to UTC epoch, use gmtime() since TZ may not be set */
     if (tzutc_offset != -1)
         t += (time_t)tzutc_offset * 60;
     else if (reader_offset != 0)
@@ -402,10 +383,7 @@ char *msghdr_get_utf8(const MsgHdr *h, int f)
     return wcs_to_utf8(h->fields[f].wcs, h->fields[f].len);
 }
 
-/* Rotating-buffer variant: copy field's UTF-8 form into one of N static
- * slots and return the pointer. Same convention as ui_wcs2u8. Used by
- * callsites that previously did msghdr_get_utf8(...) inline as a
- * function arg and leaked the malloc'd result */
+/* Copy UTF-8 field to rotating static buffer, avoid leaks */
 const char *msghdr_get_utf8_tmp(const MsgHdr *h, int f)
 {
     static char pool[8][JAM_FIELD_MAX * 4 + 4];
@@ -421,10 +399,7 @@ const char *msghdr_get_utf8_tmp(const MsgHdr *h, int f)
     if (!h || f < 0 || f >= HDR_COUNT || !h->fields[f].wcs || h->fields[f].len <= 0)
         return out;
 
-    /* Reuse the malloc version for the conversion, then copy into the
-     * static slot and free. A direct in-place conversion would avoid
-     * the malloc but the code duplication isn't worth it for header
-     * fields (at most JAM_FIELD_MAX wide chars) */
+    /* Reuse malloc version, copy to static slot and free. Avoid code duplication */
     tmp = wcs_to_utf8(h->fields[f].wcs, h->fields[f].len);
 
     if (!tmp)

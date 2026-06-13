@@ -69,9 +69,7 @@ static void format_date_short(uint32_t epoch, int reader_offset, int tzutc_offse
 {
     time_t t = (time_t)epoch;
 
-    /* crashmail stores header as UTC, but it's sender's local time
-     * TZUTC: -0400 = local is 4h behind UTC
-     * Example: header "11:20" with TZUTC -0400 -> UTC = 11:20 + 240min = 15:20 */
+    /* crashmail stores header as UTC but it's sender's local time, TZUTC: -0400 = local is 4h behind UTC */
     if (tzutc_offset != -1)
         t += (time_t)tzutc_offset * 60; /* Convert to real UTC */
 
@@ -87,7 +85,7 @@ static void format_date_short(uint32_t epoch, int reader_offset, int tzutc_offse
         snprintf(buf, (size_t)bufsz, "        ");
 }
 
-/* Copy at most <width> bytes of <src> into <dst>, padding with spaces (counts bytes, not display columns) */
+/* Copy at most width bytes of src into dst, padding with spaces (counts bytes, not display columns) */
 static void pad_field(char *dst, int width, const char *src, int maxlen)
 {
     int i, n;
@@ -230,7 +228,7 @@ static void draw_msg_row(int y, int width, const JamMsgInfo *m, uint32_t lastrea
         attroff(COLOR_PAIR(COL_NORMAL));
 }
 
-/* Mark area seen on entry; update lastseen to max msgnum, clear "*" indicator */
+/* Mark area seen on entry, update lastseen to max msgnum, clear "*" indicator */
 static void msglist_mark_seen(UiApp *app)
 {
     UiSession *s;
@@ -246,7 +244,7 @@ static void msglist_mark_seen(UiApp *app)
     if (s->area_idx < 0 || s->area_idx >= app->areas->count)
         return;
 
-    /* Find max msgnum from loaded headers; no JAM access needed */
+    /* Find max msgnum from loaded headers, no JAM access needed */
     for (i = 0; i < s->msg_count; i++)
         if (s->msgs[i].msgnum > hi)
             hi = s->msgs[i].msgnum;
@@ -266,7 +264,7 @@ static void msglist_mark_seen(UiApp *app)
     ae = &app->areas->entries[s->area_idx];
     ae->lastseen = s->lastseen;
 
-    /* Recompute new_count; with lastseen=hi, this clears "*" indicator */
+    /* Recompute new_count, with lastseen=hi this clears "*" indicator */
     ae->new_count = 0;
 }
 
@@ -289,7 +287,7 @@ UiView ui_msglist_run(UiApp *app)
 
     ae = &app->areas->entries[s->area_idx];
 
-    /* Mark list as seen on entry; fast-out if already up to date */
+    /* Mark list as seen on entry, fast-out if already up to date */
     msglist_mark_seen(app);
 
     for (;;)
@@ -304,8 +302,7 @@ UiView ui_msglist_run(UiApp *app)
         if (rows < 1)
             rows = 1;
 
-        /* Header bar: pre-fill single buffer instead of COLS addch
-         * calls (slow under Amiga curses) */
+        /* Header bar: pre-fill single buffer instead of COLS addch calls (slow under Amiga curses) */
         if (app->cfg->msglistheader)
         {
             char hdr[512];
@@ -578,8 +575,7 @@ UiView ui_msglist_run(UiApp *app)
 
         case 'P':
         {
-            /* Full-text search; defaults to current area (scope=0)
-             * user can select ALL areas */
+            /* Full-text search, defaults to current area (scope=0), user can select ALL areas */
             UiView next = ui_search_run(app, 0);
 
             if (next != VIEW_MSGLIST)
@@ -601,7 +597,7 @@ UiView ui_msglist_run(UiApp *app)
                 return VIEW_READER;
             }
 
-            /* Exit to area list without updating lastread; browsing ≠ reading */
+            /* Exit to area list without updating lastread, browsing ≠ reading */
             return VIEW_AREALIST;
         case KEY_RESIZE:
             flushinp();

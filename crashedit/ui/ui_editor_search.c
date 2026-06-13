@@ -201,7 +201,7 @@ int replace_current(UiApp *app)
 
     if (app->edit_search.last_replace[0] != L'\0')
     {
-        /* Use the last replacement text - no popup */
+        /* Use the last replacement text, no popup */
         wchar_t repl[64];
         wcsncpy(repl, app->edit_search.last_replace, 63);
         repl[63] = L'\0';

@@ -74,7 +74,7 @@ typedef struct
     int hard_wrap;         /* 0=soft-wrap (no CR), 1=hard-wrap (CR at column) */
     int show_line_numbers; /* 0=hide line numbers, 1=show line numbers */
 
-    /* Message body framing with printf-style templates (%t=to, %f=from, %o=orig recipient, %d=orig date) */
+    /* Message body framing with printf templates (%t=to, %f=from, %o=orig, %d=date) */
     int greeting;                     /* 0=off, 1=emit greeting line */
     char greeting_text[CFG_STR_MAX];  /* e.g. "Hello %t!" */
     int attribution;                  /* 0=off, 1=emit attribution (reply) */
@@ -83,8 +83,7 @@ typedef struct
     int signature;                    /* 0=off, 1=emit signature line */
     char signature_text[CFG_STR_MAX]; /* e.g. "%f" */
 
-    /* Color pairs. Indexed by COL_* (1..22); slot 0 unused. Filled with
-       built-in defaults by cfg_defaults(); COLOR keyword overrides */
+    /* Color pairs indexed by COL_* (1..22); slot 0 unused. COLOR keyword overrides defaults */
     int color_fg[CFG_COLOR_MAX];
     int color_bg[CFG_COLOR_MAX];
 
@@ -109,11 +108,7 @@ typedef struct
     int ttf_antialias;          /* 0=auto, 1=off, 2=on */
     int ttf_use_utf8;           /* 0=UTF-16 BE (BMP only), 1=UTF-8 (full Unicode/emojis) */
 
-    /* TTF fallback fonts. Loaded into the FreeType chain after
-     * ttf_font, in order, so codepoints missing from the primary face
-     * are looked up here. Typical setup: primary = monospace Latin,
-     * fallback 1 = CJK font, fallback 2 = colour emoji. Empty entries
-     * are ignored */
+    /* TTF fallback fonts loaded after primary for missing codepoints. Empty entries ignored */
 #define CFG_TTF_FALLBACKS 8
     char ttf_fallback[CFG_TTF_FALLBACKS][CFG_STR_MAX];
     int ttf_fallback_size[CFG_TTF_FALLBACKS]; /* 0 = inherit ttf_size */

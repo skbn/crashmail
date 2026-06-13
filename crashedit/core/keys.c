@@ -51,8 +51,7 @@ int wrapper_read_key(wint_t *out_wch)
         return ERR;
 
 #if !defined(PLATFORM_AMIGA) && !defined(PLATFORM_WIN32)
-    /* Linux/xterm path: ESC + immediate next char -> KEY_ALT(char)
-     * The Amiga and Win32 shims return KEY_ALT(c) natively, no folding needed */
+    /* Linux/xterm: ESC + immediate next char -> KEY_ALT(char), Amiga/Win32 return natively */
     if (wrc != KEY_CODE_YES && wch == 27)
     {
         wint_t wch2;

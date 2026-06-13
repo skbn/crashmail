@@ -22,8 +22,7 @@
 #ifndef WRAPPER_FREQ_H
 #define WRAPPER_FREQ_H
 
-/* Values shared with the config parser (OUTBOUNDMODE keyword) and the
- * freq popup. FREQ_MODE_UNSET means "not configured — ask the user".*/
+/* Values shared with config parser (OUTBOUNDMODE keyword) and freq popup, UNSET means not configured */
 #define FREQ_MODE_UNSET 0
 #define FREQ_MODE_ASO 1
 #define FREQ_MODE_BSO 2

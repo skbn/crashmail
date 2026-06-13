@@ -29,8 +29,7 @@
 
 #include "ui_internal.h"
 
-/* scope_all_areas: 1 = scan every area in app->areas, 0 = scan only
- * the area currently selected in arealist (or open in msglist) */
+/* scope_all_areas: 1 = scan every area in app->areas, 0 = scan only area currently selected in arealist (or open in msglist) */
 UiView ui_search_run(UiApp *app, int scope_all_areas);
 
 #endif

@@ -100,8 +100,7 @@ static FileEnt *load_dir(const char *dir, int *out_n)
     if (h == INVALID_HANDLE_VALUE)
         return NULL;
 
-    /* Always prepend a ".." entry so the user can navigate up, unless
-     * we're already at the root (bare drive "C:\" or "C:/") */
+    /* Always prepend a ".." entry so the user can navigate up, unless at root (bare drive "C:\" or "C:/") */
     int dlen = (int)strlen(dir);
     at_root = (dlen <= 3); /* "C:\" or "C:/" */
 
@@ -123,8 +122,7 @@ static FileEnt *load_dir(const char *dir, int *out_n)
 
     while (n < UI_FILES_MAX_ENTRIES)
     {
-        /* Skip "." and ".." from FindFirstFile -- we already added our
-         * own ".." above, and "." (current dir) is never useful */
+        /* Skip "." and ".." from FindFirstFile, we already added our own ".." above, "." never useful */
         if (strcmp(fd.cFileName, ".") == 0 || strcmp(fd.cFileName, "..") == 0)
         {
             if (!FindNextFileA(h, &fd))
@@ -161,8 +159,7 @@ static FileEnt *load_dir(const char *dir, int *out_n)
 
     FindClose(h);
 #elif defined(PLATFORM_AMIGA)
-    /* AmigaDOS dir walk: Lock() opens path, Examine() inits FIB, ExNext() iterates
-     * fib_DirEntryType >0 = directory, <0 = file */
+    /* AmigaDOS dir walk: Lock() opens path, Examine() inits FIB, ExNext() iterates, fib_DirEntryType >0 = directory, <0 = file */
     lock = Lock((STRPTR)(dir && dir[0] ? dir : ""), ACCESS_READ);
 
     if (!lock)
@@ -176,8 +173,7 @@ static FileEnt *load_dir(const char *dir, int *out_n)
         return NULL;
     }
 
-    /* Examine the directory itself first — required before ExNext(),
-     * and lets us bail early if the path isn't actually a directory */
+    /* Examine the directory itself first, required before ExNext(), bail early if path isn't actually a directory */
     if (!Examine(lock, fib) || fib->fib_DirEntryType <= 0)
     {
         FreeDosObject(DOS_FIB, fib);
@@ -185,14 +181,13 @@ static FileEnt *load_dir(const char *dir, int *out_n)
         return NULL;
     }
 
-    /* Prepend ".." entry unless at volume root (path ends with colon, e.g., "Work:"). */
+    /* Prepend ".." entry unless at volume root (path ends with colon, e.g., "Work:") */
     colon = strchr(dir, ':');
     at_root = 0;
 
     if (!colon)
     {
-        /* No colon — relative path ("" or "subdir")
-         * Treat as not-root so the user can still navigate up */
+        /* No colon, relative path ("" or "subdir"), treat as not-root so user can navigate up */
         at_root = 0;
     }
     else
@@ -254,8 +249,7 @@ static FileEnt *load_dir(const char *dir, int *out_n)
     if (!dp)
         return NULL;
 
-    /* Prepend a synthetic ".." entry so the user can navigate up,
-     * unless we're already at the filesystem root "/" */
+    /* Prepend a synthetic ".." entry so the user can navigate up, unless at filesystem root "/" */
     at_root = (strcmp(dir, "/") == 0);
 
     if (!at_root)
@@ -338,7 +332,7 @@ static FileEnt *load_dir(const char *dir, int *out_n)
     return ents;
 }
 
-/* Navigate to parent directory in-place; handles Windows/POSIX/Amiga paths */
+/* Navigate to parent directory in-place, handles Windows/POSIX/Amiga paths */
 static void path_go_parent(char *path)
 {
     int len, i;
@@ -414,8 +408,7 @@ static int path_append(char *base, int basesz, const char *name)
     return 0;
 }
 
-/* Minimal frame painter: clears interior, draws box, optional title
- * (avoids public draw_popup_frame) */
+/* Minimal frame painter: clears interior, draws box, optional title (avoids public draw_popup_frame) */
 static void draw_frame(int y, int x, int h, int w, const char *title)
 {
     int i, j;

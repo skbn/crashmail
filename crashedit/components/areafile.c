@@ -210,10 +210,13 @@ int areafile_load(AreaList *list, const char *path)
                 {
                     free(ae->name);
                     ae->name = NULL;
+
                     free(ae->path);
                     ae->path = NULL;
+
                     free(ae->aka);
                     ae->aka = NULL;
+
                     continue;
                 }
             }
@@ -359,10 +362,13 @@ int areafile_load(AreaList *list, const char *path)
             {
                 free(ae->description);
                 ae->description = NULL;
+
                 free(ae->path);
                 ae->path = NULL;
+
                 free(ae->aka);
                 ae->aka = NULL;
+
                 continue;
             }
 
@@ -497,9 +503,7 @@ void areafile_refresh_one(AreaEntry *ae, const char *sysop)
     ucrc = jam_username_crc(sysop ? sysop : "");
     jam_read_lastread_pair(&jam, ucrc, &lr, &ls);
 
-    /* Invariant: lastseen never trails lastread. New JAM bases start
-     * with both fields at 0, in which case all messages are "new" -
-     * that's correct: the user hasn't seen the list yet */
+    /* lastseen never trails lastread. New bases start at 0, all messages are new */
     if (ls < lr)
         ls = lr;
 

@@ -102,7 +102,7 @@ static int freq_is_directory(const char *p)
 #endif
 }
 
-/* mkdir_one: create a single directory component. 0 on success. */
+/* mkdir_one: create a single directory component, 0 on success */
 static int freq_mkdir_one(const char *p)
 {
 #ifdef PLATFORM_AMIGA
@@ -128,7 +128,7 @@ static void freq_str_tolower(char *s)
         *s = (char)tolower((unsigned char)*s);
 }
 
-/* NUL-terminated bounded copy. */
+/* NUL-terminated bounded copy */
 static void safe_copy(char *dst, const char *src, int sz)
 {
     int i;
@@ -142,7 +142,7 @@ static void safe_copy(char *dst, const char *src, int sz)
     dst[i] = '\0';
 }
 
-/* Create directory and parents; returns 0 on success, -1 on failure. */
+/* Create directory and parents, 0 on success, -1 on failure */
 static int freq_mkdir_recursive(const char *path)
 {
     char tmp[FREQ_MAX_PATH];
@@ -159,7 +159,7 @@ static int freq_mkdir_recursive(const char *path)
 
     memcpy(tmp, path, len + 1);
 
-    /* Strip a trailing separator so the final mkdir targets the leaf. */
+    /* Strip trailing separator so final mkdir targets leaf */
     if (len > 1 && (tmp[len - 1] == '/' || tmp[len - 1] == '\\'))
         tmp[len - 1] = '\0';
 
@@ -189,7 +189,7 @@ static int freq_mkdir_recursive(const char *path)
     return 0;
 }
 
-/* Reject unsafe filenames (traversal, absolute, separators, control chars). */
+/* Reject unsafe filenames (traversal, absolute, separators, control chars) */
 static int freq_is_safe_filename(const char *name)
 {
     const char *p;

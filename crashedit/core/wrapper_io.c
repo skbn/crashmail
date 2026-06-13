@@ -87,7 +87,7 @@ char *wrapper_read_utf8_ex(JamArea *a, uint32_t msgnum, const char *override_enc
     else
         use_enc = CHARSET_READ_DEFAULT; /* hard-coded last resort */
 
-    /* Report the charset actually used for decoding to the caller */
+    /* Report charset actually used for decoding to caller */
     if (detected_out && detected_sz > 0)
     {
         strncpy(detected_out, use_enc, (size_t)(detected_sz - 1));
@@ -117,7 +117,7 @@ char *wrapper_read_utf8_ex(JamArea *a, uint32_t msgnum, const char *override_enc
 
 char *wrapper_read_utf8(JamArea *a, uint32_t msgnum, char *enc_out)
 {
-    /* Backwards-compatible wrapper. Use _ex to distinguish "no CHRS" from "CHRS UTF-8" */
+    /* Backwards-compatible wrapper, use _ex to distinguish "no CHRS" from "CHRS UTF-8" */
     char detected[CHARSET_NAME_MAX];
     char *body;
 

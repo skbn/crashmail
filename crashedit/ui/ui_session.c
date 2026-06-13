@@ -95,7 +95,7 @@ int ui_session_open(UiApp *app, int area_idx)
     s->area_idx = area_idx;
     s->user_crc = jam_username_crc(app->cfg->sysop);
 
-    /* Load LastReadMsg/HighReadMsg; enforce lastseen >= lastread invariant for ancient bases */
+    /* Load LastReadMsg/HighReadMsg, enforce lastseen >= lastread invariant for ancient bases */
     lr = 0, ls = 0;
     jam_read_lastread_pair(&s->jam, s->user_crc, &lr, &ls);
 
@@ -117,7 +117,7 @@ int ui_session_open(UiApp *app, int area_idx)
         return -1;
     }
 
-    s->msg_count = count; /* may be 0 -- empty area is fine */
+    s->msg_count = count; /* may be 0, empty area is fine */
 
     ui_session_rebuild_order(app);
 

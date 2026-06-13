@@ -31,8 +31,7 @@
 
 /* Pattern matching */
 
-/* Case-insensitive (ASCII) memmem. Returns first match offset in
- * hay or -1. n=length of hay, m=length of needle */
+/* Case-insensitive (ASCII) memmem, returns first match offset in hay or -1 */
 static int memcasestr(const char *hay, int n, const char *needle, int m)
 {
     int i, j;
@@ -119,7 +118,7 @@ SearchSession *search_new(const char *pattern, int search_headers, int search_bo
     if (!s)
         return NULL;
 
-    /* Clamp into 1..HARD_MAX. <=0 means "use the default" */
+    /* Clamp into 1..HARD_MAX, <=0 means use default */
     if (max_hits <= 0)
         max_hits = SEARCH_DEFAULT_MAX;
 
@@ -130,7 +129,7 @@ SearchSession *search_new(const char *pattern, int search_headers, int search_bo
 
     if (!s->hits)
     {
-        /* Couldn't get a buffer that big -- tell the caller */
+        /* Couldn't get buffer that big, tell caller */
         free(s);
         return NULL;
     }
@@ -156,8 +155,7 @@ void search_free(SearchSession *s)
     }
 }
 
-/* Copy at most cap-1 chars + NUL terminator from src into dst
- * src is assumed null-terminated; we just trim */
+/* Copy at most cap-1 chars + NUL from src into dst, src assumed null-terminated */
 static void clip_copy(char *dst, int cap, const char *src)
 {
     int i = 0;
@@ -174,7 +172,7 @@ static void clip_copy(char *dst, int cap, const char *src)
     dst[i] = '\0';
 }
 
-/* Append one hit to the session. Returns 1 if added, 0 if cap hit */
+/* Append one hit to session, 1 if added, 0 if cap hit */
 static int record_hit(SearchSession *s, int area_idx, const JamMsgInfo *msg, uint16_t flags)
 {
     SearchHit *h;

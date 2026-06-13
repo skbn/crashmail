@@ -61,7 +61,7 @@ static void refresh_subject_if_editing(UiApp *app)
     {
         size_t n = mbstowcs(wsubj, subject_str, len + 1);
 
-        /* mbstowcs failed; salvage ASCII subset to avoid garbage */
+        /* mbstowcs failed, salvage ASCII subset to avoid garbage */
         if (n == (size_t)-1)
         {
             size_t i;
@@ -76,7 +76,7 @@ static void refresh_subject_if_editing(UiApp *app)
         }
         else
         {
-            /* Ensure NUL termination; mbstowcs doesn't guarantee it on exact fit */
+            /* Ensure NUL termination, mbstowcs doesn't guarantee it on exact fit */
             wsubj[len] = L'\0';
         }
 
@@ -182,7 +182,7 @@ int ui_popup_attach_remove(UiApp *app)
             {
                 ui_status(app, "Attachment removed");
 
-                /* Stay for multiple removals; re-clamp cursor, exit when empty */
+                /* Stay for multiple removals, re-clamp cursor, exit when empty */
                 if (app->attach_list->count == 0)
                     return 1;
 

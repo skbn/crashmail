@@ -33,7 +33,7 @@
 /* FTS-1 subject line length limit (71 chars, as used by golded-plus) */
 #define ATTACH_SUBJ_LIMIT 71
 
-/* Whether the list represents file-attach or file-request messages */
+/* Whether list represents file-attach or file-request messages */
 typedef enum
 {
     ATTACH_MODE_ATTACH = 0,
@@ -61,13 +61,11 @@ int attach_add(AttachList *list, const char *path);
 int attach_remove(AttachList *list, int index);
 void attach_clear(AttachList *list);
 
-/* Mode getters/setters (does not affect entries, only the JAMATTR flag) */
+/* Mode getters/setters (does not affect entries, only JAMATTR flag) */
 void attach_set_mode(AttachList *list, AttachMode mode);
 AttachMode attach_get_mode(const AttachList *list);
 
-/* Subject parsing/building: build_subject returns all filenames joined (no limit);
- * build_subjects splits into ATTACH_SUBJ_LIMIT-capped subjects, caller frees with
- * attach_free_subjects */
+/* Subject parsing/building: build_subject returns all filenames joined, build_subjects splits into limit-capped subjects */
 int attach_parse_from_subject(AttachList *list, const char *subject);
 char *attach_build_subject(const AttachList *list);
 

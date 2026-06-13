@@ -75,7 +75,7 @@ static const char *sort_preset_labels[] =
 #define SORT_PRESETS_N ((int)(sizeof(sort_preset_specs) / sizeof(sort_preset_specs[0])))
 
 /* Common: centered window helper */
-void draw_popup_frame(int y, int x, int h, int w, const char *title)
+void ui_draw_popup_frame(int y, int x, int h, int w, const char *title)
 {
     int i, j;
 
@@ -140,7 +140,7 @@ int ui_popup_confirm(const char *title, const char *msg)
 
     ui_popup_center(7, want_w, &y, &x, &h, &w);
 
-    draw_popup_frame(y, x, h, w, title ? title : "Confirm");
+    ui_draw_popup_frame(y, x, h, w, title ? title : "Confirm");
     attron(COLOR_PAIR(COL_POPUP));
 
     mvaddnstr(y + 2, x + 2, msg ? msg : "", w - 4);
@@ -177,7 +177,7 @@ void ui_popup_message(const char *title, const char *msg)
 
     ui_popup_center(7, want_w, &y, &x, &h, &w);
 
-    draw_popup_frame(y, x, h, w, title ? title : "Message");
+    ui_draw_popup_frame(y, x, h, w, title ? title : "Message");
     attron(COLOR_PAIR(COL_POPUP));
 
     mvaddnstr(y + 2, x + 2, msg ? msg : "", w - 4);
@@ -201,7 +201,7 @@ int ui_popup_confirm_all(const char *title, const char *msg)
         want_w = 48;
 
     ui_popup_center(7, want_w, &y, &x, &h, &w);
-    draw_popup_frame(y, x, h, w, title ? title : "Confirm");
+    ui_draw_popup_frame(y, x, h, w, title ? title : "Confirm");
 
     attron(COLOR_PAIR(COL_POPUP));
     mvaddnstr(y + 2, x + 2, msg ? msg : "", w - 4);
@@ -279,7 +279,7 @@ int ui_popup_list(const char *title, const char **items, int count, int initial)
             top = 0;
 
         standend(); /* Clear any residual attributes from previous iteration */
-        draw_popup_frame(y, x, h, w, title ? title : "Select");
+        ui_draw_popup_frame(y, x, h, w, title ? title : "Select");
         attron(COLOR_PAIR(COL_POPUP));
 
         /* Show scroll indicators if needed */
@@ -484,7 +484,7 @@ int ui_popup_charset_pair(const char *view_in, const char *output_in, const char
         const char *cur_label;
 
         standend(); /* Clear any residual attributes from previous iteration */
-        draw_popup_frame(y, x, h, w, "Charsets");
+        ui_draw_popup_frame(y, x, h, w, "Charsets");
         attron(COLOR_PAIR(COL_POPUP));
 
         for (i = 0; i < 2; i++)
@@ -822,7 +822,7 @@ static int popup_input_core(const char *title, const char *prompt, wchar_t *wbuf
     {
         int i;
 
-        draw_popup_frame(y, x, h, w, title ? title : "Input");
+        ui_draw_popup_frame(y, x, h, w, title ? title : "Input");
         attron(COLOR_PAIR(COL_POPUP));
 
         if (prompt)
@@ -1040,7 +1040,7 @@ int ui_popup_search_results(const char *title, const int *line_nums, const char 
     for (;;)
     {
         standend(); /* Clear any residual attributes from previous iteration */
-        draw_popup_frame(y, x, h, w, title ? title : "Search Results");
+        ui_draw_popup_frame(y, x, h, w, title ? title : "Search Results");
         attron(COLOR_PAIR(COL_POPUP));
 
         /* Show scroll indicators if needed */
@@ -1218,7 +1218,7 @@ void ui_popup_help(const char *title, const char *const *lines, int n)
         int ch;
 
         standend(); /* Clear any residual attributes from previous iteration */
-        draw_popup_frame(y, x, h, w, title ? title : "Help");
+        ui_draw_popup_frame(y, x, h, w, title ? title : "Help");
         attron(COLOR_PAIR(COL_POPUP));
 
         for (i = 0; i < visible && top + i < n; i++)
@@ -1333,7 +1333,7 @@ int ui_popup_replace(const wchar_t *search_in, const wchar_t *replace_in, wchar_
         int i;
 
         standend(); /* Clear any residual attributes from previous iteration */
-        draw_popup_frame(y, x, h, w, "Find & Replace");
+        ui_draw_popup_frame(y, x, h, w, "Find & Replace");
         attron(COLOR_PAIR(COL_POPUP));
 
         /* Draw search field */

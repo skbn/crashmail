@@ -59,16 +59,13 @@ int utf8_to_charset(const char *cs, const char *src, int srclen, char *dst, int 
 wchar_t *utf8_to_wcs(const char *utf8, int *out_len);
 char *wcs_to_utf8(const wchar_t *wcs, int len);
 
-/* Single-byte charset to Unicode (0x00-0x7F pass-through). NOT for UTF-8 */
+/* Single-byte charset to Unicode (0x00-0x7F pass-through), NOT for UTF-8 */
 uint32_t charset_byte_to_unicode(const char *charset, unsigned char byte);
 
 /* Case-insensitive substring search for wchar_t (returns pointer or NULL, empty needle returns hay) */
 const wchar_t *wcs_casestr(const wchar_t *hay, const wchar_t *needle);
 
-/* wcswidth implementation based on Markus Kuhn's wcwidth.c
- * https://www.cl.cam.ac.uk/~mgk25/ucs/wcwidth.c
- * Returns number of column positions needed for wide-character string
- * Compatible with POSIX.1-2001 standard for Unicode terminal display */
+/* wcswidth implementation based on Markus Kuhn's wcwidth.c, returns column positions for wide-character string, POSIX.1-2001 compatible */
 #if (defined(PLATFORM_AMIGA) || defined(PLATFORM_WIN32)) && !defined(wcswidth)
 int wcswidth(const wchar_t *wcs, size_t n);
 #endif

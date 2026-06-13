@@ -55,8 +55,7 @@ typedef struct
     AreaEntry *entries; /* Dynamically allocated */
 } AreaList;
 
-/* Load areas from areas file
- * Returns number of areas loaded, 0 on error */
+/* Load areas from file, returns count or 0 on error */
 int areafile_load(AreaList *list, const char *path);
 void areafile_calculate_counts(AreaList *list, const char *sysop);
 void areafile_refresh_one(AreaEntry *ae, const char *sysop);
