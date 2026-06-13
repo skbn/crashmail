@@ -33,7 +33,7 @@
 #include "../wrapper.h"
 #include <wchar.h>
 
-#ifdef PLATFORM_AMIGA &&defined(AMIGA_TTF_TE)
+#if defined(PLATFORM_AMIGA) && defined(AMIGA_TTF_TE)
 #include "../ncursesw_amiga_te.h"
 #elif defined(PLATFORM_AMIGA)
 #include "../ncursesw_amiga.h"
