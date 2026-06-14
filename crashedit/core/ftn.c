@@ -1384,7 +1384,7 @@ char *ftn_apply_signature(const char *origin, const char *tearline, const char *
     {
         strcat(out, "\n... ");
         strcat(out, tag);
-        strcat(out, "\n\n");
+        strcat(out, "\n");
     }
 
     free(tag);
