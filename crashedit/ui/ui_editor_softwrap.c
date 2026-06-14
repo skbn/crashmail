@@ -17,6 +17,9 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ *
+ * This program uses JAMLIB, which is licensed under the GNU Lesser
+ * General Public License v2.1. See src/jamlib/LICENSE for details.
  */
 
 #include "ui_editor_softwrap.h"
