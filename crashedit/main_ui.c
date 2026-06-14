@@ -29,8 +29,13 @@ const char __attribute__((used)) binkd_stack_size[] = "$STACK:65536";
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include "wrapper.h"
 #include "ui/ui.h"
+
+#if !defined(PLATFORM_WIN32) && !defined(PLATFORM_AMIGA)
+#include <unistd.h>
+#endif
 
 #ifdef PLATFORM_AMIGA
 #include <proto/exec.h>
@@ -43,10 +48,20 @@ int main(int argc, char *argv[])
     AreaList areas;
     UiApp *app;
     const char *cfgfile;
+    unsigned int seed;
 
 #ifdef PLATFORM_AMIGA
     IFFParseBase = OpenLibrary("iffparse.library", 37L);
 #endif
+
+    /* Initialize random seed for tagline selection */
+    seed = (unsigned int)time(NULL);
+#if !defined(PLATFORM_WIN32) && !defined(PLATFORM_AMIGA)
+    seed ^= (unsigned int)getpid();
+#elif defined(PLATFORM_WIN32)
+    seed ^= (unsigned int)GetCurrentProcessId();
+#endif
+    srand(seed);
 
     if (argc < 2)
     {

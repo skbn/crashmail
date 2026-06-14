@@ -1286,25 +1286,9 @@ char *ftn_random_tagline(const char *path)
 
     if (count > 0)
     {
-        /* Pseudo-random pick with mixed entropy to avoid collisions */
-        unsigned long seed = (unsigned long)time(NULL);
-        seed ^= (unsigned long)(uintptr_t)&seed;
-        seed ^= (unsigned long)count * 2654435761UL; /* Knuth multiplier */
+        /* Random pick using rand() (seed initialized in main) */
+        int idx = rand() % count;
 
-        if (path)
-        {
-            const unsigned char *u = (const unsigned char *)path;
-            while (*u)
-            {
-                seed = seed * 31u + *u++;
-            }
-        }
-
-#if !defined(PLATFORM_WIN32) && !defined(PLATFORM_AMIGA)
-        seed ^= (unsigned long)getpid() * 16807UL;
-#endif
-
-        int idx = (int)(seed % (unsigned long)count);
         out = lines[idx];
         lines[idx] = NULL;
     }
