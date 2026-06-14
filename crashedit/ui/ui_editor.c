@@ -78,7 +78,6 @@ static const char *EDITOR_HELP[] =
 #endif
         "    Ctrl+Left/Right Word movement",
         "    Ctrl-W          Rewrap paragraph",
-        "    Alt+W           Toggle hard-wrap",
         "    Alt+Q           Toggle wrap mode",
         "    Alt+D           Toggle line numbers",
         "",
@@ -374,35 +373,6 @@ static int handle_function_keys(UiApp *app, int ch, int is_key)
         return 1;
     }
 
-    /* Alt+W : toggle hard-wrap with rewrap option */
-    if (ch == KEY_ALT('W'))
-    {
-        if (app->cfg->hard_wrap == 0)
-        {
-            /* Changing from soft to hard: ask if user wants to rewrap */
-            char msg[128];
-
-            snprintf(msg, sizeof(msg), "Convert document to hard-wrap at column %d?", app->cfg->autowrap_col);
-
-            if (ui_popup_confirm("Hard Wrap", msg) == 1)
-            {
-                ed_rewrap_document(app->editor, app->cfg->autowrap_col);
-                app->cfg->hard_wrap = 1;
-                ed_set_hard_wrap(app->editor, 1);
-                ui_status(app, "Hard wrap: ON (rewrapped)");
-            }
-        }
-        else
-        {
-            /* Changing from hard to soft: just toggle without asking */
-            app->cfg->hard_wrap = 0;
-            ed_set_hard_wrap(app->editor, 0);
-            ui_status(app, "Hard wrap: OFF");
-        }
-
-        return 1;
-    }
-
     /* Alt+Q : toggle wrapmode */
     if (ch == KEY_ALT('Q'))
     {
@@ -451,30 +421,41 @@ static int handle_control_keys(UiApp *app, int ch, int is_key)
     /* Ctrl+V : paste */
     if (!is_key && ch == CTRL('V'))
     {
-        char *clip = clipboard_paste();
+        char *clip = NULL;
 
-        /* Try internal block (filled by Ctrl+C/X) first */
-        if (app->edit_active_field == EF_BODY && ed_block_paste(app->editor) == 0)
+        /* On Amiga/Windows, always use external clipboard. On Unix, use external only if not in SSH session */
+        if (clipboard_use_external())
         {
-            reset_search(app);
-            ui_status(app, "Pasted");
+            clip = clipboard_paste();
+
+            if (!clip || !clip[0])
+            {
+                ui_status(app, "Clipboard: empty or no backend (install xclip/wl-clipboard, or check clipboard.device)");
+                free(clip);
+
+                return 1;
+            }
+
+            deliver_paste(app, clip);
             free(clip);
 
             return 1;
         }
-
-        if (!clip || !clip[0])
+        else
         {
-            ui_status(app, "Clipboard: empty or no backend (install xclip/wl-clipboard, or check clipboard.device)");
-            free(clip);
-
-            return 1;
+            /* SSH/headless: use internal block only */
+            if (app->edit_active_field == EF_BODY && ed_block_paste(app->editor) == 0)
+            {
+                reset_search(app);
+                ui_status(app, "Pasted (internal block)");
+                return 1;
+            }
+            else
+            {
+                ui_status(app, "No internal block to paste (external clipboard unavailable in SSH)");
+                return 1;
+            }
         }
-
-        deliver_paste(app, clip);
-        free(clip);
-
-        return 1;
     }
 
     /* Ctrl+C : block copy */
@@ -489,13 +470,18 @@ static int handle_control_keys(UiApp *app, int ch, int is_key)
 
             if (ed_block_copy(app->editor) == 0)
             {
-                if (block_utf8)
+                /* Copy to external clipboard if available */
+                if (clipboard_use_external() && block_utf8)
                 {
                     clipboard_copy(block_utf8);
-                    free(block_utf8);
+                    ui_status(app, "Block copied to clipboard");
+                }
+                else
+                {
+                    ui_status(app, "Block copied (internal only)");
                 }
 
-                ui_status(app, "Block copied");
+                free(block_utf8);
             }
             else
                 free(block_utf8);
@@ -518,13 +504,18 @@ static int handle_control_keys(UiApp *app, int ch, int is_key)
             {
                 reset_search(app);
 
-                if (block_utf8)
+                /* Copy to external clipboard if available */
+                if (clipboard_use_external() && block_utf8)
                 {
                     clipboard_copy(block_utf8);
-                    free(block_utf8);
+                    ui_status(app, "Block cut to clipboard");
+                }
+                else
+                {
+                    ui_status(app, "Block cut (internal only)");
                 }
 
-                ui_status(app, "Block cut");
+                free(block_utf8);
             }
             else
                 free(block_utf8);

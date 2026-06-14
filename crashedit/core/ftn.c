@@ -376,8 +376,8 @@ void ftn_extract_kludges(const char *body, char **ko, char **co)
         return;
 
     blen = strlen(body);
-    kb = (char *)malloc(blen + 1);
-    cb = (char *)malloc(blen + 1);
+    kb = (char *)malloc(blen + 2);
+    cb = (char *)malloc(blen + 2);
 
     if (!kb || !cb)
     {
