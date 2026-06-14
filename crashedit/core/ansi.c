@@ -196,7 +196,10 @@ static int row_ensure_cap(AnsiRow *r, int need)
         wchar_t *shrink = (wchar_t *)realloc(r->wcs, (size_t)old_cap * sizeof(wchar_t));
 
         if (shrink || old_cap == 0)
+        {
             r->wcs = shrink;
+            r->cap = old_cap;
+        }
 
         return -1;
     }

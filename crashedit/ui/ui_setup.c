@@ -470,6 +470,7 @@ static void st_edit_field(CrashEditCfg *w, const SetupField *fld)
         else if (strcmp(fld->label, "Freq outbound dir") == 0)
         {
             char tmp[CFG_STR_MAX];
+
             strncpy(tmp, s, sizeof(tmp) - 1);
             tmp[sizeof(tmp) - 1] = '\0';
 

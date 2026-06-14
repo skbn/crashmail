@@ -439,12 +439,19 @@ int ed_search_all_custom(Ed *ed, const wchar_t *needle, int case_sensitive, int 
 
                         capacity *= 2;
                         new_rows = realloc(*out_rows, capacity * sizeof(int));
+
+                        if (!new_rows)
+                        {
+                            *out_rows = *out_cols = NULL;
+                            return 0;
+                        }
+
                         new_cols = realloc(*out_cols, capacity * sizeof(int));
 
-                        if (!new_rows || !new_cols)
+                        if (!new_cols)
                         {
                             free(new_rows);
-                            free(new_cols);
+
                             *out_rows = *out_cols = NULL;
                             return 0;
                         }

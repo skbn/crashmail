@@ -98,6 +98,19 @@ char *wrap_paste_text(const char *utf8, int col)
         {
             if (out_len < out_cap)
                 out[out_len++] = L'\n';
+            else
+            {
+                /* Buffer full: need to expand */
+                int new_cap = out_cap * 2;
+                wchar_t *new_out = (wchar_t *)realloc(out, (size_t)new_cap * sizeof(wchar_t));
+
+                if (!new_out)
+                    break; /* Cannot expand, discard remaining */
+
+                out = new_out;
+                out_cap = new_cap;
+                out[out_len++] = L'\n';
+            }
 
             line_start = out_len;
             last_space = -1;
@@ -115,6 +128,19 @@ char *wrap_paste_text(const char *utf8, int col)
 
         if (out_len < out_cap)
             out[out_len++] = ch;
+        else
+        {
+            /* Buffer full: need to expand */
+            int new_cap = out_cap * 2;
+            wchar_t *new_out = (wchar_t *)realloc(out, (size_t)new_cap * sizeof(wchar_t));
+
+            if (!new_out)
+                break; /* Cannot expand, discard remaining */
+
+            out = new_out;
+            out_cap = new_cap;
+            out[out_len++] = ch;
+        }
 
         if (ch == L' ' || ch == L'\t')
             last_space = out_len - 1;
