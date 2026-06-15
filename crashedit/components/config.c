@@ -1292,22 +1292,6 @@ int cfg_save(const CrashEditCfg *cfg, const char *path)
     KV_STR("TTF_ANTIALIAS", aa_str);
     KV_YN("TTF_USE_UTF8", cfg->ttf_use_utf8);
 
-    /* TTF fallbacks: one per non-empty slot, with size override */
-    for (fi = 0; fi < CFG_TTF_FALLBACKS; fi++)
-    {
-        if (cfg->ttf_fallback[fi][0])
-        {
-            snprintf(keybuf, sizeof(keybuf), "TTF_FALLBACK%d", fi + 1);
-            KV_STR(keybuf, cfg->ttf_fallback[fi]);
-
-            if (cfg->ttf_fallback_size[fi] > 0)
-            {
-                snprintf(keybuf, sizeof(keybuf), "TTF_FALLBACK_SIZE%d", fi + 1);
-                KV_INT(keybuf, cfg->ttf_fallback_size[fi]);
-            }
-        }
-    }
-
     /* Cursor and background colors */
     if (cfg->cursor_color_rgb[0])
         KV_STR("CURSORCOLOR", cfg->cursor_color_rgb);
@@ -1365,12 +1349,22 @@ int cfg_save(const CrashEditCfg *cfg, const char *path)
             if (cfg->color_map_initialized && strcasecmp(word, "COLORMAP") == 0)
                 continue; /* drop; will re-emit below */
 
+            /* Skip TTF_FALLBACK lines - they will be rewritten at the end with fprintf */
+            if (strncasecmp(word, "TTF_FALLBACK", 12) == 0)
+                continue;
+
             for (i = 0; i < nkv; i++)
             {
                 if (!kv[i].done && strcasecmp(word, kv[i].key) == 0)
                 {
                     cfg_emit(out, kv[i].key, kv[i].val);
                     kv[i].done = 1;
+                    matched = 1;
+                    break;
+                }
+                else if (kv[i].done && strcasecmp(word, kv[i].key) == 0)
+                {
+                    /* Skip duplicate lines for keys already processed */
                     matched = 1;
                     break;
                 }
@@ -1404,6 +1398,18 @@ int cfg_save(const CrashEditCfg *cfg, const char *path)
         {
             fprintf(out, "COLORMAP %s %d\n", cmap_names[ci],
                     cfg->color_map[ci]);
+        }
+    }
+
+    /* TTF fallbacks: write directly with fprintf to avoid KV system bugs */
+    for (fi = 0; fi < CFG_TTF_FALLBACKS; fi++)
+    {
+        if (cfg->ttf_fallback[fi][0])
+        {
+            fprintf(out, "TTF_FALLBACK%d %s\n", fi + 1, cfg->ttf_fallback[fi]);
+
+            if (cfg->ttf_fallback_size[fi] > 0)
+                fprintf(out, "TTF_FALLBACK_SIZE%d %d\n", fi + 1, cfg->ttf_fallback_size[fi]);
         }
     }
 

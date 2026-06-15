@@ -447,14 +447,134 @@ static void st_edit_field(CrashEditCfg *w, const SetupField *fld)
     {
         char *s = base + fld->off;
 
-        /* File fields: use file picker */
-        if (strcmp(fld->label, "Area file") == 0 ||
-            strcmp(fld->label, "Tagline file") == 0 ||
-            strcmp(fld->label, "Template file") == 0 ||
-            strcmp(fld->label, "Font") == 0 ||
-            strcmp(fld->label, "ANSI font") == 0 ||
-            strcmp(fld->label, "TTF font") == 0 ||
-            strncmp(fld->label, "Fallback", 8) == 0)
+        /* Special case: Font field allows TAB toggle between Memory and File modes */
+        if (strcmp(fld->label, "Font") == 0)
+        {
+            char tmp[CFG_STR_MAX];
+            int use_file_mode = 0; /* 0 = Memory (text input), 1 = File (file picker) */
+            int key;
+
+            strncpy(tmp, s, sizeof(tmp) - 1);
+            tmp[sizeof(tmp) - 1] = '\0';
+
+            /* Check if current value looks like a path (contains /, \, or :) */
+            if (strchr(tmp, '/') || strchr(tmp, '\\') || strchr(tmp, ':'))
+                use_file_mode = 1;
+
+            /* Show mode selection popup */
+            for (;;)
+            {
+                int y;
+                int x;
+                int h;
+                int w;
+                int i;
+
+                ui_popup_center(9, 50, &y, &x, &h, &w);
+
+                ui_draw_popup_frame(y, x, h, w, fld->label);
+                attron(COLOR_PAIR(COL_POPUP));
+
+                mvaddnstr(y + 2, x + 2, "Select font source:", w - 4);
+
+                /* Memory option */
+                if (!use_file_mode)
+                    attron(COLOR_PAIR(COL_POPUP_SEL));
+
+                mvaddnstr(y + 4, x + 4, "[ Memory ]  Type font name directly", w - 8);
+
+                if (!use_file_mode)
+                    attroff(COLOR_PAIR(COL_POPUP_SEL));
+
+                /* File option */
+                if (use_file_mode)
+                    attron(COLOR_PAIR(COL_POPUP_SEL));
+
+                mvaddnstr(y + 5, x + 4, "[ File   ]  Select from disk", w - 8);
+
+                if (use_file_mode)
+                    attroff(COLOR_PAIR(COL_POPUP_SEL));
+
+                /* Status */
+                attron(COLOR_PAIR(COL_STATUS));
+
+                for (i = 0; i < w - 4; i++)
+                    mvaddch(y + h - 2, x + 2 + i, ' ');
+
+                mvaddnstr(y + h - 2, x + 2, "Up/Dn=select  Enter=confirm  ESC=cancel", w - 4);
+
+                attroff(COLOR_PAIR(COL_STATUS));
+                attroff(COLOR_PAIR(COL_POPUP));
+
+                refresh();
+                key = wrapper_getch();
+
+                if (key == 27) /* ESC */
+                    break;
+
+                if (key == KEY_UP || key == KEY_DOWN)
+                {
+                    use_file_mode = !use_file_mode;
+                    continue;
+                }
+
+                if (key == '\n' || key == '\r' || key == KEY_ENTER)
+                {
+                    if (use_file_mode)
+                    {
+                        /* File mode: use file picker */
+                        if (ui_files_pick(fld->label, NULL, tmp, sizeof(tmp)) == 0)
+                        {
+                            strncpy(s, tmp, CFG_STR_MAX - 1);
+                            s[CFG_STR_MAX - 1] = '\0';
+                        }
+                    }
+                    else
+                    {
+                        /* Memory mode: text input */
+                        wchar_t wtmp[CFG_STR_MAX];
+                        wchar_t *w_initial = utf8_to_wcs(tmp, NULL);
+                        int cap = CFG_STR_MAX;
+
+                        wtmp[0] = L'\0';
+
+                        if (w_initial)
+                        {
+                            wcsncpy(wtmp, w_initial, (size_t)(cap - 1));
+                            wtmp[cap - 1] = L'\0';
+                            free(w_initial);
+                        }
+
+                        if (ui_popup_input(fld->label, "Font name:", wtmp, cap) == 0)
+                        {
+                            char *u = wcs_to_utf8(wtmp, (int)wcslen(wtmp));
+
+                            if (u)
+                            {
+                                size_t n = strlen(u);
+
+                                if (n >= (size_t)cap)
+                                    n = cap - 1;
+
+                                memcpy(s, u, n);
+
+                                s[n] = '\0';
+
+                                free(u);
+                            }
+                        }
+                    }
+                    break;
+                }
+            }
+        }
+        /* Other file fields: use file picker directly */
+        else if (strcmp(fld->label, "Area file") == 0 ||
+                 strcmp(fld->label, "Tagline file") == 0 ||
+                 strcmp(fld->label, "Template file") == 0 ||
+                 strcmp(fld->label, "ANSI font") == 0 ||
+                 strcmp(fld->label, "TTF font") == 0 ||
+                 strncmp(fld->label, "Fallback", 8) == 0)
         {
             char tmp[CFG_STR_MAX];
             strncpy(tmp, s, sizeof(tmp) - 1);
@@ -733,6 +853,34 @@ static void st_edit_field(CrashEditCfg *w, const SetupField *fld)
 
         break;
     }
+    }
+}
+
+/* Clear one field (for DELETE key) - only works on FT_STR, FT_INT, FT_TZ, FT_COLORMAP */
+static void st_clear_field(CrashEditCfg *w, const SetupField *fld)
+{
+    char *base = (char *)w;
+
+    switch (fld->type)
+    {
+    case FT_STR:
+    case FT_STR_AUTO:
+    {
+        char *s = base + fld->off;
+        s[0] = '\0'; /* Empty string */
+        break;
+    }
+    case FT_INT:
+    case FT_TZ:
+    case FT_COLORMAP:
+    {
+        int *v = (int *)(base + fld->off);
+        *v = 0; /* Zero as default */
+        break;
+    }
+    /* FT_TRI, FT_BOOL, FT_TZAUTO, FT_MODE, FT_CYCLE, FT_COLORPAIR: ignore DELETE */
+    default:
+        break;
     }
 }
 
@@ -1027,6 +1175,22 @@ int ui_setup_run(UiApp *app)
             if (gi >= 0)
             {
                 st_edit_field(&work, &st_fields[gi]);
+                dirty = 1;
+            }
+
+            continue;
+        }
+
+        /* DELETE key: clear field (only for FT_STR, FT_INT, FT_TZ, FT_COLORMAP) */
+        if (key == KEY_DC)
+        {
+            int gi = st_field_on_tab(tab, sel);
+
+            if (gi >= 0 && (st_fields[gi].type == FT_STR || st_fields[gi].type == FT_STR_AUTO ||
+                            st_fields[gi].type == FT_INT || st_fields[gi].type == FT_TZ ||
+                            st_fields[gi].type == FT_COLORMAP))
+            {
+                st_clear_field(&work, &st_fields[gi]);
                 dirty = 1;
             }
 
