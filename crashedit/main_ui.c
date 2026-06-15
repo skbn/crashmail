@@ -37,6 +37,10 @@ const char __attribute__((used)) binkd_stack_size[] = "$STACK:65536";
 #include <unistd.h>
 #endif
 
+#ifdef PLATFORM_WIN32
+#include <windows.h> /* para GetCurrentProcessId */
+#endif
+
 #ifdef PLATFORM_AMIGA
 #include <proto/exec.h>
 extern struct Library *IFFParseBase;
