@@ -33,6 +33,8 @@
 #include "../wrapper.h"
 #include <wchar.h>
 
+#define SEARCH_PATTERN_MAX 256
+
 #if defined(PLATFORM_AMIGA) && defined(AMIGA_TTF_TE)
 #include "../ncursesw_amiga_te.h"
 #elif defined(PLATFORM_AMIGA)
@@ -225,11 +227,12 @@ struct UiApp
 
     int msglist_overlay_from_reader; /* 1 = msglist shown over reader; ESC returns to reader */
 
-    int search_opt_headers;   /* 1=search headers */
-    int search_opt_body;      /* 1=search body */
-    int search_opt_all_areas; /* 1=all areas */
-    int search_opt_case;      /* 1=case sensitive */
-    int search_opt_whole;     /* 1=whole word */
+    char search_opt_pattern[SEARCH_PATTERN_MAX]; /* last search pattern */
+    int search_opt_headers;                      /* 1=search headers */
+    int search_opt_body;                         /* 1=search body */
+    int search_opt_all_areas;                    /* 1=all areas */
+    int search_opt_case;                         /* 1=case sensitive */
+    int search_opt_whole;                        /* 1=whole word */
 
     void *search;
     void *search_runs;
@@ -337,5 +340,9 @@ void ui_popup_center(int want_h, int want_w, int *y, int *x, int *h, int *w);
 
 /* Draw popup frame (used by ui_glyph_picker) */
 void draw_popup_frame(int y, int x, int h, int w, const char *title);
+
+void input_draw(InputState *state, int y, int x, int width, int is_active);
+void input_move_cursor(InputState *state, int y, int x, int width);
+int input_handle_key(InputState *state, int ch);
 
 #endif /* UI_INTERNAL_H */

@@ -130,17 +130,23 @@ static int search_params_popup(UiApp *app, char *pattern, int patternsz, int *op
     int want_w = 64, want_h = 15;
     int rc;
     int field = 0; /* 0=pattern, 1=hdr, 2=body, 3=scope, 4=maxhits, 5=case, 6=whole */
-    char inbuf[SEARCH_PATTERN_MAX];
+    wchar_t inbuf[SEARCH_PATTERN_MAX];
+    InputState pat_state;
     char maxbuf[16];
     int cx;
+    int k;
 
-    inbuf[0] = '\0';
+    inbuf[0] = L'\0';
 
     if (pattern && pattern[0])
-    {
-        strncpy(inbuf, pattern, sizeof(inbuf) - 1);
-        inbuf[sizeof(inbuf) - 1] = '\0';
-    }
+        mbstowcs(inbuf, pattern, SEARCH_PATTERN_MAX - 1);
+
+    inbuf[SEARCH_PATTERN_MAX - 1] = L'\0';
+
+    pat_state.buf = inbuf;
+    pat_state.bufsz = SEARCH_PATTERN_MAX;
+    pat_state.len = (int)wcslen(inbuf);
+    pat_state.cursor = pat_state.len;
 
     snprintf(maxbuf, sizeof(maxbuf), "%d", *opt_max > 0 ? *opt_max : SEARCH_DEFAULT_MAX);
     maxbuf[sizeof(maxbuf) - 1] = '\0';
@@ -154,8 +160,7 @@ static int search_params_popup(UiApp *app, char *pattern, int patternsz, int *op
         wint_t wch;
         const char *t;
         int tl, tx;
-        int fieldx, fieldw, k;
-        int len;
+        int fieldx, fieldw;
 
         wipe_background();
 
@@ -179,21 +184,13 @@ static int search_params_popup(UiApp *app, char *pattern, int patternsz, int *op
         row = y + 2;
 
         /* Pattern row */
+        attron(COLOR_PAIR(COL_POPUP));
         mvaddnstr(row, x + 2, "Pattern:", 8);
 
         fieldx = x + 12;
         fieldw = w - 14;
 
-        if (field == 0)
-            attron(COLOR_PAIR(COL_POPUP_SEL));
-
-        for (k = 0; k < fieldw; k++)
-            mvaddch(row, fieldx + k, ' ');
-
-        mvaddnstr(row, fieldx, inbuf, fieldw);
-
-        if (field == 0)
-            attroff(COLOR_PAIR(COL_POPUP_SEL));
+        input_draw(&pat_state, row, fieldx, fieldw, field == 0);
 
         attron(COLOR_PAIR(COL_POPUP));
 
@@ -285,7 +282,7 @@ static int search_params_popup(UiApp *app, char *pattern, int patternsz, int *op
 
         attron(COLOR_PAIR(COL_POPUP));
 
-        /* Footer - clear area first to apply popup background */
+        /* Footer */
         for (k = 0; k < w - 4; k++)
             mvaddch(y + h - 2, x + 2 + k, ' ');
 
@@ -293,15 +290,10 @@ static int search_params_popup(UiApp *app, char *pattern, int patternsz, int *op
 
         attroff(COLOR_PAIR(COL_POPUP));
 
-        /* Position cursor in the focused text field */
+        /* Cursor */
         if (field == 0)
         {
-            cx = x + 12 + (int)strlen(inbuf);
-
-            if (cx >= x + w - 2)
-                cx = x + w - 3;
-
-            move(y + 2, cx);
+            input_move_cursor(&pat_state, y + 2, x + 12, w - 14);
             curs_set(1);
         }
         else if (field == 4)
@@ -330,26 +322,20 @@ static int search_params_popup(UiApp *app, char *pattern, int patternsz, int *op
 
         if ((wch == '\n' || wch == '\r' || wch == KEY_ENTER))
         {
-            if (!inbuf[0])
-            {
-                /* Require non-empty pattern */
+            if (pat_state.len == 0)
                 continue;
-            }
 
             if (!*opt_headers && !*opt_body)
-            {
-                /* Default to headers if no fields selected */
                 *opt_headers = 1;
-            }
 
-            /* Parse max-hits; <=0 uses default */
             *opt_max = atoi(maxbuf);
 
             if (*opt_max < 0)
                 *opt_max = 0;
 
-            strncpy(pattern, inbuf, (size_t)(patternsz - 1));
+            wcstombs(pattern, inbuf, (size_t)(patternsz - 1));
             pattern[patternsz - 1] = '\0';
+
             curs_set(0);
 
             return 0;
@@ -371,38 +357,21 @@ static int search_params_popup(UiApp *app, char *pattern, int patternsz, int *op
         switch (field)
         {
         case 0:
-            /* Pattern editing */
-            if (wch == KEY_BACKSPACE || wch == 8 || wch == 127)
-            {
-                len = (int)strlen(inbuf);
-
-                if (len > 0)
-                    inbuf[len - 1] = '\0';
-            }
-            else if (wch >= 0x20 && wch < 0x7f)
-            {
-                len = (int)strlen(inbuf);
-
-                if (len + 1 < (int)sizeof(inbuf))
-                {
-                    inbuf[len] = (char)wch;
-                    inbuf[len + 1] = '\0';
-                }
-            }
+            input_handle_key(&pat_state, (int)wch);
             break;
 
         case 4:
             /* Max-hits: digits only, max 7 chars */
             if (wch == KEY_BACKSPACE || wch == 8 || wch == 127)
             {
-                len = (int)strlen(maxbuf);
+                int len = (int)strlen(maxbuf);
 
                 if (len > 0)
                     maxbuf[len - 1] = '\0';
             }
             else if (wch >= '0' && wch <= '9')
             {
-                len = (int)strlen(maxbuf);
+                int len = (int)strlen(maxbuf);
 
                 if (len < 7)
                 {
@@ -417,7 +386,6 @@ static int search_params_popup(UiApp *app, char *pattern, int patternsz, int *op
         case 3:
         case 5:
         case 6:
-            /* Toggles: SPACE or 'x'/'X' */
             if (wch == ' ' || wch == 'x' || wch == 'X')
             {
                 switch (field)
@@ -494,6 +462,7 @@ static void run_scan(UiApp *app, SearchSession *ss, int scope_all_areas)
 
         ss->total_areas = 1;
         ss->scanned_areas = 0;
+
         draw_progress(sty, 0, COLS, ss, app->areas);
         search_scan_area(ss, &app->areas->entries[idx], idx);
     }
@@ -895,7 +864,7 @@ void ui_search_cleanup(UiApp *app)
 
 UiView ui_search_run(UiApp *app, int scope_all_areas)
 {
-    char pattern[SEARCH_PATTERN_MAX] = {0};
+    char pattern[SEARCH_PATTERN_MAX];
     int opt_headers;
     int opt_body;
     int opt_all_areas;
@@ -910,7 +879,10 @@ UiView ui_search_run(UiApp *app, int scope_all_areas)
     if (!app || !app->areas || app->areas->count == 0)
         return VIEW_AREALIST;
 
-    /* Seed options from last session (stored in app for RAM persistence) */
+    /* Seed options from last session */
+    strncpy(pattern, app->search_opt_pattern, sizeof(pattern) - 1);
+    pattern[sizeof(pattern) - 1] = '\0';
+
     opt_headers = app->search_opt_headers;
     opt_body = app->search_opt_body;
     opt_all_areas = scope_all_areas ? 1 : app->search_opt_all_areas;
@@ -931,6 +903,9 @@ UiView ui_search_run(UiApp *app, int scope_all_areas)
         return caller_view;
 
     /* Persist all options back to app for next invocation */
+    strncpy(app->search_opt_pattern, pattern, sizeof(app->search_opt_pattern) - 1);
+    app->search_opt_pattern[sizeof(app->search_opt_pattern) - 1] = '\0';
+
     app->search_opt_headers = opt_headers;
     app->search_opt_body = opt_body;
     app->search_opt_all_areas = opt_all_areas;

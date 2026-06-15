@@ -39,7 +39,9 @@
 /* Sanity guard to prevent bogus/huge config values from overflowing malloc, effectively "as much as box can hold" */
 #define SEARCH_HITS_HARD_MAX 1000000
 
+#ifndef SEARCH_PATTERN_MAX
 #define SEARCH_PATTERN_MAX 256
+#endif
 #define SEARCH_PREVIEW_MAX 64
 #define SEARCH_FROM_MAX 32
 

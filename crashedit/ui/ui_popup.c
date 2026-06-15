@@ -640,7 +640,7 @@ int ui_popup_aka(const UiApp *app, int cur_idx)
 }
 
 /* Draw input field with optional active highlighting */
-static void input_draw(InputState *state, int y, int x, int width, int is_active)
+void input_draw(InputState *state, int y, int x, int width, int is_active)
 {
     int avail = width - 2;
     int show_off = 0, used, i;
@@ -688,7 +688,7 @@ static void input_draw(InputState *state, int y, int x, int width, int is_active
 }
 
 /* Move cursor to correct position based on scroll offset */
-static void input_move_cursor(InputState *state, int y, int x, int width)
+void input_move_cursor(InputState *state, int y, int x, int width)
 {
     int avail = width - 2;
     int show_off = 0;
@@ -717,7 +717,7 @@ static void input_move_cursor(InputState *state, int y, int x, int width)
 }
 
 /* Modular input handling: returns 1 if key handled, 0 if not */
-static int input_handle_key(InputState *state, int ch)
+int input_handle_key(InputState *state, int ch)
 {
     if (!state || !state->buf)
         return -1;
