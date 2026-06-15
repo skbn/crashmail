@@ -396,7 +396,7 @@ Press **`q`** or **`Esc`** repeatedly until you return to the area list, then **
 
 1. **Always use `?` or `F1`** on any screen to see available keys
 2. **Frequent catch-up**: Use `C` regularly to keep the new message counter under control
-3. **Charset**: If you see strange characters, use `F3` in the editor to change encoding
+3. **Charset**: If you see strange characters, use `Alt+H` in the editor to change encoding (F3 also works but has contextual behavior in search mode)
 4. **Search**: Use `P` to search in message bodies (slower but complete)
 
 ---

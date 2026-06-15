@@ -1397,8 +1397,6 @@ static void te_draw_mono(struct TERenderContext *dc, struct RastPort *rp, struct
     int srcx = 0, srcy = 0;
     int w, h;
 
-    (void)dc;
-
     if (!g || !g->data || g->width <= 0 || g->height <= 0)
         return;
 
@@ -1417,14 +1415,17 @@ static void te_draw_mono(struct TERenderContext *dc, struct RastPort *rp, struct
             w += dx;
             dx = 0;
         }
+
         if (dy < 0)
         {
             srcy = -dy;
             h += dy;
             dy = 0;
         }
+
         if (dx + w > lw)
             w = lw - dx;
+
         if (dy + h > lh)
             h = lh - dy;
     }

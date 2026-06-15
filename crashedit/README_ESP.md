@@ -394,7 +394,7 @@ Presiona **`q`** o **`Esc`** repetidamente hasta volver a la lista de áreas, lu
 
 1. **Siempre usa `?` o `F1`** en cualquier pantalla para ver las teclas disponibles
 2. **Catch-up frecuente**: Usa `C` regularmente para mantener el contador de mensajes nuevos bajo control
-3. **Charset**: Si ves carácteres extraños, usa `F3` en el editor para cambiar la codificación
+3. **Charset**: Si ves carácteres extraños, usa `Alt+H` en el editor para cambiar la codificación (F3 también funciona pero tiene comportamiento contextual en modo búsqueda)
 4. **Búsqueda**: Usa `P` para buscar en el cuerpo de los mensajes (más lento pero completo)
 
 ---
