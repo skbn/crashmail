@@ -795,6 +795,8 @@ UiApp *ui_init(CrashEditCfg *cfg, AreaList *areas)
     app->edit_aka_idx = cfg->aka_selected;
     app->edit_return_view = VIEW_MSGLIST;
 
+    app->search_opt_headers = 1;
+
     /* view_charset: runtime override (popup "View:" pick), init EMPTY for Auto mode */
     app->view_charset[0] = '\0';
 

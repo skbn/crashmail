@@ -86,18 +86,34 @@ static int memmemstr(const char *hay, int n, const char *needle, int m)
     return -1;
 }
 
-static int contains(const char *hay, int n, const char *needle, int m, int csens)
+static int contains(const char *hay, int n, const char *needle, int m, int csens, int whole_word)
 {
+    int pos;
+
     if (!hay || n <= 0 || !needle || m <= 0)
         return 0;
 
     if (csens)
-        return memmemstr(hay, n, needle, m) >= 0;
+        pos = memmemstr(hay, n, needle, m);
+    else
+        pos = memcasestr(hay, n, needle, m);
 
-    return memcasestr(hay, n, needle, m) >= 0;
+    if (pos < 0)
+        return 0;
+
+    if (whole_word)
+    {
+        unsigned char prev = (pos > 0) ? (unsigned char)hay[pos - 1] : 0;
+        unsigned char next = (pos + m < n) ? (unsigned char)hay[pos + m] : 0;
+
+        if ((prev != 0 && (isalnum(prev) || prev == '_')) || (next != 0 && (isalnum(next) || next == '_')))
+            return 0;
+    }
+
+    return 1;
 }
 
-SearchSession *search_new(const char *pattern, int search_headers, int search_body, int case_sensitive, int max_hits)
+SearchSession *search_new(const char *pattern, int search_headers, int search_body, int case_sensitive, int whole_word, int max_hits)
 {
     SearchSession *s;
     size_t pl;
@@ -139,6 +155,7 @@ SearchSession *search_new(const char *pattern, int search_headers, int search_bo
     s->pattern[pl] = '\0';
     s->pat_len = (int)pl;
     s->case_sensitive = case_sensitive ? 1 : 0;
+    s->whole_word = whole_word ? 1 : 0;
     s->search_headers = search_headers ? 1 : 0;
     s->search_body = search_body ? 1 : 0;
     s->max_hits = max_hits;
@@ -197,27 +214,30 @@ static int record_hit(SearchSession *s, int area_idx, const JamMsgInfo *msg, uin
 /* Test one header bundle against the pattern */
 static int header_matches(const SearchSession *s, const JamMsgInfo *msg)
 {
-    const char *fields[] =
-        {
-            msg->subject, msg->from, msg->to, msg->msgid, msg->oaddress,
-            msg->daddress};
-
-    int nfields = (int)(sizeof(fields) / sizeof(fields[0]));
+    const char *fields_word[] = {msg->subject, msg->from, msg->to};
+    const char *fields_noword[] = {msg->msgid, msg->oaddress, msg->daddress};
     int i;
 
-    for (i = 0; i < nfields; i++)
+    for (i = 0; i < 3; i++)
     {
-        const char *fv = fields[i];
+        const char *fv = fields_word[i];
 
-        if (fv && contains(fv, (int)strlen(fv), s->pattern, s->pat_len, s->case_sensitive))
+        if (fv && contains(fv, (int)strlen(fv), s->pattern, s->pat_len, s->case_sensitive, s->whole_word))
+            return 1;
+    }
+
+    for (i = 0; i < 3; i++)
+    {
+        const char *fv = fields_noword[i];
+
+        if (fv && contains(fv, (int)strlen(fv), s->pattern, s->pat_len, s->case_sensitive, 0))
             return 1;
     }
 
     return 0;
 }
 
-/* Read body bytes for msgnum and test against pattern. Returns 1 on
- * match. Frees the body buffer before returning */
+/* Read body bytes for msgnum and test against pattern. Returns 1 on match. Frees the body buffer before returning */
 static int body_matches(const SearchSession *s, JamArea *area, uint32_t msgnum)
 {
     uint32_t body_len = 0;
@@ -234,7 +254,7 @@ static int body_matches(const SearchSession *s, JamArea *area, uint32_t msgnum)
         return 0;
     }
 
-    rc = contains(body, (int)body_len, s->pattern, s->pat_len, s->case_sensitive) ? 1 : 0;
+    rc = contains(body, (int)body_len, s->pattern, s->pat_len, s->case_sensitive, s->whole_word) ? 1 : 0;
 
     free(body);
     return rc;

@@ -225,7 +225,12 @@ struct UiApp
 
     int msglist_overlay_from_reader; /* 1 = msglist shown over reader; ESC returns to reader */
 
-    /* Search state for VIEW_SEARCH_RESULTS, freed via ui_search_cleanup() */
+    int search_opt_headers;   /* 1=search headers */
+    int search_opt_body;      /* 1=search body */
+    int search_opt_all_areas; /* 1=all areas */
+    int search_opt_case;      /* 1=case sensitive */
+    int search_opt_whole;     /* 1=whole word */
+
     void *search;
     void *search_runs;
     int search_n_runs;

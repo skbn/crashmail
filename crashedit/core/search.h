@@ -58,6 +58,7 @@ typedef struct
     char pattern[SEARCH_PATTERN_MAX];
     int pat_len; /* cached strlen(pattern), -1 if empty */
     int case_sensitive;
+    int whole_word;
     int search_headers;
     int search_body;
 
@@ -75,7 +76,7 @@ typedef struct
 } SearchSession;
 
 /* Allocate session, pattern is copied, returns NULL on bad args or OOM, case_sensitive=0 enables ASCII-insensitive matching */
-SearchSession *search_new(const char *pattern, int search_headers, int search_body, int case_sensitive, int max_hits);
+SearchSession *search_new(const char *pattern, int search_headers, int search_body, int case_sensitive, int whole_word, int max_hits);
 
 void search_free(SearchSession *s);
 

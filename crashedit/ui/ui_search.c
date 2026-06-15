@@ -124,12 +124,12 @@ static void draw_progress(int y, int x, int w, const SearchSession *s, AreaList 
 }
 
 /* Ask for pattern + search options; return 0=run, -1=ESC */
-static int search_params_popup(UiApp *app, char *pattern, int patternsz, int *opt_headers, int *opt_body, int *opt_all_areas, int *opt_max)
+static int search_params_popup(UiApp *app, char *pattern, int patternsz, int *opt_headers, int *opt_body, int *opt_all_areas, int *opt_max, int *opt_case, int *opt_whole)
 {
     int y, x, h, w;
-    int want_w = 64, want_h = 13;
+    int want_w = 64, want_h = 15;
     int rc;
-    int field = 0; /* 0=pattern, 1=hdr, 2=body, 3=scope, 4=maxhits */
+    int field = 0; /* 0=pattern, 1=hdr, 2=body, 3=scope, 4=maxhits, 5=case, 6=whole */
     char inbuf[SEARCH_PATTERN_MAX];
     char maxbuf[16];
     int cx;
@@ -259,6 +259,32 @@ static int search_params_popup(UiApp *app, char *pattern, int patternsz, int *op
 
         mvaddnstr(row, fieldx + fieldw + 1, "(0=default)", 14);
 
+        /* Case sensitive */
+        row = y + 8;
+
+        if (field == 5)
+            attron(COLOR_PAIR(COL_POPUP_SEL));
+
+        mvprintw(row, x + 4, "[%c] Case sensitive", *opt_case ? 'X' : ' ');
+
+        if (field == 5)
+            attroff(COLOR_PAIR(COL_POPUP_SEL));
+
+        attron(COLOR_PAIR(COL_POPUP));
+
+        /* Whole word */
+        row = y + 9;
+
+        if (field == 6)
+            attron(COLOR_PAIR(COL_POPUP_SEL));
+
+        mvprintw(row, x + 4, "[%c] Whole word", *opt_whole ? 'X' : ' ');
+
+        if (field == 6)
+            attroff(COLOR_PAIR(COL_POPUP_SEL));
+
+        attron(COLOR_PAIR(COL_POPUP));
+
         /* Footer - clear area first to apply popup background */
         for (k = 0; k < w - 4; k++)
             mvaddch(y + h - 2, x + 2 + k, ' ');
@@ -331,13 +357,13 @@ static int search_params_popup(UiApp *app, char *pattern, int patternsz, int *op
 
         if (wch == '\t' || wch == KEY_DOWN)
         {
-            field = (field + 1) % 5;
+            field = (field + 1) % 7;
             continue;
         }
 
         if (wch == KEY_BTAB || wch == KEY_UP)
         {
-            field = (field + 4) % 5;
+            field = (field + 6) % 7;
             continue;
         }
 
@@ -389,6 +415,8 @@ static int search_params_popup(UiApp *app, char *pattern, int patternsz, int *op
         case 1:
         case 2:
         case 3:
+        case 5:
+        case 6:
             /* Toggles: SPACE or 'x'/'X' */
             if (wch == ' ' || wch == 'x' || wch == 'X')
             {
@@ -402,6 +430,12 @@ static int search_params_popup(UiApp *app, char *pattern, int patternsz, int *op
                     break;
                 case 3:
                     *opt_all_areas = !*opt_all_areas;
+                    break;
+                case 5:
+                    *opt_case = !*opt_case;
+                    break;
+                case 6:
+                    *opt_whole = !*opt_whole;
                     break;
                 }
             }
@@ -862,9 +896,11 @@ void ui_search_cleanup(UiApp *app)
 UiView ui_search_run(UiApp *app, int scope_all_areas)
 {
     char pattern[SEARCH_PATTERN_MAX] = {0};
-    int opt_headers = 1;
-    int opt_body = 0;
-    int opt_all_areas = scope_all_areas ? 1 : 0;
+    int opt_headers;
+    int opt_body;
+    int opt_all_areas;
+    int opt_case;
+    int opt_whole;
     int opt_max;
     SearchSession *ss;
     AreaRun *runs;
@@ -873,6 +909,13 @@ UiView ui_search_run(UiApp *app, int scope_all_areas)
 
     if (!app || !app->areas || app->areas->count == 0)
         return VIEW_AREALIST;
+
+    /* Seed options from last session (stored in app for RAM persistence) */
+    opt_headers = app->search_opt_headers;
+    opt_body = app->search_opt_body;
+    opt_all_areas = scope_all_areas ? 1 : app->search_opt_all_areas;
+    opt_case = app->search_opt_case;
+    opt_whole = app->search_opt_whole;
 
     /* Seed the editable max-hits from config (SEARCHMAX) */
     opt_max = (app->cfg && app->cfg->search_max > 0) ? app->cfg->search_max : SEARCH_DEFAULT_MAX;
@@ -884,15 +927,22 @@ UiView ui_search_run(UiApp *app, int scope_all_areas)
     ui_search_cleanup(app);
 
     /* Parameters popup */
-    if (search_params_popup(app, pattern, sizeof(pattern), &opt_headers, &opt_body, &opt_all_areas, &opt_max) != 0)
+    if (search_params_popup(app, pattern, sizeof(pattern), &opt_headers, &opt_body, &opt_all_areas, &opt_max, &opt_case, &opt_whole) != 0)
         return caller_view;
+
+    /* Persist all options back to app for next invocation */
+    app->search_opt_headers = opt_headers;
+    app->search_opt_body = opt_body;
+    app->search_opt_all_areas = opt_all_areas;
+    app->search_opt_case = opt_case;
+    app->search_opt_whole = opt_whole;
 
     /* Persist limit change to config for session stickiness */
     if (app->cfg)
         app->cfg->search_max = opt_max;
 
     /* Build session, run the scan with progress + cancel polling */
-    ss = search_new(pattern, opt_headers, opt_body, 0, opt_max);
+    ss = search_new(pattern, opt_headers, opt_body, opt_case, opt_whole, opt_max);
 
     if (!ss)
     {
