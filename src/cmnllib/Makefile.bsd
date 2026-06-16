@@ -1,6 +1,8 @@
 INCDIR = ../
 
-CC = gcc $(CPPFLAGS) $(CFLAGS) -DPLATFORM_LINUX $(LDFLAGS) -I $(INCDIR) -Wall
+CC ?= cc
+CFLAGS += -Wall
+DEFS = -DPLATFORM_LINUX
 AR = ar -ru
 RM = rm -f
 
@@ -10,7 +12,7 @@ cmnllib.a : $(OBJS)
 	$(AR) cmnllib.a $(OBJS)
 	
 cmnllib.o: cmnllib.c
-	$(CC) -c cmnllib.c -o cmnllib.o
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(DEFS) $(LDFLAGS) -I $(INCDIR) -c cmnllib.c -o cmnllib.o
 
 clean :
 	$(RM) *.o *.a
