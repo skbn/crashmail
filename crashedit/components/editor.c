@@ -1581,7 +1581,14 @@ int ed_delete_line(Ed *ed)
 
                 if (ed_undo_open_group(ed) == 0)
                 {
+                    /* Set cursor to deleted line so undo restores it there */
+                    UndoGroup *g = &ed->undo_stack[ed->undo_top - 1];
+
+                    g->cur_row = deleted_row;
+                    g->cur_col = 0;
+
                     undo_push_op(ed, OP_DELETE, deleted_row, 0, with_nl, dlen + 1, 0);
+
                     ed->undo_open = 0;
                 }
 
@@ -2860,7 +2867,7 @@ static int apply_group_reverse(Ed *ed, UndoGroup *g)
 
         case OP_DELETE:
             /* Undo delete: re-insert the deleted chars */
-            if (op->row < ed->count && op->text)
+            if (op->text)
             {
                 /* Check if this is a line deletion (text contains newline) or character deletion */
                 int is_line_delete = 0;
@@ -2876,7 +2883,8 @@ static int apply_group_reverse(Ed *ed, UndoGroup *g)
                     }
                 }
 
-                if (is_line_delete)
+                /* Line deletion can insert at or after end; char deletion needs valid row */
+                if (is_line_delete && op->row <= ed->count)
                 {
                     int adjusted_row = op->row + lines_inserted;
                     EdLine *nl = line_new(op->text, op->len);
@@ -2890,7 +2898,7 @@ static int apply_group_reverse(Ed *ed, UndoGroup *g)
                             min_row = adjusted_row;
                     }
                 }
-                else
+                else if (op->row < ed->count)
                 {
                     /* Character/range deletion: insert inline */
                     int j;
@@ -3066,7 +3074,29 @@ static int apply_group_forward(Ed *ed, UndoGroup *g)
         case OP_DELETE:
             if (op->row < ed->count)
             {
-                line_delete_range(ed->lines[op->row], op->col, op->len);
+                /* Check if this is a line deletion (text contains newline) */
+                int is_line_delete = 0;
+                int k;
+
+                for (k = 0; k < op->len; k++)
+                {
+                    if (op->text && op->text[k] == L'\n')
+                    {
+                        is_line_delete = 1;
+                        break;
+                    }
+                }
+
+                if (is_line_delete)
+                {
+                    /* Line deletion: remove the entire line */
+                    line_free(doc_remove_line(ed, op->row));
+                }
+                else
+                {
+                    /* Character deletion: delete within line */
+                    line_delete_range(ed->lines[op->row], op->col, op->len);
+                }
 
                 if (op->row < min_row)
                     min_row = op->row;
@@ -3248,8 +3278,8 @@ int ed_redo(Ed *ed)
     ed->undo_snapshot_mode = 0;
 
     /* Restore cursor to after-state */
-    ed->row = src->end_row;
-    ed->col = src->end_col;
+    ed->row = tmp.end_row;
+    ed->col = tmp.end_col;
 
     ed_clamp(ed);
     ed_ensure_visible(ed);
