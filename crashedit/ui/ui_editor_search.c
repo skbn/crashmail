@@ -248,14 +248,28 @@ int replace_current(UiApp *app)
 
         if (new_match_count > 0)
         {
+            int next_idx = 0;
+
             app->edit_search.rows = new_rows;
             app->edit_search.cols = new_cols;
             app->edit_search.match_count = new_match_count;
             app->edit_search.current_match = 0;
             app->edit_search.match_current = 1;
 
-            /* Move cursor to first remaining match */
-            ed_set_pos(app->editor, new_rows[0], new_cols[0]);
+            /* Find first match after replacement position */
+            for (i = 0; i < new_match_count; i++)
+            {
+                if (new_rows[i] > match_row || (new_rows[i] == match_row && new_cols[i] > match_col))
+                {
+                    next_idx = i;
+                    break;
+                }
+            }
+
+            app->edit_search.current_match = next_idx;
+
+            /* Move cursor to next match */
+            ed_set_pos(app->editor, new_rows[next_idx], new_cols[next_idx]);
             ed_ensure_visible(app->editor);
 
             ui_status(app, "Replaced. %d match(es) remaining", new_match_count);
