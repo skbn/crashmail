@@ -222,6 +222,11 @@ int jam_open(JamArea *a, const char *path)
 
     if (JAM_OpenMB((char *)path, &b) != 0)
     {
+        if (b)
+        {
+            JAM_CloseMB(b);
+            free(b);
+        }
         free(bh);
         a->hdr_cache = NULL;
         return -1;
@@ -232,6 +237,8 @@ int jam_open(JamArea *a, const char *path)
     if (JAM_ReadMBHeader(b, bh) != 0)
     {
         JAM_CloseMB(b);
+
+        free(b);
         free(bh);
         a->base = NULL;
         a->hdr_cache = NULL;
@@ -253,6 +260,7 @@ void jam_close(JamArea *a)
         jam_unlock(a);
 
     JAM_CloseMB(BASE(a));
+    free(a->base);
 
     a->base = NULL;
     a->is_open = 0;
