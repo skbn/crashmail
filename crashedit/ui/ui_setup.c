@@ -33,19 +33,40 @@
 #include "../components/config.h"
 #include "../core/ftn.h"
 #include "../core/freq.h"
+#include "../core/portable.h"
+
+#ifdef HAVE_HUNSPELL
+#include "../core/spell.h"
+#endif
 
 #ifdef PLATFORM_AMIGA
+#ifdef HAVE_HUNSPELL
+#define ST_TAB_COUNT 8
+
+static const char *st_tab_names[ST_TAB_COUNT] =
+    {
+        "Identity", "Paths", "Display", "Editor", "Messages", "Colour/Font", "TTF", "Spell"};
+#else
 #define ST_TAB_COUNT 7
 
 static const char *st_tab_names[ST_TAB_COUNT] =
     {
-        "Identity", "Paths", "Display", "Editor", "Messages", "Colour/Font", "TTF Fallbacks"};
+        "Identity", "Paths", "Display", "Editor", "Messages", "Colour/Font", "TTF"};
+#endif
+#else
+#ifdef HAVE_HUNSPELL
+#define ST_TAB_COUNT 7
+
+static const char *st_tab_names[ST_TAB_COUNT] =
+    {
+        "Identity", "Paths", "Display", "Editor", "Messages", "Colour/Font", "Spell"};
 #else
 #define ST_TAB_COUNT 6
 
 static const char *st_tab_names[ST_TAB_COUNT] =
     {
         "Identity", "Paths", "Display", "Editor", "Messages", "Colour/Font"};
+#endif
 #endif
 
 typedef enum
@@ -61,6 +82,11 @@ typedef enum
     FT_COLORMAP, /* integer 0-255, edit also marks color_map_initialized */
     FT_CYCLE,    /* cycle through predefined string options (e.g. TTF antialias: AUTO/OFF/ON) */
     FT_COLORPAIR /* color pair configuration (fg/bg) */
+#ifdef HAVE_HUNSPELL
+    ,
+    FT_DICTLIST,  /* cycle through available Hunspell dictionaries */
+    FT_CUSTOMDICT /* select or create custom dictionary */
+#endif
 } FieldType;
 
 typedef struct
@@ -179,8 +205,9 @@ static const SetupField st_fields[] =
         {5, "Error", FT_COLORPAIR, offsetof(CrashEditCfg, color_fg) + COL_ERROR * sizeof(int), 0},
         {5, "Tagline", FT_COLORPAIR, offsetof(CrashEditCfg, color_fg) + COL_TAGLINE * sizeof(int), 0},
         {5, "Match Search", FT_COLORPAIR, offsetof(CrashEditCfg, color_fg) + COL_SEARCH_MATCH * sizeof(int), 0},
+        {5, "Spell Current", FT_COLORPAIR, offsetof(CrashEditCfg, color_fg) + COL_SPELL_CURRENT * sizeof(int), 0},
 
-/* TTF Fallbacks */
+/* TTF */
 #ifdef PLATFORM_AMIGA
         {6, "Fallback 1", FT_STR, offsetof(CrashEditCfg, ttf_fallback[0]), CFG_STR_MAX},
         {6, "Fallback 1 Size", FT_INT, offsetof(CrashEditCfg, ttf_fallback_size[0]), 0},
@@ -198,6 +225,21 @@ static const SetupField st_fields[] =
         {6, "Fallback 7 Size", FT_INT, offsetof(CrashEditCfg, ttf_fallback_size[6]), 0},
         {6, "Fallback 8", FT_STR, offsetof(CrashEditCfg, ttf_fallback[7]), CFG_STR_MAX},
         {6, "Fallback 8 Size", FT_INT, offsetof(CrashEditCfg, ttf_fallback_size[7]), 0},
+#endif
+
+/* Dictionary */
+#ifdef HAVE_HUNSPELL
+#if defined(PLATFORM_AMIGA)
+        {7, "Spell Enabled", FT_BOOL, offsetof(CrashEditCfg, spell_enabled), 0},
+        {7, "Dict Path", FT_STR, offsetof(CrashEditCfg, spell_dict_path), CFG_STR_MAX},
+        {7, "Dictionary", FT_DICTLIST, offsetof(CrashEditCfg, spell_dict_name), 0},
+        {7, "Custom Dict", FT_CUSTOMDICT, offsetof(CrashEditCfg, spell_custom_dict), 0},
+#else
+        {6, "Spell Enabled", FT_BOOL, offsetof(CrashEditCfg, spell_enabled), 0},
+        {6, "Dict Path", FT_STR, offsetof(CrashEditCfg, spell_dict_path), CFG_STR_MAX},
+        {6, "Dictionary", FT_DICTLIST, offsetof(CrashEditCfg, spell_dict_name), 0},
+        {6, "Custom Dict", FT_CUSTOMDICT, offsetof(CrashEditCfg, spell_custom_dict), 0},
+#endif
 #endif
 };
 
@@ -433,6 +475,22 @@ static void st_format_value(const CrashEditCfg *w, const SetupField *fld, char *
         snprintf(buf, bufsz, "%s on %s", fg_name, bg_name);
         break;
     }
+#ifdef HAVE_HUNSPELL
+    case FT_DICTLIST:
+    {
+        const char *s = base + fld->off;
+
+        snprintf(buf, bufsz, "%s", s[0] ? s : "(none)");
+        break;
+    }
+    case FT_CUSTOMDICT:
+    {
+        const char *s = base + fld->off;
+
+        snprintf(buf, bufsz, "%s", s[0] ? s : "(none)");
+        break;
+    }
+#endif
     }
 }
 
@@ -446,6 +504,23 @@ static void st_edit_field(CrashEditCfg *w, const SetupField *fld)
     case FT_STR:
     {
         char *s = base + fld->off;
+
+        /* Special case: Dict Path uses directory picker */
+        if (strcmp(fld->label, "Dict Path") == 0)
+        {
+            char tmp[CFG_STR_MAX];
+
+            strncpy(tmp, s, sizeof(tmp) - 1);
+            tmp[sizeof(tmp) - 1] = '\0';
+
+            if (ui_files_pick_dir(fld->label, "", tmp, sizeof(tmp)) == 0)
+            {
+                strncpy(s, tmp, CFG_STR_MAX - 1);
+                s[CFG_STR_MAX - 1] = '\0';
+            }
+
+            break;
+        }
 
         /* Special case: Font field allows TAB toggle between Memory and File modes */
         if (strcmp(fld->label, "Font") == 0)
@@ -853,6 +928,160 @@ static void st_edit_field(CrashEditCfg *w, const SetupField *fld)
 
         break;
     }
+#ifdef HAVE_HUNSPELL
+    case FT_DICTLIST:
+    {
+        char *s = base + fld->off;
+        char **dicts;
+        int n_dicts;
+        int i;
+        int current = -1;
+        int selected;
+
+        /* Get dictionary path from config */
+        char *dict_path = w->spell_dict_path;
+
+        if (!dict_path || !dict_path[0])
+        {
+            mvaddnwstr(LINES / 2, (COLS - 40) / 2, L"Error: Dict Path not set", 24);
+            refresh();
+
+            wrapper_getch();
+            break;
+        }
+
+        /* List available dictionaries */
+        dicts = spell_list_dictionaries(dict_path, &n_dicts);
+
+        if (!dicts || n_dicts == 0)
+        {
+            mvaddnwstr(LINES / 2, (COLS - 40) / 2, L"No dictionaries found", 20);
+            refresh();
+
+            wrapper_getch();
+            break;
+        }
+
+        /* Find current dictionary in list */
+        for (i = 0; i < n_dicts; i++)
+        {
+            if (strcmp(s, dicts[i]) == 0)
+            {
+                current = i;
+                break;
+            }
+        }
+
+        /* Show popup to select dictionary */
+        selected = ui_popup_list("Select Dictionary", (const char **)dicts, n_dicts, current);
+
+        if (selected >= 0 && selected < n_dicts)
+        {
+            strncpy(s, dicts[selected], CFG_STR_MAX - 1);
+            s[CFG_STR_MAX - 1] = '\0';
+        }
+
+        spell_free_dictionaries(dicts, n_dicts);
+        break;
+    }
+    case FT_CUSTOMDICT:
+    {
+        char *s = base + fld->off;
+        const char *options[] = {"Select existing", "Create new"};
+        int selected;
+
+        selected = ui_popup_list("Custom Dictionary", options, 2, -1);
+
+        if (selected == 0)
+        {
+            /* Select existing */
+            char dicts_dir[CFG_STR_MAX];
+            char parent_dir[CFG_STR_MAX];
+            char selected_file[CFG_STR_MAX];
+
+            /* Get custom dicts directory */
+            port_get_config_dir(parent_dir, sizeof(parent_dir));
+
+#if defined(PLATFORM_WIN32)
+            snprintf(dicts_dir, sizeof(dicts_dir), "%s\\dicts", parent_dir);
+#else
+            snprintf(dicts_dir, sizeof(dicts_dir), "%s/dicts", parent_dir);
+#endif
+
+            /* Create parent directory if it doesn't exist */
+            port_mkdir_one(parent_dir);
+            port_mkdir_one(dicts_dir);
+
+            /* Select file */
+            selected_file[0] = '\0';
+
+            if (ui_files_pick("Select custom dictionary", dicts_dir, selected_file, sizeof(selected_file)) == 0 && selected_file[0])
+            {
+                /* Check if selected file ends with .dic */
+                size_t len = strlen(selected_file);
+
+                if (len >= 4 && strcmp(selected_file + len - 4, ".dic") == 0)
+                {
+                    strncpy(s, selected_file, CFG_STR_MAX - 1);
+                    s[CFG_STR_MAX - 1] = '\0';
+                }
+            }
+        }
+        else if (selected == 1)
+        {
+            /* Create new */
+            char dicts_dir[CFG_STR_MAX];
+            char parent_dir[CFG_STR_MAX];
+            wchar_t dict_name[CFG_STR_MAX];
+            char dict_path[CFG_STR_MAX];
+
+            /* Get custom dicts directory */
+            port_get_config_dir(parent_dir, sizeof(parent_dir));
+
+#if defined(PLATFORM_WIN32)
+            snprintf(dicts_dir, sizeof(dicts_dir), "%s\\dicts", parent_dir);
+#else
+            snprintf(dicts_dir, sizeof(dicts_dir), "%s/dicts", parent_dir);
+#endif
+
+            /* Create parent directory if it doesn't exist */
+            port_mkdir_one(parent_dir);
+            port_mkdir_one(dicts_dir);
+
+            /* Ask for dictionary name */
+            dict_name[0] = L'\0';
+
+            if (ui_popup_input("Create custom dictionary", "Dictionary name (without .dic):", dict_name, CFG_STR_MAX) == 0 && dict_name[0])
+            {
+                /* Convert wchar_t to UTF-8 for file path */
+                int wcs_len = (int)wcslen(dict_name);
+                char *utf8_name = wcs_to_utf8(dict_name, wcs_len);
+
+                if (utf8_name)
+                {
+                    /* Build full path */
+                    snprintf(dict_path, sizeof(dict_path), "%s/%s.dic", dicts_dir, utf8_name);
+
+                    /* Create empty file using portable function */
+                    if (port_file_create_empty(dict_path) == 0)
+                    {
+                        strncpy(s, dict_path, CFG_STR_MAX - 1);
+                        s[CFG_STR_MAX - 1] = '\0';
+                    }
+                    else
+                    {
+                        mvaddnwstr(LINES / 2, (COLS - 40) / 2, L"Error: Cannot create dictionary", 30);
+                        refresh();
+                        wrapper_getch();
+                    }
+
+                    free(utf8_name);
+                }
+            }
+        }
+        break;
+    }
+#endif
     }
 }
 
@@ -878,6 +1107,15 @@ static void st_clear_field(CrashEditCfg *w, const SetupField *fld)
         *v = 0; /* Zero as default */
         break;
     }
+#ifdef HAVE_HUNSPELL
+    case FT_CUSTOMDICT:
+    {
+        char *s = base + fld->off;
+
+        s[0] = '\0'; /* Empty string */
+        break;
+    }
+#endif
     /* FT_TRI, FT_BOOL, FT_TZAUTO, FT_MODE, FT_CYCLE, FT_COLORPAIR: ignore DELETE */
     default:
         break;

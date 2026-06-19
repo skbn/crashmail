@@ -43,10 +43,10 @@ void ui_session_close(UiApp *app)
     if (s->area_idx >= 0 && s->area_idx < app->areas->count)
         areafile_refresh_one(&app->areas->entries[s->area_idx], app->cfg->sysop);
 
-    if (s->jam_open)
+    if (s->mb_open)
     {
-        jam_close(&s->jam);
-        s->jam_open = 0;
+        mb_close(&s->mb);
+        s->mb_open = 0;
     }
 
     free(s->msgs);
@@ -85,19 +85,21 @@ int ui_session_open(UiApp *app, int area_idx)
     s = &app->sess;
     ae = &app->areas->entries[area_idx];
 
-    if (jam_open(&s->jam, ae->path) != 0)
+    if (mb_open(&s->mb, ae->path, ae->format) != 0)
     {
         ui_status(app, "Cannot open area: %s", ae->path);
         return -1;
     }
 
-    s->jam_open = 1;
+    s->mb_open = 1;
     s->area_idx = area_idx;
-    s->user_crc = jam_username_crc(app->cfg->sysop);
+    s->user_crc = mb_username_crc(app->cfg->sysop);
 
     /* Load LastReadMsg/HighReadMsg, enforce lastseen >= lastread invariant for ancient bases */
-    lr = 0, ls = 0;
-    jam_read_lastread_pair(&s->jam, s->user_crc, &lr, &ls);
+    lr = 0;
+    ls = 0;
+
+    mb_read_lastread_pair(&s->mb, s->user_crc, &lr, &ls);
 
     if (ls < lr)
         ls = lr;
@@ -108,7 +110,7 @@ int ui_session_open(UiApp *app, int area_idx)
     /* Load messages (honour SHOWDELETED, filter_mask = bits to skip) */
     mask = 0;
 
-    s->msgs = jam_load_headers(&s->jam, &count, mask, (uint32_t)app->cfg->msglistmax);
+    s->msgs = mb_load_headers(&s->mb, &count, mask, (uint32_t)app->cfg->msglistmax);
 
     if (!s->msgs && count != 0)
     {
@@ -189,7 +191,9 @@ void ui_session_rebuild_order(UiApp *app)
         return;
 
     s = &app->sess;
+
     free(s->order);
+
     s->order = NULL;
     s->order_count = 0;
 
@@ -210,7 +214,8 @@ void ui_session_rebuild_order(UiApp *app)
         {
             for (i = 0; i < s->msg_count; i++)
             {
-                const JamMsgInfo *m = &s->msgs[i];
+                const MsgInfo *m = &s->msgs[i];
+
                 match_tbl[i] = (field_matches_wcs(m->from, s->search) || field_matches_wcs(m->to, s->search) || field_matches_wcs(m->subject, s->search)) ? 1 : 0;
             }
         }

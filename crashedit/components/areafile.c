@@ -24,7 +24,7 @@
 
 /* areafile.c -- Area file parser */
 #include "areafile.h"
-#include "../core/jam_wrap.h"
+#include "../core/msgbase.h"
 #include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -125,6 +125,24 @@ static const char *parse_token_dyn(const char *p, char **out)
         return parse_quoted_string_dyn(p, out);
     else
         return parse_unquoted_token_dyn(p, out);
+}
+
+/* Converts format string tokens to MB_FORMAT enum constants */
+static int format_from_token(const char *tok)
+{
+    if (!tok || !tok[0])
+        return MB_FORMAT_JAM;
+
+    if (strcasecmp(tok, "JAM") == 0)
+        return MB_FORMAT_JAM;
+
+    if (strcasecmp(tok, "MSG") == 0 ||
+        strcasecmp(tok, "FTS1") == 0 ||
+        strcasecmp(tok, "OPUS") == 0 ||
+        strcasecmp(tok, "SDM") == 0)
+        return MB_FORMAT_MSG;
+
+    return MB_FORMAT_JAM;
 }
 
 int areafile_load(AreaList *list, const char *path)
@@ -263,8 +281,10 @@ int areafile_load(AreaList *list, const char *path)
             while (rest && *rest && isspace((unsigned char)*rest))
                 rest++;
 
-            /* Skip storage format token (JAM / SQUISH / MSG) */
+            /* Storage format token (JAM / MSG / FTS1 / OPUS / SDM) */
             rest = parse_token_dyn(rest, &skip_buf);
+
+            ae->format = format_from_token(skip_buf);
 
             free(skip_buf);
 
@@ -340,16 +360,23 @@ int areafile_load(AreaList *list, const char *path)
             while (rest && *rest && isspace((unsigned char)*rest))
                 rest++;
 
-            /* Crashmail format: skip messagebase type if present */
+            /* Crashmail format: messagebase type if present */
             if (rest && *rest && *rest != '"')
             {
                 rest = parse_token_dyn(rest, &skip_buf);
 
+                ae->format = format_from_token(skip_buf);
+
                 free(skip_buf);
+
                 skip_buf = NULL;
 
                 while (rest && *rest && isspace((unsigned char)*rest))
                     rest++;
+            }
+            else
+            {
+                ae->format = MB_FORMAT_JAM;
             }
 
             /* Parse path (quoted or unquoted) */
@@ -413,16 +440,23 @@ int areafile_load(AreaList *list, const char *path)
             while (rest && *rest && isspace((unsigned char)*rest))
                 rest++;
 
-            /* Crashmail format: skip messagebase type if present */
+            /* Crashmail format: messagebase type if present */
             if (rest && *rest && *rest != '"')
             {
                 rest = parse_token_dyn(rest, &skip_buf);
 
+                ae->format = format_from_token(skip_buf);
+
                 free(skip_buf);
+
                 skip_buf = NULL;
 
                 while (rest && *rest && isspace((unsigned char)*rest))
                     rest++;
+            }
+            else
+            {
+                ae->format = MB_FORMAT_JAM;
             }
 
             /* Parse path (quoted or unquoted) */
@@ -479,7 +513,7 @@ void areafile_free(AreaList *list)
 /* Refresh counts for a single area against user's lastread and lastseen */
 void areafile_refresh_one(AreaEntry *ae, const char *sysop)
 {
-    JamArea jam;
+    MsgBase mb;
     int total = 0;
     int unread = 0;
     int new_count = 0;
@@ -490,7 +524,7 @@ void areafile_refresh_one(AreaEntry *ae, const char *sysop)
     if (!ae || !ae->path || !ae->path[0])
         return;
 
-    if (jam_open(&jam, ae->path) != 0)
+    if (mb_open(&mb, ae->path, ae->format) != 0)
     {
         ae->total_msgs = 0;
         ae->unread = 0;
@@ -500,15 +534,15 @@ void areafile_refresh_one(AreaEntry *ae, const char *sysop)
         return;
     }
 
-    ucrc = jam_username_crc(sysop ? sysop : "");
-    jam_read_lastread_pair(&jam, ucrc, &lr, &ls);
+    ucrc = mb_username_crc(sysop ? sysop : "");
+    mb_read_lastread_pair(&mb, ucrc, &lr, &ls);
 
     /* lastseen never trails lastread. New bases start at 0, all messages are new */
     if (ls < lr)
         ls = lr;
 
     /* One pass through the headers counts total + true-unread + new */
-    jam_count_msgs(&jam, lr, ls, &total, &unread, &new_count);
+    mb_count_msgs(&mb, lr, ls, &total, &unread, &new_count);
 
     ae->total_msgs = total;
     ae->unread = unread;
@@ -516,7 +550,7 @@ void areafile_refresh_one(AreaEntry *ae, const char *sysop)
     ae->lastread = lr;
     ae->lastseen = ls;
 
-    jam_close(&jam);
+    mb_close(&mb);
 }
 
 /* Bulk recompute for every area (startup and rescan) */

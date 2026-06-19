@@ -53,7 +53,7 @@ static int body_has_chrs_kludge(const char *utf8)
     return 0;
 }
 
-char *wrapper_read_utf8_ex(JamArea *a, uint32_t msgnum, const char *override_enc, const char *fallback_enc, char *detected_out, int detected_sz)
+char *wrapper_read_utf8_ex(MsgBase *a, uint32_t msgnum, const char *override_enc, const char *fallback_enc, char *detected_out, int detected_sz)
 {
     char *raw, *utf8;
     uint32_t rawlen;
@@ -68,7 +68,7 @@ char *wrapper_read_utf8_ex(JamArea *a, uint32_t msgnum, const char *override_enc
     if (!a)
         return NULL;
 
-    raw = jam_read_body(a, msgnum, &rawlen);
+    raw = mb_read_body(a, msgnum, &rawlen);
 
     if (!raw)
         return NULL;
@@ -115,7 +115,7 @@ char *wrapper_read_utf8_ex(JamArea *a, uint32_t msgnum, const char *override_enc
     return utf8;
 }
 
-char *wrapper_read_utf8(JamArea *a, uint32_t msgnum, char *enc_out)
+char *wrapper_read_utf8(MsgBase *a, uint32_t msgnum, char *enc_out)
 {
     /* Backwards-compatible wrapper, use _ex to distinguish "no CHRS" from "CHRS UTF-8" */
     char detected[CHARSET_NAME_MAX];
@@ -229,7 +229,7 @@ static char *header_to_charset(const char *utf8, const char *cs)
     return dst;
 }
 
-uint32_t wrapper_write_msg(JamArea *a, const char *from, const char *to, const char *subject, const char *utf8_body, const char *saved_kludges, const char *out_charset, uint32_t attr, uint32_t reply_to, uint32_t date_written, const char *oaddr, const char *daddr)
+uint32_t wrapper_write_msg(MsgBase *a, const char *from, const char *to, const char *subject, const char *utf8_body, const char *saved_kludges, const char *out_charset, uint32_t attr, uint32_t reply_to, uint32_t date_written, const char *oaddr, const char *daddr)
 {
     char *body;
     char *from_cs = NULL, *to_cs = NULL, *subj_cs = NULL;
@@ -237,7 +237,7 @@ uint32_t wrapper_write_msg(JamArea *a, const char *from, const char *to, const c
     uint32_t result;
     const char *cs;
 
-    if (!a || !a->is_locked)
+    if (!a || !a->is_open)
         return 0;
 
     body = wrapper_prepare_body(utf8_body, saved_kludges, out_charset, &bodylen);
@@ -251,7 +251,7 @@ uint32_t wrapper_write_msg(JamArea *a, const char *from, const char *to, const c
     to_cs = header_to_charset(to, cs);
     subj_cs = header_to_charset(subject, cs);
 
-    result = jam_write_msg(a, from_cs ? from_cs : from, to_cs ? to_cs : to, subj_cs ? subj_cs : subject, body, (uint32_t)bodylen, attr, reply_to, date_written, oaddr, daddr);
+    result = mb_write_msg(a, from_cs ? from_cs : from, to_cs ? to_cs : to, subj_cs ? subj_cs : subject, body, (uint32_t)bodylen, attr, reply_to, date_written, oaddr, daddr);
 
     free(body);
     free(from_cs);

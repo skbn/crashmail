@@ -35,7 +35,7 @@
 /* GoldED+ extended config field sizes */
 #define CFG_SORT_MAX 32
 #define CFG_FORMAT_MAX 64
-#define CFG_COLOR_MAX 24 /* COL_* are 1..23; slot 0 unused */
+#define CFG_COLOR_MAX 32
 
 typedef struct
 {
@@ -83,7 +83,6 @@ typedef struct
     int signature;                    /* 0=off, 1=emit signature line */
     char signature_text[CFG_STR_MAX]; /* e.g. "%f" */
 
-    /* Color pairs indexed by COL_* (1..22); slot 0 unused. COLOR keyword overrides defaults */
     int color_fg[CFG_COLOR_MAX];
     int color_bg[CFG_COLOR_MAX];
 
@@ -124,6 +123,11 @@ typedef struct
     /* INCLUDE: paths to FTS-5000 nodelists/pointlists to load into RAM on startup */
     char nodelist_includes[16][CFG_STR_MAX];
     int nodelist_includes_count;
+
+    int spell_enabled;
+    char spell_dict_path[CFG_STR_MAX];   /* directory containing .aff/.dic */
+    char spell_dict_name[CFG_STR_MAX];   /* dict base name, e.g. "es_ES" */
+    char spell_custom_dict[CFG_STR_MAX]; /* optional custom .dic */
 } CrashEditCfg;
 
 /* Load config from path (0=ok, -1=error) */

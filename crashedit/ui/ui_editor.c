@@ -36,6 +36,7 @@
 #include "ui_editor_search.h"
 #include "ui_editor_paste.h"
 #include "ui_editor_draw.h"
+#include "ui_spell.h"
 #include "ui_editor_helper.h"
 #include "ui_aka.h"
 #include "ui_attr.h"
@@ -104,6 +105,11 @@ static const char *EDITOR_HELP[] =
         "    Ctrl-K          Go to end of document",
         "    F7 Alt+O        Insert file",
         "    F8 Alt+K        Kludges (Enter del)",
+        "",
+        "  Spell checker:",
+        "    Alt+E           Toggle spell panel",
+        "    Alt+T           Toggle spell active",
+        "    Alt+W           Spell check word",
         "",
         "  Attachments:",
         "    Alt+A           Add attachment (file)",
@@ -280,7 +286,7 @@ static int handle_function_keys(UiApp *app, int ch, int is_key)
                 char *body_utf8;
 
                 detected[0] = '\0';
-                body_utf8 = wrapper_read_utf8_ex(&s->jam, app->edit_reply_to_msgnum, app->view_charset[0] ? app->view_charset : NULL, NULL, detected, sizeof(detected));
+                body_utf8 = wrapper_read_utf8_ex(&s->mb, app->edit_reply_to_msgnum, app->view_charset[0] ? app->view_charset : NULL, NULL, detected, sizeof(detected));
 
                 if (body_utf8)
                 {
@@ -382,7 +388,7 @@ static int handle_function_keys(UiApp *app, int ch, int is_key)
     }
 
     /* F10 / Alt+P : nodelist picker (header only) */
-    if (((is_key && (int)ch == KEY_F(10) || (is_key && ch == KEY_ALT('P'))) && app->edit_active_field != EF_BODY))
+    if (is_key && (int)ch == KEY_F(10) && app->edit_active_field != EF_BODY)
     {
         char picked_name[NODELIST_NAME_MAX];
         char picked_addr[NODELIST_ADDR_MAX];
@@ -701,6 +707,62 @@ static int handle_control_keys(UiApp *app, int ch, int is_key)
 /* Handle Alt key combinations (Alt+...), returns 1 if handled, 0 otherwise */
 static int handle_alt_keys(UiApp *app, int ch, int is_key)
 {
+    /* Alt+E : toggle spell-check overlay panel */
+    if (ch == KEY_ALT('E'))
+    {
+#ifdef HAVE_HUNSPELL
+        return ui_spell_toggle_panel(app);
+#else
+        ui_status(app, "Spell support not built in");
+        return 1;
+#endif
+    }
+
+    /* Alt+T : toggle spell checker active */
+    if (ch == KEY_ALT('T'))
+    {
+#ifdef HAVE_HUNSPELL
+        if (app->spell_handle)
+        {
+            app->spell_active = !app->spell_active;
+            ui_status(app, "Spell checker %s", app->spell_active ? "enabled" : "disabled");
+        }
+        else
+        {
+            ui_status(app, "No dictionary loaded");
+        }
+
+        return 1;
+#else
+        ui_status(app, "Spell support not built in");
+        return 1;
+#endif
+    }
+
+    /* Alt+W : spell-check word under cursor */
+    if (ch == KEY_ALT('W'))
+    {
+#ifdef HAVE_HUNSPELL
+        if (!app->spell_handle)
+        {
+            ui_status(app, "No dictionary loaded (configure SPELL_DICT_*)");
+            return 1;
+        }
+
+        if (app->edit_active_field != EF_BODY)
+        {
+            ui_status(app, "Spell check only available in body");
+            return 1;
+        }
+
+        ui_spell_check_word_at_cursor(app);
+        return 1;
+#else
+        ui_status(app, "Spell support not built in");
+        return 1;
+#endif
+    }
+
     /* Alt+G : goto line */
     if (ch == KEY_ALT('G'))
     {
@@ -1445,6 +1507,8 @@ UiView ui_editor_run(UiApp *app)
         }
 
         erase();
+        standend();
+
         ui_draw_menubar(app, app->edit_is_new ? (app->edit_is_reply ? "Reply" : "New Message") : "Edit Message");
         draw_edit_header(app);
         draw_edit_body(app);
@@ -1459,6 +1523,10 @@ UiView ui_editor_run(UiApp *app)
                   "");
 
         ui_draw_statusbar(app);
+
+        /* Spell panel overlay (no-op when hidden) */
+        ui_spell_draw_panel(app);
+
         position_edit_cursor(app);
         refresh();
 
@@ -1658,6 +1726,10 @@ UiView ui_editor_run(UiApp *app)
         srow = (ae_body->type == AREATYPE_NETMAIL) ? 8 : 7;
 
         body_rows = LINES - srow - 1;
+
+        /* Reserve space for spell panel at bottom when active */
+        if (app->show_spell)
+            body_rows -= SPELL_PANEL_H;
 
         if (body_rows < 1)
             body_rows = 1;

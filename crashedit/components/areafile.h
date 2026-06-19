@@ -37,9 +37,10 @@ typedef struct
 {
     char *name;        /* Area tag (e.g., "CRASHMAIL.ESP") - dynamically allocated */
     char *description; /* Human-readable description - dynamically allocated */
-    char *path;        /* Path to JAM message base - dynamically allocated */
+    char *path;        /* Path to message base - dynamically allocated */
     char *aka;         /* AKA address for this area - dynamically allocated */
     int type;          /* 0=echo, 1=netmail, 2=local */
+    int format;        /* MB_FORMAT_JAM or MB_FORMAT_MSG (from msgbase.h) */
     int groupid;       /* Group ID (0-255, like GoldEd) */
     int total_msgs;    /* Total messages in area */
     int unread;        /* Count of messages with msgnum > lastread (true "unread") */

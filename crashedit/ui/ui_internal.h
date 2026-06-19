@@ -115,6 +115,7 @@
 #define COL_ERROR 21
 #define COL_TAGLINE 22
 #define COL_SEARCH_MATCH 23
+#define COL_SPELL_CURRENT 24
 
 /* View states */
 typedef enum
@@ -130,10 +131,10 @@ typedef enum
 /* Session (per-area state) */
 typedef struct
 {
-    int area_idx;     /* index in app->areas->entries */
-    JamArea jam;      /* open JAM area */
-    int jam_open;     /* 1 if jam_open succeeded */
-    JamMsgInfo *msgs; /* loaded headers */
+    int area_idx;  /* index in app->areas->entries */
+    MsgBase mb;    /* open message base */
+    int mb_open;   /* 1 if mb_open succeeded */
+    MsgInfo *msgs; /* loaded headers */
     int msg_count;
     int *order; /* sort/filter index map (msg_idx -> real) */
     int order_count;
@@ -250,6 +251,19 @@ struct UiApp
 
     /* Nodelist/pointlist entries loaded from INCLUDE directives at startup */
     Nodelist nodelist;
+
+    /* Spell checker state (compiled in, all builds; fields are inert when no Hunspell) */
+    int show_spell; /* 1 = panel visible (overlay) */
+
+#ifdef HAVE_HUNSPELL
+    void *spell_handle;              /* opaque SpellChecker* */
+    int spell_enabled;               /* mirrors cfg.spell_enabled once loaded */
+    int spell_active;                /* spell checker active (manual toggle) */
+    wchar_t spell_current_word[256]; /* last word checked, for the panel */
+    int spell_word_status;           /* 0=none, 1=correct, 2=incorrect */
+    char **spell_suggestions;        /* most recent suggestions */
+    int spell_suggestion_count;
+#endif
 };
 
 typedef struct UiApp UiApp;
@@ -340,6 +354,7 @@ void ui_popup_center(int want_h, int want_w, int *y, int *x, int *h, int *w);
 
 /* Draw popup frame (used by ui_glyph_picker) */
 void draw_popup_frame(int y, int x, int h, int w, const char *title);
+void ui_draw_popup_frame(int y, int x, int h, int w, const char *title);
 
 void input_draw(InputState *state, int y, int x, int width, int is_active);
 void input_move_cursor(InputState *state, int y, int x, int width);

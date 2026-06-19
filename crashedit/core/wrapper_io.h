@@ -26,19 +26,19 @@
 #ifndef WRAPPER_IO_H
 #define WRAPPER_IO_H
 
-#include "jam_wrap.h"
+#include "msgbase.h"
 #include "charset.h"
 
 /* Read message body from JAM as UTF-8 (detects charset from CHRS kludge, returns malloc'd UTF-8) */
-char *wrapper_read_utf8(JamArea *a, uint32_t msgnum, char *enc_out);
+char *wrapper_read_utf8(MsgBase *a, uint32_t msgnum, char *enc_out);
 
 /* Read body as UTF-8 with optional charset override/fallback/detection */
-char *wrapper_read_utf8_ex(JamArea *a, uint32_t msgnum, const char *override_enc, const char *fallback_enc, char *detected_out, int detected_sz);
+char *wrapper_read_utf8_ex(MsgBase *a, uint32_t msgnum, const char *override_enc, const char *fallback_enc, char *detected_out, int detected_sz);
 
 /* Prepare body for writing to JAM (injects kludges, converts to charset, LF->CR, returns malloc'd string) */
 char *wrapper_prepare_body(const char *utf8_body, const char *saved_kludges, const char *out_charset, int *out_len);
 
 /* Full write: prepare + jam_write_msg in one call (area must be locked, returns new msgnum or 0) */
-uint32_t wrapper_write_msg(JamArea *a, const char *from, const char *to, const char *subject, const char *utf8_body, const char *saved_kludges, const char *out_charset, uint32_t attr, uint32_t reply_to, uint32_t date_written, const char *oaddr, const char *daddr);
+uint32_t wrapper_write_msg(MsgBase *a, const char *from, const char *to, const char *subject, const char *utf8_body, const char *saved_kludges, const char *out_charset, uint32_t attr, uint32_t reply_to, uint32_t date_written, const char *oaddr, const char *daddr);
 
 #endif

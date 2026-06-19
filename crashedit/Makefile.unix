@@ -65,7 +65,8 @@ COMPDIR = $(HERE)components
 UIDIR = $(HERE)ui
 
 # Object files in objs/
-CORE_OBJS = $(OBJDIR)/jam_wrap.o $(OBJDIR)/utf8.o $(OBJDIR)/charset.o \
+CORE_OBJS = $(OBJDIR)/portable.o $(OBJDIR)/msg_wrap.o $(OBJDIR)/msgbase.o \
+            $(OBJDIR)/jam_wrap.o $(OBJDIR)/utf8.o $(OBJDIR)/charset.o \
             $(OBJDIR)/ftn.o $(OBJDIR)/msghdr.o $(OBJDIR)/wrapper_io.o \
             $(OBJDIR)/clipboard.o $(OBJDIR)/attach.o $(OBJDIR)/keys.o \
             $(OBJDIR)/ansi.o $(OBJDIR)/freq.o $(OBJDIR)/search.o \
@@ -80,7 +81,20 @@ UI_OBJS   = $(OBJDIR)/ui_app.o \
             $(OBJDIR)/ui_aka.o $(OBJDIR)/ui_attr.o $(OBJDIR)/ui_files.o \
             $(OBJDIR)/ui_popup_attach.o $(OBJDIR)/ui_popup_freq.o $(OBJDIR)/ui_setup.o \
             $(OBJDIR)/ui_popup_nodelist.o \
-            $(OBJDIR)/ui_search.o $(OBJDIR)/ui_glyph_picker.o
+            $(OBJDIR)/ui_search.o $(OBJDIR)/ui_glyph_picker.o \
+            $(OBJDIR)/ui_spell.o
+
+# Hunspell spell checker -- opt-in.  Set USE_HUNSPELL=1 on the make command
+# line (or in your environment) to build with Hunspell support.  Otherwise
+# ui_spell.o is still compiled but with stub behaviour (no .o for spell.c).
+ifeq ($(USE_HUNSPELL),1)
+CDEFS    += -DHAVE_HUNSPELL
+CORE_OBJS += $(OBJDIR)/spell.o
+SPELL_LIB := -lhunspell
+else
+SPELL_LIB :=
+endif
+
 ALL_OBJS = $(CORE_OBJS) $(COMP_OBJS)
 
 all: $(TARGET) crashedit
@@ -94,6 +108,15 @@ $(OBJDIR):
 
 # Core library objects
 $(OBJDIR)/jam_wrap.o: $(COREDIR)/jam_wrap.c $(COREDIR)/jam_wrap.h $(HERE)../src/jamlib/jam.h | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
+$(OBJDIR)/portable.o: $(COREDIR)/portable.c $(COREDIR)/portable.h | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
+$(OBJDIR)/msg_wrap.o: $(COREDIR)/msg_wrap.c $(COREDIR)/msg_wrap.h $(COREDIR)/jam_wrap.h $(COREDIR)/portable.h | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
+$(OBJDIR)/msgbase.o: $(COREDIR)/msgbase.c $(COREDIR)/msgbase.h $(COREDIR)/jam_wrap.h $(COREDIR)/msg_wrap.h | $(OBJDIR)
 	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
 
 $(OBJDIR)/utf8.o: $(COREDIR)/utf8.c $(COREDIR)/utf8.h | $(OBJDIR)
@@ -222,6 +245,13 @@ $(OBJDIR)/ui_popup_nodelist.o: $(UIDIR)/ui_popup_nodelist.c $(UIDIR)/ui_internal
 $(OBJDIR)/ui_glyph_picker.o: $(UIDIR)/ui_glyph_picker.c $(UIDIR)/ui_glyph_picker.h | $(OBJDIR)
 	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
 
+# Spell checker (backend + UI).  spell.c is only compiled when USE_HUNSPELL=1.
+$(OBJDIR)/spell.o: $(COREDIR)/spell.c $(COREDIR)/spell.h | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
+$(OBJDIR)/ui_spell.o: $(UIDIR)/ui_spell.c $(UIDIR)/ui_spell.h $(COREDIR)/spell.h | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
 # Application
 JAMLIB = $(HERE)../src/jamlib/jamlib.a
 CRASHEDIT = $(HERE)../bin/crashedit
@@ -230,7 +260,7 @@ crashedit: $(CRASHEDIT)
 
 $(CRASHEDIT): $(HERE)main_ui.c $(TARGET) $(UI_OBJS) $(JAMLIB)
 	$(CC) $(CFLAGS) $(CDEFS) $(HERE)main_ui.c $(UI_OBJS) $(TARGET) $(JAMLIB) \
-	      -o $@ $(NCURSES_LIB)
+	      -o $@ $(NCURSES_LIB) $(SPELL_LIB)
 
 clean:
 	rm -rf $(OBJDIR) $(TARGET) $(CRASHEDIT)

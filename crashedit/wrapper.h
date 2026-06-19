@@ -29,6 +29,7 @@
 #include <stdio.h> /* snprintf used by wrapper_build_pid */
 
 #include "core/jam_wrap.h"
+#include "core/msgbase.h"
 #include "core/utf8.h"
 #include "core/charset.h"
 #include "core/attach.h"
@@ -68,7 +69,7 @@
 #define WRAPPER_OS_NAME "unknown"
 #endif
 
-#define WRAPPER_PID "CrashEdit 0.5.8 " WRAPPER_OS_NAME
+#define WRAPPER_PID "CrashEdit 0.6 " WRAPPER_OS_NAME
 
 static inline void wrapper_build_pid(char *buf, size_t size)
 {

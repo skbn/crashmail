@@ -28,7 +28,7 @@
 
 #include <stdint.h>
 #include <wchar.h>
-#include "jam_wrap.h"
+#include "msgbase.h"
 
 typedef struct MsgHdr MsgHdr;
 
@@ -65,7 +65,7 @@ int msghdr_field_col(const MsgHdr *h, int field);
 int msghdr_field_width(const MsgHdr *h, int field);
 
 /* Fill from JAM header info */
-void msghdr_load(MsgHdr *h, const JamMsgInfo *info, const char *area_tag, int msg_num, int msg_total, int reader_offset);
+void msghdr_load(MsgHdr *h, const MsgInfo *info, const char *area_tag, int msg_num, int msg_total, int reader_offset);
 
 /* Fill for new message/reply */
 void msghdr_new_msg(MsgHdr *h, const char *area_tag, const char *from_utf8, const char *oaddr, const char *to_utf8, const char *daddr, int tz_offset);

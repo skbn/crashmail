@@ -27,7 +27,7 @@
 #include <string.h>
 #include <ctype.h>
 #include "search.h"
-#include "jam_wrap.h"
+#include "msgbase.h"
 
 /* Pattern matching */
 
@@ -190,7 +190,7 @@ static void clip_copy(char *dst, int cap, const char *src)
 }
 
 /* Append one hit to session, 1 if added, 0 if cap hit */
-static int record_hit(SearchSession *s, int area_idx, const JamMsgInfo *msg, uint16_t flags)
+static int record_hit(SearchSession *s, int area_idx, const MsgInfo *msg, uint16_t flags)
 {
     SearchHit *h;
 
@@ -212,7 +212,7 @@ static int record_hit(SearchSession *s, int area_idx, const JamMsgInfo *msg, uin
 }
 
 /* Test one header bundle against the pattern */
-static int header_matches(const SearchSession *s, const JamMsgInfo *msg)
+static int header_matches(const SearchSession *s, const MsgInfo *msg)
 {
     const char *fields_word[] = {msg->subject, msg->from, msg->to};
     const char *fields_noword[] = {msg->msgid, msg->oaddress, msg->daddress};
@@ -238,13 +238,13 @@ static int header_matches(const SearchSession *s, const JamMsgInfo *msg)
 }
 
 /* Read body bytes for msgnum and test against pattern. Returns 1 on match. Frees the body buffer before returning */
-static int body_matches(const SearchSession *s, JamArea *area, uint32_t msgnum)
+static int body_matches(const SearchSession *s, MsgBase *area, uint32_t msgnum)
 {
     uint32_t body_len = 0;
     char *body;
     int rc;
 
-    body = jam_read_body(area, msgnum, &body_len);
+    body = mb_read_body(area, msgnum, &body_len);
 
     if (!body || body_len == 0)
     {
@@ -262,8 +262,8 @@ static int body_matches(const SearchSession *s, JamArea *area, uint32_t msgnum)
 
 int search_scan_area(SearchSession *s, AreaEntry *area, int area_idx)
 {
-    JamArea ja;
-    JamMsgInfo *msgs;
+    MsgBase ja;
+    MsgInfo *msgs;
     int nmsgs = 0;
     int i;
     int hits_before;
@@ -274,11 +274,11 @@ int search_scan_area(SearchSession *s, AreaEntry *area, int area_idx)
     if (s->cancel)
         return -1;
 
-    if (jam_open(&ja, area->path) != 0)
+    if (mb_open(&ja, area->path, area->format) != 0)
         return 0; /* Skip unreadable areas, don't fail the whole search */
 
     hits_before = s->n_hits;
-    msgs = jam_load_headers(&ja, &nmsgs, 0, 0);
+    msgs = mb_load_headers(&ja, &nmsgs, 0, 0);
     s->scanned_msgs_current = 0;
 
     if (msgs && nmsgs > 0)
@@ -315,7 +315,7 @@ int search_scan_area(SearchSession *s, AreaEntry *area, int area_idx)
         free(msgs);
     }
 
-    jam_close(&ja);
+    mb_close(&ja);
 
     if (s->cancel)
         return -1;

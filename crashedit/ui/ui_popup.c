@@ -584,6 +584,8 @@ int ui_popup_charset_pair(const char *view_in, const char *output_in, const char
         }
     }
 
+    standend();
+
     return 0;
 }
 
@@ -759,7 +761,7 @@ int input_handle_key(InputState *state, int ch)
             state->buf[state->len] = L'\0';
         }
     }
-    else if (ch >= 0x20 && ch < 127 && state->len + 1 < state->bufsz)
+    else if (ch >= 0x20 && ch != 127 && state->len + 1 < state->bufsz)
     {
         wmemmove(&state->buf[state->cursor + 1], &state->buf[state->cursor], (size_t)(state->len - state->cursor + 1));
         state->buf[state->cursor++] = (wchar_t)ch;
@@ -1247,13 +1249,14 @@ void ui_popup_help(const char *title, const char *const *lines, int n)
 
         if (maxtop == 0)
         {
+            standend();
             curs_set(saved_cursor);
             break; /* everything fits: any key closes (old behaviour) */
         }
 
-        if (ch == 27 || ch == 'q' || ch == 'Q' || ch == '\n' || ch == '\r' ||
-            ch == KEY_ENTER)
+        if (ch == 27 || ch == 'q' || ch == 'Q' || ch == '\n' || ch == '\r' || ch == KEY_ENTER)
         {
+            standend();
             curs_set(saved_cursor);
             break;
         }
@@ -1386,6 +1389,9 @@ int ui_popup_replace(const wchar_t *search_in, const wchar_t *replace_in, wchar_
         if (field == 2)
             attroff(COLOR_PAIR(COL_POPUP_SEL));
 
+        standend();
+
+        /* Clear the whole word row with popup background */
         attron(COLOR_PAIR(COL_POPUP));
 
         for (i = 0; i < w - 4; i++)
@@ -1401,7 +1407,7 @@ int ui_popup_replace(const wchar_t *search_in, const wchar_t *replace_in, wchar_
         if (field == 3)
             attroff(COLOR_PAIR(COL_POPUP_SEL));
 
-        standend(); /* Clear attributes after checkbox */
+        standend();
 
         /* Status bar */
         attron(COLOR_PAIR(COL_STATUS));

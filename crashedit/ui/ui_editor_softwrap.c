@@ -22,6 +22,7 @@
  * General Public License v2.1. See src/jamlib/LICENSE for details.
  */
 
+#include <wchar.h>
 #include "ui_editor_softwrap.h"
 #include "ui.h"
 #include "ui_internal.h"

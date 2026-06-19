@@ -578,7 +578,7 @@ UiView ui_search_results_run(UiApp *app)
 
         if (mode == 0)
         {
-            snprintf(hdr, sizeof(hdr), " Search results -- %d hits in %d areas%s   pattern: \"%s\"", ss->n_hits, n_runs, ss->hit_limit_reached ? " (LIMIT REACHED)" : "", ss->pattern);
+            snprintf(hdr, sizeof(hdr), " Search results -- %d hits in %d areas%s   pattern: \"%.80s\"", ss->n_hits, n_runs, ss->hit_limit_reached ? " (LIMIT REACHED)" : "", ss->pattern);
             mvaddnstr(0, 0, hdr, COLS - 1);
         }
         else

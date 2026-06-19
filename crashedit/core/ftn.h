@@ -28,7 +28,7 @@
 
 #include <stdint.h>
 #include <wchar.h>
-#include "jam_wrap.h"
+#include "msgbase.h"
 
 /* Line type classification */
 
@@ -117,20 +117,20 @@ char *ftn_apply_signature(const char *origin, const char *tearline, const char *
 
 /* Line ending and thread navigation */
 void ftn_lf_to_cr(char *body);
-int ftn_find_original(const JamMsgInfo *msgs, int count, int cur_idx);
-int ftn_find_original_by_msgid(const JamMsgInfo *msgs, int count, const char *msgid);
-int ftn_find_original_by_msgid(const JamMsgInfo *msgs, int count, const char *reply_msgid);
+int ftn_find_original(const MsgInfo *msgs, int count, int cur_idx);
+int ftn_find_original_by_msgid(const MsgInfo *msgs, int count, const char *msgid);
+int ftn_find_original_by_msgid(const MsgInfo *msgs, int count, const char *reply_msgid);
 
 /* Find index of first reply to current message (returns index or -1) */
-int ftn_find_reply(const JamMsgInfo *msgs, int count, int cur_idx);
+int ftn_find_reply(const MsgInfo *msgs, int count, int cur_idx);
 
 /* Find all replies to current message, fills out[] with raw indices, returns count */
-int ftn_find_all_replies(const JamMsgInfo *msgs, int count, int cur_idx, int *out, int out_max);
+int ftn_find_all_replies(const MsgInfo *msgs, int count, int cur_idx, int *out, int out_max);
 
 /* Find next/prev unread message (msgnum > lastread, returns index or -1) */
-int ftn_next_unread(const JamMsgInfo *msgs, int count, int cur_idx, uint32_t lastread);
+int ftn_next_unread(const MsgInfo *msgs, int count, int cur_idx, uint32_t lastread);
 
-int ftn_prev_unread(const JamMsgInfo *msgs, int count, int cur_idx, uint32_t lastread);
+int ftn_prev_unread(const MsgInfo *msgs, int count, int cur_idx, uint32_t lastread);
 
 /* Area sorting (GoldED+ style: E=echo, U=unread, u=has-unread, T=total, O=original, -=reverse) */
 int ftn_sort_areas(const FtnAreaInfo *areas, int count, const char *spec, const char *filter, int *order_out);

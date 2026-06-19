@@ -109,7 +109,7 @@ static void pad_field(char *dst, int width, const char *src, int maxlen)
 }
 
 /* Render message list row (hot path: build entire row in stack buffer, single mvaddnstr, zero mallocs) */
-static void draw_msg_row(int y, int width, const JamMsgInfo *m, uint32_t lastread, int is_sel, int reader_offset)
+static void draw_msg_row(int y, int width, const MsgInfo *m, uint32_t lastread, int is_sel, int reader_offset)
 {
     char buf[512];
     char date[32];
@@ -255,10 +255,10 @@ static void msglist_mark_seen(UiApp *app)
     s->lastseen = hi;
 
     /* Persist lastseen, keep lastread untouched */
-    if (jam_lock(&s->jam, JAM_LOCK_RETRIES) == 0)
+    if (mb_lock(&s->mb, MB_LOCK_RETRIES) == 0)
     {
-        jam_write_lastread(&s->jam, s->user_crc, s->lastread, s->lastseen);
-        jam_unlock(&s->jam);
+        mb_write_lastread(&s->mb, s->user_crc, s->lastread, s->lastseen);
+        mb_unlock(&s->mb);
     }
 
     ae = &app->areas->entries[s->area_idx];
@@ -293,8 +293,12 @@ UiView ui_msglist_run(UiApp *app)
     for (;;)
     {
         char title[80];
+
         snprintf(title, sizeof(title), "%s", ae->description ? ae->description : (ae->name ? ae->name : ""));
+
         erase();
+        standend();
+
         ui_draw_menubar(app, title);
 
         rows = LINES - 3;
@@ -352,7 +356,7 @@ UiView ui_msglist_run(UiApp *app)
             for (i = 0; i < rows && s->msg_top + i - 1 < s->order_count; i++)
             {
                 int real = s->order[s->msg_top + i - 1];
-                const JamMsgInfo *m = &s->msgs[real];
+                const MsgInfo *m = &s->msgs[real];
                 int sel = (s->msg_top + i == s->msg_sel);
 
                 draw_msg_row(2 + i, COLS, m, s->lastread, sel, ftn_effective_tz_offset(app->cfg->timezone_offset, app->cfg->timezone_is_manual));
@@ -516,20 +520,20 @@ UiView ui_msglist_run(UiApp *app)
 
                 if (ui_popup_confirm("Delete message", "Mark this message as deleted?") == 1)
                 {
-                    if (jam_lock(&s->jam, JAM_LOCK_RETRIES) == 0)
+                    if (mb_lock(&s->mb, MB_LOCK_RETRIES) == 0)
                     {
-                        if (jam_delete_msg(&s->jam, s->msgs[real].msgnum) == 0)
+                        if (mb_delete_msg(&s->mb, s->msgs[real].msgnum) == 0)
                             ui_status(app, "Message deleted");
                         else
                             ui_status(app, "Delete failed");
 
-                        jam_unlock(&s->jam);
+                        mb_unlock(&s->mb);
 
                         /* Reload */
                         free(s->msgs);
 
                         s->msgs = NULL;
-                        s->msgs = jam_load_headers(&s->jam, &s->msg_count, 0, (uint32_t)app->cfg->msglistmax);
+                        s->msgs = mb_load_headers(&s->mb, &s->msg_count, 0, (uint32_t)app->cfg->msglistmax);
 
                         if (!s->msgs)
                         {

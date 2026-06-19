@@ -26,6 +26,7 @@
 #include "ui_editor_softwrap.h"
 #include "ui_editor_helper.h"
 #include "ui_attr.h"
+#include "ui_spell.h"
 #include "../core/msghdr.h"
 #include "../components/editor.h"
 #include <stdio.h>
@@ -237,6 +238,14 @@ void position_edit_cursor(UiApp *app)
         ae = &app->areas->entries[app->sess.area_idx];
         start_row = (ae->type == AREATYPE_NETMAIL) ? 8 : 7;
         rows = LINES - start_row - 1;
+
+        /* Reserve space for spell panel at bottom when active */
+        if (app->show_spell)
+            rows -= SPELL_PANEL_H;
+
+        if (rows < 1)
+            rows = 1;
+
         soft = !(app->cfg && app->cfg->hard_wrap);
         ed_get_info(app->editor, &info);
 
@@ -310,6 +319,14 @@ void draw_edit_body(UiApp *app)
     ae = &app->areas->entries[app->sess.area_idx];
     start_row = (ae->type == AREATYPE_NETMAIL) ? 8 : 7;
     rows = LINES - start_row - 1;
+
+    /* Reserve space for spell panel at bottom when active */
+    if (app->show_spell)
+        rows -= SPELL_PANEL_H;
+
+    if (rows < 1)
+        rows = 1;
+
     soft = !(app->cfg && app->cfg->hard_wrap);
     width = COLS; /* visual wrap fits the terminal */
 
@@ -397,6 +414,43 @@ void draw_edit_body(UiApp *app)
                     }
                 }
             }
+
+#ifdef HAVE_HUNSPELL
+            /* Highlight misspelled words */
+            if (app->spell_active && app->spell_handle)
+            {
+                int word_start = 0;
+                int word_end;
+
+                standend();
+
+                while (word_start < line_len)
+                {
+                    while (word_start < line_len && !iswalnum((wint_t)wl[word_start]))
+                        word_start++;
+
+                    word_end = word_start;
+
+                    while (word_end < line_len && iswalnum((wint_t)wl[word_end]))
+                        word_end++;
+
+                    if (word_end > word_start)
+                    {
+                        int word_len = word_end - word_start;
+
+                        /* Ignore single-character words like word processors do */
+                        if (word_len > 1 && ui_spell_check_word_simple(app, &wl[word_start], word_len))
+                        {
+                            attron(COLOR_PAIR(COL_SPELL_CURRENT));
+                            mvaddnwstr(start_row + i, ln_offset + wcs_vwidth(wl, word_start), &wl[word_start], word_len);
+                            attroff(COLOR_PAIR(COL_SPELL_CURRENT));
+                        }
+                    }
+
+                    word_start = word_end;
+                }
+            }
+#endif
 
             if (b_r1 >= 0 && line_idx >= b_r1 && line_idx <= b_r2)
             {
@@ -547,6 +601,43 @@ void draw_edit_body(UiApp *app)
                         }
                     }
                 }
+
+#ifdef HAVE_HUNSPELL
+                /* Highlight misspelled words */
+                if (app->spell_active && app->spell_handle)
+                {
+                    int word_start = seg_start;
+                    int word_end;
+
+                    standend();
+
+                    while (word_start < seg_end)
+                    {
+                        while (word_start < seg_end && !iswalnum((wint_t)l[word_start]))
+                            word_start++;
+
+                        word_end = word_start;
+
+                        while (word_end < seg_end && iswalnum((wint_t)l[word_end]))
+                            word_end++;
+
+                        if (word_end > word_start)
+                        {
+                            int word_len = word_end - word_start;
+
+                            /* Ignore single-character words like word processors do */
+                            if (word_len > 1 && ui_spell_check_word_simple(app, &l[word_start], word_len))
+                            {
+                                attron(COLOR_PAIR(COL_SPELL_CURRENT));
+                                mvaddnwstr(start_row + sr, ln_offset + wcs_vwidth(&l[seg_start], word_start - seg_start), &l[word_start], word_len);
+                                attroff(COLOR_PAIR(COL_SPELL_CURRENT));
+                            }
+                        }
+
+                        word_start = word_end;
+                    }
+                }
+#endif
 
                 /* Block-selection overlay */
                 if (b_r1 >= 0 && li >= b_r1 && li <= b_r2 && l)

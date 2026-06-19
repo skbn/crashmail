@@ -1405,7 +1405,7 @@ void ftn_lf_to_cr(char *body)
     }
 }
 
-int ftn_find_original(const JamMsgInfo *msgs, int count, int cur)
+int ftn_find_original(const MsgInfo *msgs, int count, int cur)
 {
     uint32_t rt;
     int i;
@@ -1416,7 +1416,7 @@ int ftn_find_original(const JamMsgInfo *msgs, int count, int cur)
     rt = msgs[cur].reply_to;
 
     if (rt != 0)
-        return jam_find_by_msgnum(msgs, count, rt);
+        return mb_find_by_msgnum(msgs, count, rt);
 
     /* Fallback: search by CRC if reply_to is 0 but we have reply_crc */
     if (msgs[cur].reply_crc != 0 && msgs[cur].reply_crc != (uint32_t)-1)
@@ -1431,7 +1431,7 @@ int ftn_find_original(const JamMsgInfo *msgs, int count, int cur)
     return -1;
 }
 
-int ftn_find_original_by_msgid(const JamMsgInfo *msgs, int count, const char *reply_msgid)
+int ftn_find_original_by_msgid(const MsgInfo *msgs, int count, const char *reply_msgid)
 {
     int i;
 
@@ -1447,7 +1447,7 @@ int ftn_find_original_by_msgid(const JamMsgInfo *msgs, int count, const char *re
     return -1;
 }
 
-int ftn_find_reply(const JamMsgInfo *msgs, int count, int cur)
+int ftn_find_reply(const MsgInfo *msgs, int count, int cur)
 {
     uint32_t mn, mcrc;
     int i;
@@ -1490,7 +1490,7 @@ int ftn_find_reply(const JamMsgInfo *msgs, int count, int cur)
     return -1;
 }
 
-int ftn_find_all_replies(const JamMsgInfo *msgs, int count, int cur, int *out, int out_max)
+int ftn_find_all_replies(const MsgInfo *msgs, int count, int cur, int *out, int out_max)
 {
     uint32_t mn, mcrc;
     int i, n = 0;
@@ -1515,7 +1515,7 @@ int ftn_find_all_replies(const JamMsgInfo *msgs, int count, int cur, int *out, i
     return n;
 }
 
-int ftn_next_unread(const JamMsgInfo *msgs, int count, int cur, uint32_t lastread)
+int ftn_next_unread(const MsgInfo *msgs, int count, int cur, uint32_t lastread)
 {
     int i;
 
@@ -1531,7 +1531,7 @@ int ftn_next_unread(const JamMsgInfo *msgs, int count, int cur, uint32_t lastrea
     return -1;
 }
 
-int ftn_prev_unread(const JamMsgInfo *msgs, int count, int cur, uint32_t lastread)
+int ftn_prev_unread(const MsgInfo *msgs, int count, int cur, uint32_t lastread)
 {
     int i;
 

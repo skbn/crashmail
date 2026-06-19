@@ -30,6 +30,7 @@
 #include <wchar.h>
 #include <wctype.h>
 #include "editor.h"
+#include "../core/charset.h"
 #include "../core/utf8.h"
 
 /* Convert entire line to wchar_t string (caller frees) */

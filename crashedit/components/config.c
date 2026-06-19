@@ -156,7 +156,61 @@ static void normalize_charset(char *cs)
     }
 }
 
-/* Map color name to ncurses number (0..15), or -1 */
+/* Map color name to base ncurses number (0..15), or -1 (no COLORMAP) */
+static int color_by_name_base(const char *s)
+{
+    if (strcasecmp(s, "black") == 0)
+        return 0;
+
+    if (strcasecmp(s, "red") == 0)
+        return 1;
+
+    if (strcasecmp(s, "green") == 0)
+        return 2;
+
+    if (strcasecmp(s, "yellow") == 0)
+        return 3;
+
+    if (strcasecmp(s, "blue") == 0)
+        return 4;
+
+    if (strcasecmp(s, "magenta") == 0)
+        return 5;
+
+    if (strcasecmp(s, "cyan") == 0)
+        return 6;
+
+    if (strcasecmp(s, "white") == 0)
+        return 7;
+
+    if (strcasecmp(s, "brightblack") == 0)
+        return 8;
+
+    if (strcasecmp(s, "brightred") == 0)
+        return 9;
+
+    if (strcasecmp(s, "brightgreen") == 0)
+        return 10;
+
+    if (strcasecmp(s, "brightyellow") == 0)
+        return 11;
+
+    if (strcasecmp(s, "brightblue") == 0)
+        return 12;
+
+    if (strcasecmp(s, "brightmagenta") == 0)
+        return 13;
+
+    if (strcasecmp(s, "brightcyan") == 0)
+        return 14;
+
+    if (strcasecmp(s, "brightwhite") == 0)
+        return 15;
+
+    return -1;
+}
+
+/* Map color name to ncurses number (0..15), or -1 (with COLORMAP) */
 static int color_by_name(const char *s, CrashEditCfg *cfg)
 {
     /* If custom mapping is enabled, use it */
@@ -334,6 +388,9 @@ static int pair_by_name(const char *s)
     if (strcasecmp(s, "TAGLINE") == 0)
         return 22;
 
+    if (strcasecmp(s, "SPELLCURRENT") == 0)
+        return 24;
+
     return -1;
 }
 
@@ -505,8 +562,12 @@ void cfg_defaults(CrashEditCfg *cfg)
     cfg->color_bg[22] = 0;
 
     /*23 COL_SEARCH_MATCH */
-    cfg->color_fg[23] = 3; /* Yellow */
-    cfg->color_bg[23] = 0; /* Black */
+    cfg->color_fg[23] = 3;
+    cfg->color_bg[23] = 0;
+
+    /*24 COL_SPELL_CURRENT */
+    cfg->color_fg[24] = 7;
+    cfg->color_bg[24] = 5;
 
     /* Cursor color: -1 = don't override (use terminal default on Linux,
      * pen 1 on Amiga). User can set CURSORCOLOR in config */
@@ -557,6 +618,25 @@ void cfg_defaults(CrashEditCfg *cfg)
         cfg->ttf_fallback[i][0] = '\0';
         cfg->ttf_fallback_size[i] = 0;
     }
+
+#ifdef HAVE_HUNSPELL
+    cfg->spell_enabled = 0;
+
+#if defined(PLATFORM_BSD)
+    strncpy(cfg->spell_dict_path, "/usr/local/share/hunspell", sizeof(cfg->spell_dict_path) - 1);
+#elif defined(PLATFORM_UNIX)
+    strncpy(cfg->spell_dict_path, "/usr/share/hunspell", sizeof(cfg->spell_dict_path) - 1);
+#elif defined(PLATFORM_WIN32)
+    strncpy(cfg->spell_dict_path, "C:\\Program Files\\LibreOffice\\share\\extensions\\dict-en", sizeof(cfg->spell_dict_path) - 1);
+#elif defined(PLATFORM_AMIGA)
+    strncpy(cfg->spell_dict_path, "ENVARC:dictionaries", sizeof(cfg->spell_dict_path) - 1);
+#else
+    cfg->spell_dict_path[0] = '\0';
+#endif
+    cfg->spell_dict_path[sizeof(cfg->spell_dict_path) - 1] = '\0';
+    cfg->spell_dict_name[0] = '\0';
+    cfg->spell_custom_dict[0] = '\0';
+#endif
 }
 
 int cfg_load(CrashEditCfg *cfg, const char *path)
@@ -758,6 +838,39 @@ int cfg_load(CrashEditCfg *cfg, const char *path)
                     cfg->nodelist_includes_count++;
             }
         }
+#ifdef HAVE_HUNSPELL
+        else if (strcasecmp(word, "SPELL_ENABLED") == 0)
+        {
+            cfg->spell_enabled = parse_yesno(rest);
+        }
+        else if (strcasecmp(word, "SPELL_DICT_PATH") == 0)
+        {
+            char tmp[CFG_STR_MAX];
+            copy_rest(rest, tmp, sizeof(tmp));
+
+            if (tmp[0] != '\0')
+            {
+                strncpy(cfg->spell_dict_path, tmp, sizeof(cfg->spell_dict_path) - 1);
+
+                cfg->spell_dict_path[sizeof(cfg->spell_dict_path) - 1] = '\0';
+            }
+        }
+        else if (strcasecmp(word, "SPELL_DICT_NAME") == 0)
+        {
+            copy_rest(rest, cfg->spell_dict_name, sizeof(cfg->spell_dict_name));
+        }
+        else if (strcasecmp(word, "SPELL_CUSTOM_DICT") == 0)
+        {
+            char tmp[CFG_STR_MAX];
+
+            copy_rest(rest, tmp, sizeof(tmp));
+            strip_quotes(tmp);
+
+            strncpy(cfg->spell_custom_dict, tmp, sizeof(cfg->spell_custom_dict) - 1);
+
+            cfg->spell_custom_dict[sizeof(cfg->spell_custom_dict) - 1] = '\0';
+        }
+#endif
         else if (strcasecmp(word, "TEMPLATEFILE") == 0)
         {
             copy_rest(rest, cfg->template_file, sizeof(cfg->template_file));
@@ -925,8 +1038,8 @@ int cfg_load(CrashEditCfg *cfg, const char *path)
             pname[np] = fgname[nf] = bgname[nb] = '\0';
 
             pi = pair_by_name(pname);
-            fi = color_by_name(fgname, cfg);
-            bi = color_by_name(bgname, cfg);
+            fi = color_by_name_base(fgname);
+            bi = color_by_name_base(bgname);
 
             if (pi >= 1 && pi < CFG_COLOR_MAX && fi >= 0 && bi >= 0)
             {
@@ -1174,6 +1287,20 @@ static const char *cfg_mode_str(int mode)
     }
 }
 
+static const char *color_name(int color)
+{
+    static const char *names[] =
+        {
+            "black", "red", "green", "yellow", "blue", "magenta", "cyan", "white",
+            "brightblack", "brightred", "brightgreen", "brightyellow",
+            "brightblue", "brightmagenta", "brightcyan", "brightwhite"};
+
+    if (color >= 0 && color < 16)
+        return names[color];
+
+    return "black";
+}
+
 /* Quote if contains ;, #, or leading/trailing whitespace */
 static void cfg_emit(FILE *f, const char *key, const char *val)
 {
@@ -1309,6 +1436,13 @@ int cfg_save(const CrashEditCfg *cfg, const char *path)
     KV_YN("SIGNATURE", cfg->signature);
     KV_STR("SIGNATURETEXT", cfg->signature_text);
 
+#ifdef HAVE_HUNSPELL
+    KV_YN("SPELL_ENABLED", cfg->spell_enabled);
+    KV_STR("SPELL_DICT_PATH", cfg->spell_dict_path);
+    KV_STR("SPELL_DICT_NAME", cfg->spell_dict_name);
+    KV_STR("SPELL_CUSTOM_DICT", cfg->spell_custom_dict);
+#endif
+
     snprintf(tmp_path, sizeof(tmp_path), "%s.tmp", path);
 
     out = fopen(tmp_path, "w");
@@ -1411,6 +1545,91 @@ int cfg_save(const CrashEditCfg *cfg, const char *path)
             if (cfg->ttf_fallback_size[fi] > 0)
                 fprintf(out, "TTF_FALLBACK_SIZE%d %d\n", fi + 1, cfg->ttf_fallback_size[fi]);
         }
+    }
+
+    /* Save color settings */
+    for (i = 1; i < CFG_COLOR_MAX; i++)
+    {
+        const char *name = NULL;
+
+        switch (i)
+        {
+        case 1:
+            name = "NORMAL";
+            break;
+        case 2:
+            name = "SELECTED";
+            break;
+        case 3:
+            name = "HEADER";
+            break;
+        case 4:
+            name = "STATUS";
+            break;
+        case 5:
+            name = "MENU";
+            break;
+        case 6:
+            name = "MENUHOT";
+            break;
+        case 7:
+            name = "BORDER";
+            break;
+        case 8:
+            name = "QUOTE1";
+            break;
+        case 9:
+            name = "QUOTE2";
+            break;
+        case 10:
+            name = "QUOTE3";
+            break;
+        case 11:
+            name = "QUOTE4";
+            break;
+        case 12:
+            name = "KLUDGE";
+            break;
+        case 13:
+            name = "TEAR";
+            break;
+        case 14:
+            name = "ORIGIN";
+            break;
+        case 15:
+            name = "SEENBY";
+            break;
+        case 16:
+            name = "VIA";
+            break;
+        case 17:
+            name = "UNREAD";
+            break;
+        case 18:
+            name = "DELETED";
+            break;
+        case 19:
+            name = "POPUP";
+            break;
+        case 20:
+            name = "POPUPSEL";
+            break;
+        case 21:
+            name = "ERROR";
+            break;
+        case 22:
+            name = "TAGLINE";
+            break;
+        case 23:
+            name = "SEARCH";
+            break;
+        case 24:
+            name = "SPELLCURRENT";
+            break;
+        }
+
+        if (name)
+            fprintf(out, "COLOR %s %s %s\n", name, color_name(cfg->color_fg[i]), color_name(cfg->color_bg[i]));
     }
 
     if (fclose(out) != 0)

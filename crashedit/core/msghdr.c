@@ -288,7 +288,7 @@ static void format_date(uint32_t epoch, int reader_offset, int tzutc_offset, cha
         snprintf(buf, (size_t)bufsz, "(unknown)");
 }
 
-void msghdr_load(MsgHdr *h, const JamMsgInfo *info, const char *area_tag, int msg_num, int msg_total, int reader_offset)
+void msghdr_load(MsgHdr *h, const MsgInfo *info, const char *area_tag, int msg_num, int msg_total, int reader_offset)
 {
     char datebuf[32];
 

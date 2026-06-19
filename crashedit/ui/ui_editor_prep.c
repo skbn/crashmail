@@ -635,7 +635,7 @@ void ui_editor_prep_reply(UiApp *app, uint32_t orig_msgnum)
     const char *oaddr;
     char re_subj[128];
     char reply_to_msgid[200];
-    const JamMsgInfo *m;
+    const MsgInfo *m;
     const char *daddr_reply;
     char detected_orig[32];
     int has_chrs = 0;
@@ -649,7 +649,7 @@ void ui_editor_prep_reply(UiApp *app, uint32_t orig_msgnum)
     s = &app->sess;
     ae = &app->areas->entries[s->area_idx];
 
-    idx = jam_find_by_msgnum(s->msgs, s->msg_count, orig_msgnum);
+    idx = mb_find_by_msgnum(s->msgs, s->msg_count, orig_msgnum);
 
     if (idx < 0)
     {
@@ -695,7 +695,7 @@ void ui_editor_prep_reply(UiApp *app, uint32_t orig_msgnum)
     msghdr_setup_positions(app->edit_hdr, ae->type == AREATYPE_NETMAIL, COLS);
 
     /* Read body, detect charset, strip kludges, quote */
-    body_utf8 = wrapper_read_utf8_ex(&s->jam, orig_msgnum, app->view_charset[0] ? app->view_charset : NULL, NULL, detected_orig, sizeof(detected_orig));
+    body_utf8 = wrapper_read_utf8_ex(&s->mb, orig_msgnum, app->view_charset[0] ? app->view_charset : NULL, NULL, detected_orig, sizeof(detected_orig));
 
     if (body_utf8)
     {
@@ -922,7 +922,7 @@ void ui_editor_prep_edit(UiApp *app, uint32_t msgnum)
     s = &app->sess;
     ae = &app->areas->entries[s->area_idx];
 
-    idx = jam_find_by_msgnum(s->msgs, s->msg_count, msgnum);
+    idx = mb_find_by_msgnum(s->msgs, s->msg_count, msgnum);
 
     if (idx < 0)
     {
@@ -953,8 +953,9 @@ void ui_editor_prep_edit(UiApp *app, uint32_t msgnum)
 
     /* Use detected charset if no user override */
     detected[0] = '\0';
-    /*body_utf8 = wrapper_read_utf8(&s->jam, msgnum, detected);*/
-    body_utf8 = wrapper_read_utf8_ex(&s->jam, msgnum, app->view_charset[0] ? app->view_charset : NULL, NULL, detected, sizeof(detected));
+
+    /*body_utf8 = wrapper_read_utf8(&s->mb, msgnum, detected);*/
+    body_utf8 = wrapper_read_utf8_ex(&s->mb, msgnum, app->view_charset[0] ? app->view_charset : NULL, NULL, detected, sizeof(detected));
 
     /* Check if message has CHRS kludge */
     if (body_utf8)
@@ -1131,7 +1132,7 @@ int ui_editor_save(UiApp *app)
         }
     }
 
-    if (jam_lock(&s->jam, JAM_LOCK_RETRIES) != 0)
+    if (mb_lock(&s->mb, MB_LOCK_RETRIES) != 0)
     {
         ui_status(app, "Cannot lock area to save.");
         free_save_fields(from, to, subj, oa, da, body);
@@ -1146,7 +1147,7 @@ int ui_editor_save(UiApp *app)
     if (app->edit_is_reply && app->edit_reply_to_msgnum > 0)
     {
         char detected_charset[CHARSET_NAME_MAX];
-        char *body_orig = wrapper_read_utf8_ex(&s->jam, app->edit_reply_to_msgnum, app->view_charset[0] ? app->view_charset : NULL, NULL, detected_charset, sizeof(detected_charset));
+        char *body_orig = wrapper_read_utf8_ex(&s->mb, app->edit_reply_to_msgnum, app->view_charset[0] ? app->view_charset : NULL, NULL, detected_charset, sizeof(detected_charset));
 
         if (body_orig)
         {
@@ -1201,7 +1202,7 @@ int ui_editor_save(UiApp *app)
         {
             uint32_t reply_for_this = (k == 0) ? app->edit_reply_to_msgnum : 0;
 
-            this_mn = wrapper_write_msg(&s->jam, from, to, attach_subjects[k], body, app->saved_kludges, app->edit_charset, attr, reply_for_this, dw, oa, da);
+            this_mn = wrapper_write_msg(&s->mb, from, to, attach_subjects[k], body, app->saved_kludges, app->edit_charset, attr, reply_for_this, dw, oa, da);
 
             if (this_mn == 0)
             {
@@ -1216,7 +1217,7 @@ int ui_editor_save(UiApp *app)
     else
     {
         /* Single message: no attachments or splitter OOM fallback */
-        mn = wrapper_write_msg(&s->jam, from, to, subj, body, app->saved_kludges, app->edit_charset, attr, app->edit_reply_to_msgnum, dw, oa, da);
+        mn = wrapper_write_msg(&s->mb, from, to, subj, body, app->saved_kludges, app->edit_charset, attr, app->edit_reply_to_msgnum, dw, oa, da);
     }
 
     attach_free_subjects(attach_subjects, attach_subj_count);
@@ -1224,10 +1225,10 @@ int ui_editor_save(UiApp *app)
     if (mn != 0 && !app->edit_is_new)
     {
         /* Edit mode: delete old version now that new is written */
-        jam_delete_msg(&s->jam, app->cur_msgnum);
+        mb_delete_msg(&s->mb, app->cur_msgnum);
     }
 
-    jam_unlock(&s->jam);
+    mb_unlock(&s->mb);
     free_save_fields(from, to, subj, oa, da, body);
 
     if (mn == 0)
@@ -1240,7 +1241,7 @@ int ui_editor_save(UiApp *app)
     free(s->msgs);
 
     s->msgs = NULL;
-    s->msgs = jam_load_headers(&s->jam, &s->msg_count, 0, (uint32_t)app->cfg->msglistmax);
+    s->msgs = mb_load_headers(&s->mb, &s->msg_count, 0, (uint32_t)app->cfg->msglistmax);
 
     ui_session_rebuild_order(app);
 

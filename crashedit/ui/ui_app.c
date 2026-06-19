@@ -28,6 +28,7 @@
 #include "../core/ftn.h"
 #include "ui.h"
 #include "ui_internal.h"
+#include "ui_spell.h"
 #include <locale.h>
 
 #if !defined(PLATFORM_WIN32) && !defined(PLATFORM_AMIGA)
@@ -164,6 +165,7 @@ static void setup_colors(const CrashEditCfg *cfg)
         init_pair(COL_ERROR, COLOR_WHITE, COLOR_RED);
         init_pair(COL_TAGLINE, COLOR_CYAN, COLOR_BLACK);
         init_pair(COL_SEARCH_MATCH, COLOR_YELLOW, COLOR_BLACK);
+        init_pair(COL_SPELL_CURRENT, COLOR_WHITE, COLOR_MAGENTA);
     }
 
     /* ANSI colour pairs: 64 entries (fg,bg), ANSI_PAIR_BASE + bg*8 + fg */
@@ -253,6 +255,11 @@ void ui_reapply_config(UiApp *app)
 
     setup_colors(app->cfg);
 
+#ifdef HAVE_HUNSPELL
+    /* Reload Hunspell dictionary if config changed */
+    ui_spell_load_from_config(app);
+#endif
+
 #ifdef PLATFORM_AMIGA
     {
         extern void amiga_force_redraw(void);
@@ -306,7 +313,13 @@ static void build_status_right(const UiApp *app, char *out, int outsz)
         EdInfo info;
 
         ed_get_info(app->editor, &info);
+#ifdef HAVE_HUNSPELL
+        snprintf(out, (size_t)outsz, " %s %s%s %s ", app->cfg->hard_wrap ? "HARD" : "SOFT",
+                 (app->spell_enabled && app->spell_active && app->spell_handle) ? "SPELL " : "",
+                 info.insert_mode ? "INS" : "OVR", tbuf);
+#else
         snprintf(out, (size_t)outsz, " %s %s %s ", app->cfg->hard_wrap ? "HARD" : "SOFT", info.insert_mode ? "INS" : "OVR", tbuf);
+#endif
     }
     else
     {
@@ -353,8 +366,8 @@ void ui_draw_statusbar(UiApp *app)
     attr_t saved_attr;
     short saved_pair;
     char center[64];
-    char right[32];
-    char rzone[96];
+    char right[64];
+    char rzone[128];
     int left_len, rzone_len;
     int rzone_start;
     int max_left;
@@ -808,6 +821,11 @@ UiApp *ui_init(CrashEditCfg *cfg, AreaList *areas)
     app->edit_charset_saved[0] = '\0';
     app->edit_charset_manually_changed = 0;
 
+#ifdef HAVE_HUNSPELL
+    /* Initialize spell checker state */
+    app->spell_active = 0; /* Disabled by default, user must activate with Alt+H */
+#endif
+
     app->reader = rd_new(cfg->viewkludge, cfg->viewhidden);
     app->hdr = msghdr_new();
     app->editor = ed_new();
@@ -882,6 +900,11 @@ UiApp *ui_init(CrashEditCfg *cfg, AreaList *areas)
             app->view = VIEW_MSGLIST;
     }
 
+#ifdef HAVE_HUNSPELL
+    /* Load Hunspell dictionary if configured (silent failure) */
+    ui_spell_load_from_config(app);
+#endif
+
     ui_status(app, "Welcome to CrashEdit. Press F1 or ? for help");
 
     return app;
@@ -952,6 +975,10 @@ void ui_cleanup(UiApp *app)
 {
     if (!app)
         return;
+
+#ifdef HAVE_HUNSPELL
+    ui_spell_unload(app);
+#endif
 
     ui_session_close(app);
 

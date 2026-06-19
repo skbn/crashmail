@@ -37,6 +37,7 @@ typedef struct
     const AreaList *list;
     const char *spec;
     const wchar_t *filter; /* wchar_t filter text from user */
+
     /* Precomputed table: matches[i] != 0 iff entries[i].name matches filter */
     const unsigned char *matches;
 } SortCtx;
@@ -572,8 +573,8 @@ static void draw_header(int y, int width, const ArealistLayout *L)
 static int catchup_one_area(UiApp *app, int area_idx)
 {
     AreaEntry *ae;
-    JamArea jam;
-    JamMsgInfo *msgs;
+    MsgBase jam;
+    MsgInfo *msgs;
     uint32_t hi = 0, ucrc;
     int n = 0, i;
 
@@ -582,14 +583,15 @@ static int catchup_one_area(UiApp *app, int area_idx)
 
     ae = &app->areas->entries[area_idx];
 
-    if (jam_open(&jam, ae->path) != 0)
+    if (mb_open(&jam, ae->path, ae->format) != 0)
         return -1;
 
-    msgs = jam_load_headers(&jam, &n, 0, (uint32_t)app->cfg->msglistmax);
+    msgs = mb_load_headers(&jam, &n, 0, (uint32_t)app->cfg->msglistmax);
 
-    if (!msgs)
+    /* Empty area is fine: nothing to catch up */
+    if (!msgs && n != 0)
     {
-        jam_close(&jam);
+        mb_close(&jam);
         return -1;
     }
 
@@ -599,17 +601,17 @@ static int catchup_one_area(UiApp *app, int area_idx)
             hi = msgs[i].msgnum;
     }
 
-    ucrc = jam_username_crc(app->cfg->sysop);
+    ucrc = mb_username_crc(app->cfg->sysop);
 
-    if (jam_lock(&jam, JAM_LOCK_RETRIES) == 0)
+    if (mb_lock(&jam, MB_LOCK_RETRIES) == 0)
     {
-        jam_write_lastread(&jam, ucrc, hi, hi);
-        jam_unlock(&jam);
+        mb_write_lastread(&jam, ucrc, hi, hi);
+        mb_unlock(&jam);
     }
 
     free(msgs);
 
-    jam_close(&jam);
+    mb_close(&jam);
 
     /* Catchup marks area as read AND seen, sync in-memory AreaEntry with JAM */
     ae->lastread = hi;
@@ -714,6 +716,8 @@ UiView ui_arealist_run(UiApp *app)
         ArealistLayout layout;
 
         erase();
+        standend();
+
         ui_draw_menubar(app, "Area List");
 
         rows = LINES - 3; /* leave menubar(0) + status(LINES-1) + header(1) */
@@ -900,6 +904,8 @@ UiView ui_arealist_run(UiApp *app)
                     vis_rows = 1;
 
                 erase();
+                standend();
+
                 ui_draw_menubar(app, "Area List");
 
                 /* Type-ahead bar across the header row */

@@ -141,10 +141,10 @@ static void reader_save_lastread(UiApp *app)
     if (msgnum > s->lastseen)
         s->lastseen = msgnum;
 
-    if (jam_lock(&s->jam, JAM_LOCK_RETRIES) == 0)
+    if (mb_lock(&s->mb, MB_LOCK_RETRIES) == 0)
     {
-        jam_write_lastread(&s->jam, s->user_crc, s->lastread, s->lastseen);
-        jam_unlock(&s->jam);
+        mb_write_lastread(&s->mb, s->user_crc, s->lastread, s->lastseen);
+        mb_unlock(&s->mb);
     }
 
     update_area_counts_in_memory(app);
@@ -249,7 +249,7 @@ static int load_msg(UiApp *app, uint32_t msgnum)
 
     s = &app->sess;
 
-    idx = jam_find_by_msgnum(s->msgs, s->msg_count, msgnum);
+    idx = mb_find_by_msgnum(s->msgs, s->msg_count, msgnum);
 
     if (idx < 0)
         return -1;
@@ -274,13 +274,13 @@ static int load_msg(UiApp *app, uint32_t msgnum)
     chosen[0] = '\0';
 
     /* Read and decode body using wrapper_read_utf8_ex with proper fallback logic */
-    body_utf8 = wrapper_read_utf8_ex(&s->jam, msgnum, override_enc, NULL, detected, sizeof(detected));
+    body_utf8 = wrapper_read_utf8_ex(&s->mb, msgnum, override_enc, NULL, detected, sizeof(detected));
 
     if (!body_utf8)
         return -1;
 
     /* Read raw body for ANSI mode (needs original bytes, not UTF-8) */
-    raw_bytes = jam_read_body(&s->jam, msgnum, &raw_len);
+    raw_bytes = mb_read_body(&s->mb, msgnum, &raw_len);
 
     /* Save original chrs */
     memset(app->original_chrs, 0, sizeof(app->original_chrs));
@@ -875,6 +875,7 @@ UiView ui_reader_run(UiApp *app)
     for (;;)
     {
         erase();
+        standend();
 
         ui_draw_menubar(app, "Reader");
         draw_header_bar(app);
@@ -994,7 +995,7 @@ UiView ui_reader_run(UiApp *app)
         case KEY_ALT('J'): /* Follow REPLY chain to original */
         case KEY_CLEFT:
         {
-            int idx = jam_find_by_msgnum(s->msgs, s->msg_count, app->cur_msgnum);
+            int idx = mb_find_by_msgnum(s->msgs, s->msg_count, app->cur_msgnum);
             int orig = (idx >= 0) ? ftn_find_original(s->msgs, s->msg_count, idx) : -1;
 
             /* Fallback: search by MSGID string from REPLY kludge */
@@ -1023,7 +1024,7 @@ UiView ui_reader_run(UiApp *app)
         {
 #define MAX_REPLIES 256
             int raw_replies[MAX_REPLIES];
-            int idx = jam_find_by_msgnum(s->msgs, s->msg_count, app->cur_msgnum);
+            int idx = mb_find_by_msgnum(s->msgs, s->msg_count, app->cur_msgnum);
             int nreplies = (idx >= 0) ? ftn_find_all_replies(s->msgs, s->msg_count, idx, raw_replies, MAX_REPLIES) : 0;
 
             if (nreplies == 0)
@@ -1047,7 +1048,7 @@ UiView ui_reader_run(UiApp *app)
 
                 for (i = 0; i < nreplies; i++)
                 {
-                    const JamMsgInfo *m = &s->msgs[raw_replies[i]];
+                    const MsgInfo *m = &s->msgs[raw_replies[i]];
 
                     snprintf(labels[i], sizeof(labels[i]), "#%-5u  %-20.20s  %.28s", (unsigned)m->msgnum, m->from, m->subject);
                     items[i] = labels[i];
@@ -1500,7 +1501,7 @@ UiView ui_reader_run(UiApp *app)
                 break;
 
             s = &app->sess;
-            body_utf8 = wrapper_read_utf8_ex(&s->jam, app->cur_msgnum, app->view_charset[0] ? app->view_charset : NULL, NULL, app->msg_charset, sizeof(app->msg_charset));
+            body_utf8 = wrapper_read_utf8_ex(&s->mb, app->cur_msgnum, app->view_charset[0] ? app->view_charset : NULL, NULL, app->msg_charset, sizeof(app->msg_charset));
 
             if (!body_utf8)
             {
@@ -1523,16 +1524,16 @@ UiView ui_reader_run(UiApp *app)
         case KEY_DC: /* Delete message */
             if (ui_popup_confirm("Delete", "Mark this message as deleted?") == 1)
             {
-                if (jam_lock(&s->jam, JAM_LOCK_RETRIES) == 0)
+                if (mb_lock(&s->mb, MB_LOCK_RETRIES) == 0)
                 {
-                    if (jam_delete_msg(&s->jam, app->cur_msgnum) == 0)
+                    if (mb_delete_msg(&s->mb, app->cur_msgnum) == 0)
                         ui_status(app, "Message deleted");
 
-                    jam_unlock(&s->jam);
+                    mb_unlock(&s->mb);
                     free(s->msgs);
 
                     s->msgs = NULL;
-                    s->msgs = jam_load_headers(&s->jam, &s->msg_count, 0, (uint32_t)app->cfg->msglistmax);
+                    s->msgs = mb_load_headers(&s->mb, &s->msg_count, 0, (uint32_t)app->cfg->msglistmax);
 
                     if (!s->msgs)
                     {
@@ -1588,7 +1589,7 @@ UiView ui_reader_run(UiApp *app)
 
                 continue; /* Force redraw */
             }
-            /* Fall through to quit */
+            /* fallthrough */
         case 'q':
         case 'Q':
             reader_save_lastread(app);

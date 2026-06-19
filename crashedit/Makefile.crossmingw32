@@ -61,7 +61,8 @@ UIDIR = $(HERE)ui
 CDEFS = -DPLATFORM_WIN32 -D_WINDOWS
 
 # Object files in objs/
-CORE_OBJS = $(OBJDIR)/jam_wrap.o $(OBJDIR)/utf8.o $(OBJDIR)/charset.o \
+CORE_OBJS = $(OBJDIR)/portable.o $(OBJDIR)/msg_wrap.o $(OBJDIR)/msgbase.o \
+            $(OBJDIR)/jam_wrap.o $(OBJDIR)/utf8.o $(OBJDIR)/charset.o \
             $(OBJDIR)/ftn.o $(OBJDIR)/msghdr.o $(OBJDIR)/wrapper_io.o \
             $(OBJDIR)/clipboard.o $(OBJDIR)/attach.o $(OBJDIR)/freq.o $(OBJDIR)/keys.o \
             $(OBJDIR)/ansi.o $(OBJDIR)/ncursesw_win32.o $(OBJDIR)/search.o $(OBJDIR)/nodelist.o
@@ -74,7 +75,18 @@ UI_OBJS   = $(OBJDIR)/ui_app.o \
             $(OBJDIR)/ui_editor_softwrap.o $(OBJDIR)/ui_editor_search.o $(OBJDIR)/ui_editor_paste.o $(OBJDIR)/ui_editor_draw.o $(OBJDIR)/ui_editor_helper.o \
             $(OBJDIR)/ui_aka.o $(OBJDIR)/ui_attr.o $(OBJDIR)/ui_files.o \
             $(OBJDIR)/ui_popup_attach.o $(OBJDIR)/ui_popup_freq.o $(OBJDIR)/ui_setup.o \
-            $(OBJDIR)/ui_search.o $(OBJDIR)/ui_popup_nodelist.o $(OBJDIR)/ui_glyph_picker.o
+            $(OBJDIR)/ui_search.o $(OBJDIR)/ui_popup_nodelist.o $(OBJDIR)/ui_glyph_picker.o \
+            $(OBJDIR)/ui_spell.o
+
+# Hunspell spell checker -- opt-in.  Set USE_HUNSPELL=1 to enable.
+ifeq ($(USE_HUNSPELL),1)
+CDEFS    += -DHAVE_HUNSPELL
+CORE_OBJS += $(OBJDIR)/spell.o
+SPELL_LIB := -lhunspell
+else
+SPELL_LIB :=
+endif
+
 ALL_OBJS = $(CORE_OBJS) $(COMP_OBJS)
 
 all: $(TARGET) crashedit
@@ -88,6 +100,23 @@ $(OBJDIR):
 
 # Core library objects
 $(OBJDIR)/jam_wrap.o: $(COREDIR)/jam_wrap.c $(COREDIR)/jam_wrap.h $(HERE)../src/jamlib/jam.h | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
+# Spell checker (backend + UI).  spell.c is only compiled when USE_HUNSPELL=1.
+$(OBJDIR)/spell.o: $(COREDIR)/spell.c $(COREDIR)/spell.h | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
+$(OBJDIR)/ui_spell.o: $(UIDIR)/ui_spell.c $(UIDIR)/ui_spell.h $(COREDIR)/spell.h | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
+
+$(OBJDIR)/portable.o: $(COREDIR)/portable.c $(COREDIR)/portable.h | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
+$(OBJDIR)/msg_wrap.o: $(COREDIR)/msg_wrap.c $(COREDIR)/msg_wrap.h $(COREDIR)/jam_wrap.h $(COREDIR)/portable.h | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
+$(OBJDIR)/msgbase.o: $(COREDIR)/msgbase.c $(COREDIR)/msgbase.h $(COREDIR)/jam_wrap.h $(COREDIR)/msg_wrap.h | $(OBJDIR)
 	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
 
 $(OBJDIR)/utf8.o: $(COREDIR)/utf8.c $(COREDIR)/utf8.h | $(OBJDIR)
