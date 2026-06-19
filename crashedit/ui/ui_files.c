@@ -137,7 +137,14 @@ static FileEnt *load_dir(const char *dir, int *out_n)
             FileEnt *nb = (FileEnt *)realloc(ents, (size_t)nc * sizeof(FileEnt));
 
             if (!nb)
-                break;
+            {
+                for (int i = 0; i < n; i++)
+                    free(ents[i].name);
+
+                free(ents);
+
+                return NULL;
+            }
 
             ents = nb;
             cap = nc;
@@ -273,10 +280,18 @@ static FileEnt *load_dir(const char *dir, int *out_n)
         if (n >= cap)
         {
             int nc = cap ? cap * 2 : 32;
+            int i;
             FileEnt *nb = (FileEnt *)realloc(ents, (size_t)nc * sizeof(FileEnt));
 
             if (!nb)
-                break;
+            {
+                for (i = 0; i < n; i++)
+                    free(ents[i].name);
+
+                free(ents);
+
+                return NULL;
+            }
 
             ents = nb;
             cap = nc;

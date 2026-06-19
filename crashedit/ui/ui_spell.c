@@ -123,7 +123,12 @@ void ui_spell_draw_panel(UiApp *app)
         attron(COLOR_PAIR(COL_POPUP));
 
         if (app->spell_word_status == 2)
+        {
             mvprintw(y + 2, x + 2, "Suggestions: %d (Alt+W to choose)", app->spell_suggestion_count);
+
+            if (app->spell_suggestion_count == 0)
+                mvprintw(y + 3, x + 2, "Not in database?");
+        }
     }
     else
     {
@@ -318,6 +323,15 @@ int ui_spell_check_word_at_cursor(UiApp *app)
     if (correct)
     {
         app->spell_word_status = 1;
+
+        /* Free any previous suggestions before marking as correct */
+        if (app->spell_suggestions)
+        {
+            spell_free_suggestions(app->spell_handle, app->spell_suggestions, app->spell_suggestion_count);
+
+            app->spell_suggestions = NULL;
+            app->spell_suggestion_count = 0;
+        }
 
         u8_status = u8;
         ui_status(app, "'%s' is correct", u8_status);

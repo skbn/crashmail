@@ -1137,6 +1137,12 @@ static char *slurp_msg_file(const char *fullpath, size_t *out_total, size_t *out
         return NULL;
     }
 
+    if (sz > SIZE_MAX - 1)
+    {
+        fclose(fp);
+        return NULL;
+    }
+
     buf = (char *)malloc((size_t)sz + 1);
 
     if (!buf)

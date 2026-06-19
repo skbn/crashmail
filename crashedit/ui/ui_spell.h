@@ -28,7 +28,7 @@
 #include "ui_internal.h"
 
 /* Spell panel height in lines */
-#define SPELL_PANEL_H 3
+#define SPELL_PANEL_H 4
 
 /* Draws the floating spell panel over the editor when app->show_spell is on */
 void ui_spell_draw_panel(UiApp *app);

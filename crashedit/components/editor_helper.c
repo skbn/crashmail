@@ -897,6 +897,12 @@ int ed_load_file_at_cursor(Ed *ed, const char *path, const char *charset_in)
         return -1;
     }
 
+    if (sz > SIZE_MAX - 1)
+    {
+        fclose(f);
+        return -1;
+    }
+
     buf = (char *)malloc((size_t)sz + 1);
 
     if (!buf)
