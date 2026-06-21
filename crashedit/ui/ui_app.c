@@ -524,7 +524,7 @@ const char *ui_wcs2u8(const wchar_t *wcs)
 {
     static char pool[8][512];
     static int slot = 0;
-    char *out;
+    char *out = NULL;
     int i, n;
 
     if (!wcs)

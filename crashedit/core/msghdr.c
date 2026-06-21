@@ -87,7 +87,7 @@ static int field_set_wcs(HField *f, const wchar_t *wcs, int len)
 
 static int field_set_utf8(HField *f, const char *utf8)
 {
-    wchar_t *wcs;
+    wchar_t *wcs = NULL;
     int wlen, rc;
 
     if (!utf8 || !utf8[0])
@@ -108,7 +108,7 @@ static int field_set_utf8(HField *f, const char *utf8)
 static int field_grow(HField *f, int need)
 {
     int nc;
-    wchar_t *t;
+    wchar_t *t = NULL;
 
     if (f->cap > need + 1)
         return 0;
@@ -389,8 +389,8 @@ const char *msghdr_get_utf8_tmp(const MsgHdr *h, int f)
 {
     static char pool[8][JAM_FIELD_MAX * 4 + 4];
     static int slot = 0;
-    char *out;
-    char *tmp;
+    char *out = NULL;
+    char *tmp = NULL;
     int n;
 
     out = pool[slot];
@@ -447,7 +447,7 @@ int msghdr_edit_col(const MsgHdr *h) { return h ? h->edit_col : 0; }
 
 int msghdr_edit_key(MsgHdr *h, int key)
 {
-    HField *f;
+    HField *f = NULL;
 
     if (!h || h->edit_field < 0)
         return -1;

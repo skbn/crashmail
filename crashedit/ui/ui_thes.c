@@ -199,11 +199,19 @@ int ui_thes_lookup_word(UiApp *app)
         return 0;
     }
 
-    /* Count total synonyms */
+    /* Count total non-NULL synonyms */
     total_items = 0;
 
     for (i = 0; i < nmeanings; i++)
-        total_items += meanings[i].nsyns;
+    {
+        int kk;
+
+        for (kk = 0; kk < meanings[i].nsyns; kk++)
+        {
+            if (meanings[i].syns[kk])
+                total_items++;
+        }
+    }
 
     if (total_items == 0)
     {
@@ -237,9 +245,12 @@ int ui_thes_lookup_word(UiApp *app)
         for (k = 0; k < meanings[m].nsyns; k++)
         {
             size_t need;
-            const char *defn;
-            const char *syn_utf8;
-            const char *defn_utf8;
+            const char *defn = NULL;
+            const char *syn_utf8 = NULL;
+            const char *defn_utf8 = NULL;
+
+            if (!meanings[m].syns[k])
+                continue;
 
             defn = meanings[m].def ? meanings[m].def : "";
 
@@ -279,6 +290,13 @@ int ui_thes_lookup_word(UiApp *app)
                 else
                     snprintf(items[idx], need, "%s", syn_utf8);
             }
+            else
+            {
+                items[idx] = (char *)malloc(2);
+
+                if (items[idx])
+                    strcpy(items[idx], "?");
+            }
 
             item_to_syn[idx * 2 + 0] = m;
             item_to_syn[idx * 2 + 1] = k;
@@ -287,9 +305,9 @@ int ui_thes_lookup_word(UiApp *app)
         }
     }
 
-    sel = ui_popup_list("Synonyms", (const char **)items, total_items, 0);
+    sel = ui_popup_list("Synonyms", (const char **)items, idx, 0);
 
-    if (sel >= 0 && sel < total_items)
+    if (sel >= 0 && sel < idx)
     {
         int sm = item_to_syn[sel * 2 + 0];
         int sk = item_to_syn[sel * 2 + 1];
@@ -299,39 +317,42 @@ int ui_thes_lookup_word(UiApp *app)
         wchar_t *wsyn = NULL;
         int wlen;
 
-        if (thes_encoding && thes_encoding[0] && strcmp(thes_encoding, "UTF-8") != 0)
+        if (chosen_orig)
         {
-            chosen_utf8[0] = '\0';
+            if (thes_encoding && thes_encoding[0] && strcmp(thes_encoding, "UTF-8") != 0)
+            {
+                chosen_utf8[0] = '\0';
 
-            charset_to_utf8(thes_encoding, chosen_orig, (int)strlen(chosen_orig), chosen_utf8, sizeof(chosen_utf8));
-            chosen = chosen_utf8;
-        }
-        else
-        {
-            chosen = chosen_orig;
-        }
+                charset_to_utf8(thes_encoding, chosen_orig, (int)strlen(chosen_orig), chosen_utf8, sizeof(chosen_utf8));
+                chosen = chosen_utf8;
+            }
+            else
+            {
+                chosen = chosen_orig;
+            }
 
-        wsyn = utf8_to_wcs(chosen, &wlen);
+            wsyn = utf8_to_wcs(chosen, &wlen);
 
-        if (wsyn)
-        {
-            ed_save_undo(ed);
-            ed_set_pos(ed, info.row, ws);
+            if (wsyn)
+            {
+                ed_save_undo(ed);
+                ed_set_pos(ed, info.row, ws);
 
-            for (i = 0; i < (we - ws); i++)
-                ed_delete(ed);
+                for (i = 0; i < (we - ws); i++)
+                    ed_delete(ed);
 
-            for (i = 0; i < wlen; i++)
-                ed_insert_char(ed, wsyn[i]);
+                for (i = 0; i < wlen; i++)
+                    ed_insert_char(ed, wsyn[i]);
 
-            free(wsyn);
+                free(wsyn);
 
-            ui_status(app, "Replaced with '%s'", chosen);
+                ui_status(app, "Replaced with '%s'", chosen);
+            }
         }
     }
 
     /* Free allocated items */
-    for (i = 0; i < total_items; i++)
+    for (i = 0; i < idx; i++)
         free(items[i]);
 
     free(items);

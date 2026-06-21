@@ -328,7 +328,7 @@ int areafile_load(AreaList *list, const char *path)
         }
         else if (strcasecmp(keyword, "NETMAIL") == 0 || strcasecmp(keyword, "NETAREA") == 0)
         {
-            AreaEntry *ae;
+            AreaEntry *ae = NULL;
             const char *rest;
             char *skip_buf = NULL;
 
@@ -410,8 +410,8 @@ int areafile_load(AreaList *list, const char *path)
         }
         else if (strcasecmp(keyword, "LOCAL") == 0 || strcasecmp(keyword, "LOCALAREA") == 0)
         {
-            AreaEntry *ae;
-            const char *rest;
+            AreaEntry *ae = NULL;
+            const char *rest = NULL;
             char *skip_buf = NULL;
 
             if (ensure_capacity(list) != 0)

@@ -116,8 +116,8 @@ extern struct Library *IFFParseBase;
 
 char *clipboard_paste(void)
 {
-    struct IFFHandle *iff;
-    struct ClipboardHandle *clip;
+    struct IFFHandle *iff = NULL;
+    struct ClipboardHandle *clip = NULL;
     char *out = NULL;
     char *malloc_copy = NULL;
     ULONG total = 0;
@@ -303,7 +303,7 @@ int clipboard_copy(const char *utf8)
 
 int clipboard_copy(const char *utf8)
 {
-    HGLOBAL hglb;
+    HGLOBAL hglb = NULL;
     char *lptstr = NULL;
 
     if (!utf8 || !utf8[0])
@@ -334,7 +334,7 @@ int clipboard_copy(const char *utf8)
 
 char *clipboard_paste(void)
 {
-    HGLOBAL hglb;
+    HGLOBAL hglb = NULL;
     char *lptstr = NULL;
     char *out = NULL;
 

@@ -296,7 +296,7 @@ static int handle_function_keys(UiApp *app, int ch, int is_key)
             {
                 UiSession *s = &app->sess;
                 char detected[CHARSET_NAME_MAX];
-                char *body_utf8;
+                char *body_utf8 = NULL;
 
                 detected[0] = '\0';
                 body_utf8 = wrapper_read_utf8_ex(&s->mb, app->edit_reply_to_msgnum, app->view_charset[0] ? app->view_charset : NULL, NULL, detected, sizeof(detected));
@@ -1630,7 +1630,7 @@ UiView ui_editor_run(UiApp *app)
         int body_width;
         int body_rows;
         int preserve_desired;
-        AreaEntry *ae_body;
+        AreaEntry *ae_body = NULL;
         int srow;
 
         /* Recalculate effective width each frame for resize handling */

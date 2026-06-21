@@ -360,8 +360,8 @@ static void compute_layout_cached(const UiApp *app, int maxcol, ArealistLayout *
 static void put_field_utf8(char *buf, int maxcol, int start, int width, const char *utf8_in)
 {
     const char *src;
-    wchar_t *w;
-    char *out;
+    wchar_t *w = NULL;
+    char *out = NULL;
     int wl, i;
     int is_ascii = 1;
 
@@ -572,9 +572,9 @@ static void draw_header(int y, int width, const ArealistLayout *L)
 /* Catch up area: set LASTREAD to highest msgnum, returns msg count or -1 on error */
 static int catchup_one_area(UiApp *app, int area_idx)
 {
-    AreaEntry *ae;
+    AreaEntry *ae = NULL;
     MsgBase jam;
-    MsgInfo *msgs;
+    MsgInfo *msgs = NULL;
     uint32_t hi = 0, ucrc;
     int n = 0, i;
 

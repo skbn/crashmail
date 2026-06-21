@@ -28,6 +28,9 @@
 #include "ui_editor_internal.h"
 #include "ui_editor_helper.h"
 #include "ui_editor_search.h"
+#ifdef HAVE_HYPHEN
+#include "../core/hyph.h"
+#endif
 #include "../core/charset.h"
 #include "../core/msghdr.h"
 #include "../core/utf8.h"
@@ -171,8 +174,13 @@ char *wrap_paste_text_ex(const char *utf8, int col, PasteHyphFn hyph, void *hyph
                     if (utf8_word)
                     {
                         int utf8_len = (int)strlen(utf8_word);
-                        int hp[16];
-                        int hn = 16;
+#ifdef HAVE_HYPHEN
+                        int hp[HYPH_MAX_BREAKS];
+                        int hn = HYPH_MAX_BREAKS;
+#else
+                        int hp[64];
+                        int hn = 64;
+#endif
                         int k;
 
                         if (hyph(hyph_data, utf8_word, utf8_len, hp, &hn) && hn > 0)
@@ -205,7 +213,7 @@ char *wrap_paste_text_ex(const char *utf8, int col, PasteHyphFn hyph, void *hyph
                                     wchar_t *new_out = (wchar_t *)realloc(out, (size_t)new_cap * sizeof(wchar_t));
 
                                     if (!new_out)
-                                        break; /* abort hyph attempt */
+                                        continue; /* try next hyph point */
 
                                     out = new_out;
                                     out_cap = new_cap;
@@ -261,6 +269,18 @@ char *wrap_paste_text_ex(const char *utf8, int col, PasteHyphFn hyph, void *hyph
             else if (!break_found)
             {
                 /* No space, no hyphenation: hard cut */
+                if (out_len + 1 >= out_cap)
+                {
+                    int new_cap = (out_cap + 64) * 2;
+                    wchar_t *new_out = (wchar_t *)realloc(out, (size_t)new_cap * sizeof(wchar_t));
+
+                    if (new_out)
+                    {
+                        out = new_out;
+                        out_cap = new_cap;
+                    }
+                }
+
                 if (out_len + 1 < out_cap)
                 {
                     out[out_len++] = L'\n';

@@ -991,7 +991,7 @@ static void st_edit_field(CrashEditCfg *w, const SetupField *fld)
     case FT_DICTLIST:
     {
         char *s = base + fld->off;
-        char **dicts;
+        char **dicts = NULL;
         int n_dicts;
         int i;
         int current = -1;
@@ -1048,7 +1048,7 @@ static void st_edit_field(CrashEditCfg *w, const SetupField *fld)
     case FT_HYPHLIST:
     {
         char *s = base + fld->off;
-        char **dicts;
+        char **dicts = NULL;
         int n_dicts;
         int i;
         int current = -1;
@@ -1099,7 +1099,7 @@ static void st_edit_field(CrashEditCfg *w, const SetupField *fld)
     case FT_THESLIST:
     {
         char *s = base + fld->off;
-        char **dicts;
+        char **dicts = NULL;
         int n_dicts;
         int i;
         int current = -1;

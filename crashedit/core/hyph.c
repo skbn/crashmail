@@ -258,8 +258,8 @@ void hyph_cache_clear(HyphDict *h)
 HyphDict *hyph_new(const char *dict_path)
 {
 #ifdef HAVE_HYPHEN
-    HyphDict *h;
-    FILE *fp;
+    HyphDict *h = NULL;
+    FILE *fp = NULL;
 
     if (!dict_path)
         return NULL;
@@ -400,7 +400,7 @@ static int hyph_ends_with_dic(const char *name)
 static char *hyph_extract_name(const char *name)
 {
     size_t len;
-    char *base;
+    char *base = NULL;
 
     if (!name)
         return NULL;
@@ -453,11 +453,11 @@ void hyph_free_dictionaries(char **dicts, int n_dicts)
 
 char **hyph_list_dictionaries(const char *dir_path, int *n_dicts)
 {
-    char **dicts;
+    char **dicts = NULL;
     int capacity;
     int count;
-    char *name;
-    char **new_dicts;
+    char *name = NULL;
+    char **new_dicts = NULL;
 
 #ifdef PLATFORM_WIN32
     WIN32_FIND_DATAA fd;
@@ -465,10 +465,10 @@ char **hyph_list_dictionaries(const char *dir_path, int *n_dicts)
     char pattern[300];
 #elif defined(PLATFORM_AMIGA)
     BPTR lock;
-    struct FileInfoBlock *fib;
+    struct FileInfoBlock *fib = NULL;
 #else
-    DIR *d;
-    struct dirent *e;
+    DIR *d = NULL;
+    struct dirent *e = NULL;
 #endif
 
     if (!n_dicts)

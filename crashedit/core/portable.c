@@ -107,7 +107,7 @@ int port_file_create_empty(const char *p)
     return -1;
 
 #else
-    FILE *f;
+    FILE *f = NULL;
 
     f = fopen(p, "w");
 
@@ -123,7 +123,7 @@ int port_file_create_empty(const char *p)
 
 void port_get_config_dir(char *buf, size_t bufsz)
 {
-    char *home;
+    char *home = NULL;
 
 #if defined(PLATFORM_AMIGA)
     snprintf(buf, bufsz, "ENVARC:crashedit");
@@ -157,7 +157,7 @@ struct PfDir
 
 PfDir *pf_dir_open(const char *path)
 {
-    PfDir *d;
+    PfDir *d = NULL;
     char pattern[300];
 
     if (!path || !path[0])
@@ -240,7 +240,7 @@ struct PfDir
 
 PfDir *pf_dir_open(const char *path)
 {
-    PfDir *d;
+    PfDir *d = NULL;
 
     if (!path)
         return NULL;
@@ -323,7 +323,7 @@ struct PfDir
 
 PfDir *pf_dir_open(const char *path)
 {
-    PfDir *d;
+    PfDir *d = NULL;
 
     if (!path)
         return NULL;
@@ -410,7 +410,7 @@ void pf_dir_close(PfDir *d)
 
 PfLockFile *pf_lock_create(const char *path)
 {
-    PfLockFile *lk;
+    PfLockFile *lk = NULL;
     char buf[32];
     DWORD wrote;
     int n;
@@ -459,7 +459,7 @@ void pf_lock_release(PfLockFile *lk)
 
 PfLockFile *pf_lock_create(const char *path)
 {
-    PfLockFile *lk;
+    PfLockFile *lk = NULL;
     BPTR probe;
     BPTR fh;
 
@@ -521,7 +521,7 @@ void pf_lock_release(PfLockFile *lk)
 
 PfLockFile *pf_lock_create(const char *path)
 {
-    PfLockFile *lk;
+    PfLockFile *lk = NULL;
     char buf[32];
     int n;
     ssize_t w;

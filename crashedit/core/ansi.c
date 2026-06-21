@@ -193,12 +193,21 @@ static int row_ensure_cap(AnsiRow *r, int need)
     if (!nc)
     {
         /* cells realloc failed: shrink wcs to keep buffers consistent */
-        wchar_t *shrink = (wchar_t *)realloc(r->wcs, (size_t)old_cap * sizeof(wchar_t));
-
-        if (shrink || old_cap == 0)
+        if (old_cap == 0)
         {
-            r->wcs = shrink;
-            r->cap = old_cap;
+            free(r->wcs);
+            r->wcs = NULL;
+            r->cap = 0;
+        }
+        else
+        {
+            wchar_t *shrink = (wchar_t *)realloc(r->wcs, (size_t)old_cap * sizeof(wchar_t));
+
+            if (shrink)
+            {
+                r->wcs = shrink;
+                r->cap = old_cap;
+            }
         }
 
         return -1;

@@ -198,8 +198,8 @@ int replace_current(UiApp *app)
     int nlen;
     int rlen;
     int i;
-    int *new_rows;
-    int *new_cols;
+    int *new_rows = NULL;
+    int *new_cols = NULL;
     int new_match_count;
 
     if (app->edit_search.last_replace[0] != L'\0')

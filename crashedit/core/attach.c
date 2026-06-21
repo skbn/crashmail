@@ -44,7 +44,7 @@ void attach_free(AttachList *list)
 /* Operations */
 int attach_add(AttachList *list, const char *path)
 {
-    FILE *f;
+    FILE *f = NULL;
     long size;
     int i;
 
@@ -127,8 +127,8 @@ void attach_clear(AttachList *list)
 /* Subject handling */
 int attach_parse_from_subject(AttachList *list, const char *subject)
 {
-    char *buf;
-    char *ptr;
+    char *buf = NULL;
+    char *ptr = NULL;
     int count = 0;
 
     if (!list || !subject)

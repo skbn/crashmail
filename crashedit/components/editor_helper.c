@@ -33,10 +33,14 @@
 #include "../core/charset.h"
 #include "../core/utf8.h"
 
+#ifdef HAVE_HYPHEN
+#include "../core/hyph.h"
+#endif
+
 /* Convert entire line to wchar_t string (caller frees) */
 wchar_t *line_to_wcs(EdLine *ln)
 {
-    wchar_t *result;
+    wchar_t *result = NULL;
 
     if (!ln)
         return NULL;
@@ -58,7 +62,7 @@ wchar_t *line_to_wcs(EdLine *ln)
 wchar_t *line_to_wcs_range(EdLine *ln, int start, int end)
 {
     int len;
-    wchar_t *result;
+    wchar_t *result = NULL;
 
     if (!ln || start < 0 || end > ln->len || start >= end)
         return NULL;
@@ -507,9 +511,9 @@ int ed_rewrap_paragraph_ex(Ed *ed, int width, EdHyphenFn hyph, void *hyph_data)
 {
     int first, last, i;
     int prefix_len;
-    const wchar_t *line;
+    const wchar_t *line = NULL;
     wchar_t prefix[64];
-    wchar_t *joined;
+    wchar_t *joined = NULL;
     wchar_t *tmp_joined = NULL;
     size_t cap, used;
 
@@ -518,11 +522,11 @@ int ed_rewrap_paragraph_ex(Ed *ed, int width, EdHyphenFn hyph, void *hyph_data)
     size_t out_cap = 0;
     size_t out_used = 0;
     wchar_t *outw = NULL;
-    char *outu;
+    char *outu = NULL;
     int k;
     char *snapshot_before = NULL;
     char *snapshot_after = NULL;
-    UndoGroup *g;
+    UndoGroup *g = NULL;
     int need_snapshot = 0;
     int cursor_row_before = 0;
     int cursor_col_before = 0;
@@ -670,7 +674,7 @@ int ed_rewrap_paragraph_ex(Ed *ed, int width, EdHyphenFn hyph, void *hyph_data)
     {
         int line_len, break_at;
         int hyph_inserted = 0; /* set when we break mid-word with '-' */
-        wchar_t *tmp;
+        wchar_t *tmp = NULL;
 
         if (out_used + (size_t)prefix_len + (size_t)avail + 2 >= out_cap)
         {
@@ -717,7 +721,7 @@ int ed_rewrap_paragraph_ex(Ed *ed, int width, EdHyphenFn hyph, void *hyph_data)
             if (!space_found && hyph)
             {
                 size_t ws, we;
-                char *uw;
+                char *uw = NULL;
 
                 /* Locate the overflow word */
                 ws = pos + (size_t)line_len;
@@ -737,8 +741,13 @@ int ed_rewrap_paragraph_ex(Ed *ed, int width, EdHyphenFn hyph, void *hyph_data)
                     if (uw)
                     {
                         int uw_bytes = (int)strlen(uw);
-                        int hp[16];
-                        int hn = 16;
+#ifdef HAVE_HYPHEN
+                        int hp[HYPH_MAX_BREAKS];
+                        int hn = HYPH_MAX_BREAKS;
+#else
+                        int hp[64];
+                        int hn = 64;
+#endif
 
                         if (hyph(hyph_data, uw, uw_bytes, hp, &hn) && hn > 0)
                         {
@@ -857,6 +866,7 @@ int ed_rewrap_paragraph_ex(Ed *ed, int width, EdHyphenFn hyph, void *hyph_data)
             if (!snapshot_after)
             {
                 free(snapshot_before);
+                ed->undo_snapshot_mode = 0;
                 return -1;
             }
             snapshot_after[0] = '\0';
@@ -868,6 +878,7 @@ int ed_rewrap_paragraph_ex(Ed *ed, int width, EdHyphenFn hyph, void *hyph_data)
             if (!snapshot_after)
             {
                 free(snapshot_before);
+                ed->undo_snapshot_mode = 0;
 
                 return -1;
             }
@@ -880,6 +891,7 @@ int ed_rewrap_paragraph_ex(Ed *ed, int width, EdHyphenFn hyph, void *hyph_data)
         {
             free(snapshot_before);
             free(snapshot_after);
+            ed->undo_snapshot_mode = 0;
 
             return -1;
         }
@@ -888,6 +900,7 @@ int ed_rewrap_paragraph_ex(Ed *ed, int width, EdHyphenFn hyph, void *hyph_data)
         {
             free(snapshot_before);
             free(snapshot_after);
+            ed->undo_snapshot_mode = 0;
 
             return -1;
         }
@@ -907,6 +920,7 @@ int ed_rewrap_paragraph_ex(Ed *ed, int width, EdHyphenFn hyph, void *hyph_data)
             {
                 free(snapshot_before);
                 free(snapshot_after);
+                ed->undo_snapshot_mode = 0;
 
                 return -1;
             }
@@ -941,16 +955,16 @@ int ed_rewrap_paragraph_ex(Ed *ed, int width, EdHyphenFn hyph, void *hyph_data)
 
 int ed_load_file_at_cursor(Ed *ed, const char *path, const char *charset_in)
 {
-    FILE *f;
+    FILE *f = NULL;
     long sz;
-    char *buf;
-    char *content_to_paste;
+    char *buf = NULL;
+    char *content_to_paste = NULL;
     size_t r;
     int needs_conv;
     int cursor_row_before, cursor_col_before;
     int cursor_row_after, cursor_col_after;
     EdInfo info;
-    UndoGroup *g;
+    UndoGroup *g = NULL;
 
     if (!ed || !path || !path[0])
         return -1;
@@ -1135,8 +1149,8 @@ int ed_export_block_to_file(Ed *ed, const char *path, const char *charset_out)
 {
     int r1, c1, r2, c2;
     int i;
-    FILE *f;
-    char *utf8;
+    FILE *f = NULL;
+    char *utf8 = NULL;
     int needs_conv;
     char conv[4096];
 

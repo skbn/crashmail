@@ -50,8 +50,8 @@ int main(int argc, char *argv[])
 {
     CrashEditCfg cfg;
     AreaList areas;
-    UiApp *app;
-    const char *cfgfile;
+    UiApp *app = NULL;
+    const char *cfgfile = NULL;
     unsigned int seed;
 
 #ifdef PLATFORM_AMIGA

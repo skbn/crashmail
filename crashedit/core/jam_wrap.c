@@ -355,8 +355,8 @@ void jam_unlock(JamArea *a)
 /* Build kludge prefix from JAM subfields (FTS-1: ^A kludges prepended, SEEN-BY/PATH/Via appended) */
 static char *build_body_with_kludges(s_JamSubPacket *sp, const char *txt, uint32_t tl, uint32_t *out_len)
 {
-    char *kbuf; /* ^A kludges */
-    char *bbuf; /* SEEN-BY/PATH/Via */
+    char *kbuf = NULL; /* ^A kludges */
+    char *bbuf = NULL; /* SEEN-BY/PATH/Via */
     char *vbuf = NULL;
     int klen = 0, blen = 0;
     uint32_t i;

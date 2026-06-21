@@ -520,7 +520,7 @@ void spell_free_dictionaries(char **dicts, int n_dicts)
 
 char **spell_list_dictionaries(const char *search_path, int *n_dicts)
 {
-    char **dicts;
+    char **dicts = NULL;
     int capacity;
     int count;
     char *name = NULL;
@@ -532,10 +532,10 @@ char **spell_list_dictionaries(const char *search_path, int *n_dicts)
     char pattern[300];
 #elif defined(PLATFORM_AMIGA)
     BPTR lock;
-    struct FileInfoBlock *fib;
+    struct FileInfoBlock *fib = NULL;
 #else
-    DIR *d;
-    struct dirent *e;
+    DIR *d = NULL;
+    struct dirent *e = NULL;
 #endif
 
     if (!n_dicts)

@@ -78,10 +78,10 @@ static FileEnt *load_dir(const char *dir, int *out_n)
     char pattern[UI_FILES_PATH_MAX];
 #elif defined(PLATFORM_AMIGA)
     BPTR lock;
-    struct FileInfoBlock *fib;
+    struct FileInfoBlock *fib = NULL;
 #else
-    DIR *dp;
-    struct dirent *e;
+    DIR *dp = NULL;
+    struct dirent *e = NULL;
     struct stat st;
     char full[UI_FILES_PATH_MAX];
 #endif

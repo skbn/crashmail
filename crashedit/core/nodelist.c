@@ -55,7 +55,7 @@ void nodelist_free(Nodelist *nl)
 static int ensure_capacity(Nodelist *nl)
 {
     int new_cap;
-    NodelistEntry *ne;
+    NodelistEntry *ne = NULL;
 
     if (nl->count < nl->capacity)
         return 0;
@@ -129,7 +129,7 @@ static void build_addr(char *out, int outsz, int zone, int net, int node, int po
 /* Append a single entry, 0 on success, -1 on OOM */
 static int append_entry(Nodelist *nl, const char *name, const char *addr)
 {
-    NodelistEntry *e;
+    NodelistEntry *e = NULL;
 
     if (ensure_capacity(nl) != 0)
         return -1;
