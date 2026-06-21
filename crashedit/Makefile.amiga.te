@@ -37,8 +37,8 @@
 HERE := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 
 CROSS      ?= m68k-amigaos-
-CC         := $(CROSS)gcc -noixemul -mcpu=68020 -msoft-float -DPLATFORM_AMIGA -DUSE_FREETYPE
-CXX        := $(CROSS)g++ -noixemul -mcpu=68020 -msoft-float -DPLATFORM_AMIGA -DUSE_FREETYPE
+CC         := $(CROSS)gcc -noixemul -mcpu=68020 -msoft-float -DPLATFORM_AMIGA -DUSE_FREETYPE -DAMIGA_TTF_TE
+CXX        := $(CROSS)g++ -noixemul -mcpu=68020 -msoft-float -DPLATFORM_AMIGA -DUSE_FREETYPE -DAMIGA_TTF_TE
 AR         := $(CROSS)ar
 RANLIB     := $(CROSS)ranlib
 
@@ -103,7 +103,46 @@ ifeq ($(USE_HUNSPELL),1)
                   $(HUNSPELL_OBJDIR)/replist.o $(HUNSPELL_OBJDIR)/suggestmgr.o
 endif
 
-ALL_OBJS   = $(CORE_OBJS) $(COMP_OBJS) $(UI_OBJS) $(SPELL_OBJS)
+# Hyphen support (requires Hunspell)
+USE_HYPHEN ?= 0
+HYPHEN_DIR = $(HERE)hyphen
+HYPHEN_OBJDIR = $(HYPHEN_DIR)/objs.amiga
+HYPHEN_LIB = $(HYPHEN_DIR)/libhyphen.a
+HYPHEN_OBJS = $(HYPHEN_OBJDIR)/hnjalloc.o $(HYPHEN_OBJDIR)/hyphen.o
+
+ifeq ($(USE_HYPHEN),1)
+  ifeq ($(USE_HUNSPELL),0)
+    $(error USE_HYPHEN=1 requires USE_HUNSPELL=1)
+  endif
+  CFLAGS += -DHAVE_HYPHEN -I$(HYPHEN_DIR) -I$(HERE)core
+  HYPHWRAP_OBJS = $(OBJDIR)/hyph.o
+endif
+
+# MyThes support (requires Hunspell)
+USE_MYTHES ?= 0
+MYTHES_DIR = $(HERE)mythes
+MYTHES_OBJDIR = $(MYTHES_DIR)/objs.amiga
+MYTHES_LIB = $(MYTHES_DIR)/libmythes.a
+MYTHES_OBJS = $(MYTHES_OBJDIR)/mythes.o
+
+ifeq ($(USE_MYTHES),1)
+  ifeq ($(USE_HUNSPELL),0)
+    $(error USE_MYTHES=1 requires USE_HUNSPELL=1)
+  endif
+  CXXFLAGS += -DHAVE_MYTHES -I$(MYTHES_DIR)
+  CFLAGS += -DHAVE_MYTHES -I$(MYTHES_DIR) -I$(HERE)core
+  THES_OBJS = $(OBJDIR)/thes.o
+endif
+
+ifeq ($(USE_HYPHEN),1)
+UI_OBJS    += $(OBJDIR)/ui_hyph.o
+endif
+
+ifeq ($(USE_MYTHES),1)
+UI_OBJS    += $(OBJDIR)/ui_thes.o
+endif
+
+ALL_OBJS   = $(CORE_OBJS) $(COMP_OBJS) $(UI_OBJS) $(SPELL_OBJS) $(HYPHWRAP_OBJS) $(THES_OBJS)
 
 # FreeType objects (with gzip + lzw modules) - all in OBJDIR
 FT_OBJS    := \
@@ -179,8 +218,16 @@ ifeq ($(USE_HUNSPELL),1)
 $(OBJDIR)/main_ui.o: $(HERE)main_ui.c | $(OBJDIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(CRASHEDIT): $(OBJDIR)/main_ui.o $(TARGET) $(HUNSPELL_LIB) $(JAMLIB)
-	$(CXX) $(CFLAGS) $(OBJDIR)/main_ui.o $(TARGET) $(HUNSPELL_LIB) $(JAMLIB) -lm -o $@
+LINK_LIBS = $(HUNSPELL_LIB)
+ifeq ($(USE_HYPHEN),1)
+LINK_LIBS += $(HYPHEN_LIB)
+endif
+ifeq ($(USE_MYTHES),1)
+LINK_LIBS += $(MYTHES_LIB)
+endif
+
+$(CRASHEDIT): $(OBJDIR)/main_ui.o $(TARGET) $(LINK_LIBS) $(JAMLIB)
+	$(CXX) $(CFLAGS) $(OBJDIR)/main_ui.o $(TARGET) $(LINK_LIBS) $(JAMLIB) -lm -o $@
 else
 $(CRASHEDIT): $(HERE)main_ui.c $(TARGET) $(JAMLIB)
 	$(CC) $(CFLAGS) $(HERE)main_ui.c $(TARGET) $(JAMLIB) -lm -o $@
@@ -553,11 +600,33 @@ $(OBJDIR)/ui_popup_nodelist.o: $(UIDIR)/ui_popup_nodelist.c $(UIDIR)/ui_internal
 $(OBJDIR)/ui_glyph_picker.o: $(UIDIR)/ui_glyph_picker.c $(UIDIR)/ui_glyph_picker.h | $(OBJDIR)
 	$(CC) $(TEFLAGS) -c $< -o $@
 
+ifeq ($(USE_HYPHEN),1)
+$(OBJDIR)/ui_hyph.o: $(UIDIR)/ui_hyph.c $(UIDIR)/ui_hyph.h | $(OBJDIR)
+	$(CC) $(TEFLAGS) -c $< -o $@
+
+$(OBJDIR)/hyph.o: $(COREDIR)/hyph.c $(COREDIR)/hyph.h | $(OBJDIR)
+	$(CC) $(TEFLAGS) -c $< -o $@
+endif
+
+ifeq ($(USE_MYTHES),1)
+$(OBJDIR)/ui_thes.o: $(UIDIR)/ui_thes.c $(UIDIR)/ui_thes.h | $(OBJDIR)
+	$(CC) $(TEFLAGS) -c $< -o $@
+
+$(OBJDIR)/thes.o: $(COREDIR)/thes.cpp $(COREDIR)/thes.h | $(OBJDIR)
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+endif
+
 
 clean:
 	rm -rf $(OBJDIR) $(TARGET) $(CRASHEDIT)
 ifeq ($(USE_HUNSPELL),1)
 	rm -rf $(HUNSPELL_OBJDIR) $(HUNSPELL_LIB)
+endif
+ifeq ($(USE_HYPHEN),1)
+	rm -rf $(HYPHEN_OBJDIR) $(HYPHEN_LIB)
+endif
+ifeq ($(USE_MYTHES),1)
+	rm -rf $(MYTHES_OBJDIR) $(MYTHES_LIB)
 endif
 
 clean-ft:
@@ -613,9 +682,42 @@ $(HUNSPELL_LIB): $(HUNSPELL_OBJS)
 
 endif
 
+# Hyphen build rules (only if USE_HYPHEN=1)
+ifeq ($(USE_HYPHEN),1)
+
+$(HYPHEN_OBJDIR):
+	mkdir -p $(HYPHEN_OBJDIR)
+
+$(HYPHEN_OBJDIR)/%.o: $(HYPHEN_DIR)/%.c | $(HYPHEN_OBJDIR)
+	$(CC) $(CFLAGS) -I$(HYPHEN_DIR) -c $< -o $@
+
+$(HYPHEN_LIB): $(HYPHEN_OBJS)
+	$(AR) rcs $@ $(HYPHEN_OBJS)
+	$(RANLIB) $@
+	@echo ">>> $(HYPHEN_LIB) built successfully"
+
+endif
+
+# MyThes build rules (only if USE_MYTHES=1)
+ifeq ($(USE_MYTHES),1)
+
+$(MYTHES_OBJDIR):
+	mkdir -p $(MYTHES_OBJDIR)
+
+$(MYTHES_OBJDIR)/%.o: $(MYTHES_DIR)/%.cxx | $(MYTHES_OBJDIR)
+	$(CXX) $(CXXFLAGS) -I$(MYTHES_DIR) -I$(HUNSPELL_SRC) -c $< -o $@
+
+$(MYTHES_LIB): $(MYTHES_OBJS) $(HUNSPELL_LIB)
+	$(AR) rcs $@ $(MYTHES_OBJS)
+	$(RANLIB) $@
+	@echo ">>> $(MYTHES_LIB) built successfully"
+
+endif
+
 # unprep-hunspell target - remove generated files (always available)
 unprep-hunspell:
 	@rm -f $(HUNSPELL_VERSION_H)
 	@echo ">>> $(HUNSPELL_VERSION_H) removed"
 
 .PHONY: all clean clean-ft clean-all prep prep-min unprep prep-hunspell unprep-hunspell crashedit
+

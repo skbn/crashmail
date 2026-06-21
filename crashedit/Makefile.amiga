@@ -80,12 +80,16 @@ endif
 
 # libhyphen support -- requires the hyphen sources to be unpacked under
 # $(HERE)hyphen, exposing libhyphen.a. Pre-built objs live in objs.amiga
+# REQUIRES Hunspell.
 USE_HYPHEN ?= 0
 HYPHEN_DIR     = $(HERE)hyphen
 HYPHEN_OBJDIR  = $(HYPHEN_DIR)/objs.amiga
 HYPHEN_LIB     = $(HYPHEN_DIR)/libhyphen.a
 
 ifeq ($(USE_HYPHEN),1)
+  ifeq ($(USE_HUNSPELL),0)
+    $(error USE_HYPHEN=1 requires USE_HUNSPELL=1)
+  endif
   CFLAGS += -DHAVE_HYPHEN -I$(HYPHEN_DIR)
   HYPH_OBJS = $(OBJDIR)/hyph.o $(OBJDIR)/ui_hyph.o
   HYPHEN_BUILD_OBJS = $(HYPHEN_OBJDIR)/hyphen.o $(HYPHEN_OBJDIR)/hnjalloc.o
@@ -95,12 +99,16 @@ endif
 
 # MyThes support -- requires mythes sources under $(HERE)mythes, exposing
 # libmythes.a. Pre-built objs live in objs.amiga. Uses C++; CXX must be set
+# REQUIRES Hunspell.
 USE_MYTHES ?= 0
 MYTHES_DIR     = $(HERE)mythes
 MYTHES_OBJDIR  = $(MYTHES_DIR)/objs.amiga
 MYTHES_LIB     = $(MYTHES_DIR)/libmythes.a
 
 ifeq ($(USE_MYTHES),1)
+  ifeq ($(USE_HUNSPELL),0)
+    $(error USE_MYTHES=1 requires USE_HUNSPELL=1)
+  endif
   CFLAGS += -DHAVE_MYTHES -I$(MYTHES_DIR)
   CXXFLAGS += -DHAVE_MYTHES -I$(MYTHES_DIR) -I$(HERE)core
   THES_OBJS = $(OBJDIR)/thes.o $(OBJDIR)/ui_thes.o

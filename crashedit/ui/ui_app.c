@@ -328,18 +328,21 @@ static void build_status_right(const UiApp *app, char *out, int outsz)
         EdInfo info;
 
         ed_get_info(app->editor, &info);
-#ifdef HAVE_HUNSPELL
+#if defined(HAVE_HUNSPELL) && defined(HAVE_HYPHEN)
         snprintf(out, (size_t)outsz, " %s %s%s%s %s ", app->cfg->hard_wrap ? "HARD" : "SOFT",
                  (app->spell_enabled && app->spell_active && app->spell_handle) ? "SP " : "",
-#ifdef HAVE_HYPHEN
                  (app->hyph_wrap_enabled && app->hyph_handle) ? "HY " : "",
-#endif
+                 info.insert_mode ? "INS" : "OVR", tbuf);
+#elif defined(HAVE_HUNSPELL)
+        snprintf(out, (size_t)outsz, " %s %s%s %s ", app->cfg->hard_wrap ? "HARD" : "SOFT",
+                 (app->spell_enabled && app->spell_active && app->spell_handle) ? "SP " : "",
+                 info.insert_mode ? "INS" : "OVR", tbuf);
+#elif defined(HAVE_HYPHEN)
+        snprintf(out, (size_t)outsz, " %s %s%s %s ", app->cfg->hard_wrap ? "HARD" : "SOFT",
+                 (app->hyph_wrap_enabled && app->hyph_handle) ? "HY " : "",
                  info.insert_mode ? "INS" : "OVR", tbuf);
 #else
-        snprintf(out, (size_t)outsz, " %s %s%s %s ", app->cfg->hard_wrap ? "HARD" : "SOFT",
-#ifdef HAVE_HYPHEN
-                 (app->hyph_wrap_enabled && app->hyph_handle) ? "HY " : "",
-#endif
+        snprintf(out, (size_t)outsz, " %s %s %s ", app->cfg->hard_wrap ? "HARD" : "SOFT",
                  info.insert_mode ? "INS" : "OVR", tbuf);
 #endif
     }
@@ -656,6 +659,7 @@ UiApp *ui_init(CrashEditCfg *cfg, AreaList *areas)
     UiApp *app = NULL;
     char *s = NULL;
     int k;
+    int fi;
     const char *default_net;
 
     if (!cfg || !areas)

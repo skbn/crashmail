@@ -79,6 +79,7 @@ static FileEnt *load_dir(const char *dir, int *out_n)
 #elif defined(PLATFORM_AMIGA)
     BPTR lock;
     struct FileInfoBlock *fib = NULL;
+    const char *colon = NULL;
 #else
     DIR *dp = NULL;
     struct dirent *e = NULL;

@@ -37,12 +37,19 @@ ifneq ($(BSD_OS),)
 endif
 
 CC ?= cc
+CXX ?= c++
 #CFLAGS += -I$(HERE).. -I$(HERE) -I$(HERE)core -I$(HERE)components -I$(HERE)ui -Wall -Wextra -std=gnu89 -O2 -D_XOPEN_SOURCE_EXTENDED
-CFLAGS += -Wall -Wextra -Wpedantic -Wmissing-prototypes -Wstrict-prototypes -Wdeclaration-after-statement -Wimplicit-function-declaration -Wno-unused-parameter -std=gnu89 -O2 -D_XOPEN_SOURCE_EXTENDED
+CFLAGS += -I$(HERE).. -I$(HERE) -I$(HERE)core -I$(HERE)components -I$(HERE)ui -Wall -Wextra -Wpedantic -Wmissing-prototypes -Wstrict-prototypes -Wdeclaration-after-statement -Wimplicit-function-declaration -Wno-unused-parameter -std=gnu89 -O2 -D_XOPEN_SOURCE_EXTENDED
+CXXFLAGS += -I$(HERE).. -I$(HERE) -I$(HERE)core -I$(HERE)components -I$(HERE)ui -Wall -Wextra -Wpedantic -Wno-unused-parameter -O2
 AR = ar
 
 # Platform define
 CDEFS = -DPLATFORM_UNIX
+
+# Optional features
+USE_HUNSPELL ?= 0
+USE_HYPHEN ?= 0
+USE_MYTHES ?= 0
 
 # ncurses library detection:
 #   Linux, FreeBSD, NetBSD, OpenBSD  -> -lncursesw   (wide-char variant)
@@ -118,8 +125,11 @@ endif
 
 # Hyphenation -- opt-in. Requires libhyphen (Debian/Ubuntu: libhyphen-dev;
 # BSD: from ports/pkg or built from source under hyphen/). Compiles
-# core/hyph.o and ui_hyph.o
+# core/hyph.o and ui_hyph.o. REQUIRES Hunspell.
 ifeq ($(USE_HYPHEN),1)
+  ifeq ($(USE_HUNSPELL),0)
+    $(error USE_HYPHEN=1 requires USE_HUNSPELL=1)
+  endif
 CDEFS    += -DHAVE_HYPHEN
 CORE_OBJS += $(OBJDIR)/hyph.o
 UI_OBJS   += $(OBJDIR)/ui_hyph.o
@@ -151,8 +161,11 @@ endif
 
 # Thesaurus (MyThes) -- opt-in. Requires libmythes (Debian/Ubuntu:
 # libmythes-dev). C++ source, so we link the C++ stdlib too. Compiles
-# core/thes.o and ui_thes.o
+# core/thes.o and ui_thes.o. REQUIRES Hunspell.
 ifeq ($(USE_MYTHES),1)
+  ifeq ($(USE_HUNSPELL),0)
+    $(error USE_MYTHES=1 requires USE_HUNSPELL=1)
+  endif
 CDEFS    += -DHAVE_MYTHES
 CORE_OBJS += $(OBJDIR)/thes.o
 UI_OBJS   += $(OBJDIR)/ui_thes.o
@@ -365,9 +378,26 @@ CRASHEDIT = $(HERE)../bin/crashedit
 
 crashedit: $(CRASHEDIT)
 
+ifeq ($(USE_HUNSPELL)$(USE_MYTHES),00)
 $(CRASHEDIT): $(HERE)main_ui.c $(TARGET) $(UI_OBJS) $(JAMLIB)
 	$(CC) $(CFLAGS) $(CDEFS) $(HERE)main_ui.c $(UI_OBJS) $(TARGET) $(JAMLIB) \
 	      -o $@ $(NCURSES_LIB) $(SPELL_LIB) $(HYPH_LIB) $(MYTHES_LIB)
+else
+$(OBJDIR)/main_ui.o: $(HERE)main_ui.c | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
+LINK_LIBS = $(SPELL_LIB)
+ifeq ($(USE_HYPHEN),1)
+LINK_LIBS += $(HYPH_LIB)
+endif
+ifeq ($(USE_MYTHES),1)
+LINK_LIBS += $(MYTHES_LIB)
+endif
+
+$(CRASHEDIT): $(OBJDIR)/main_ui.o $(TARGET) $(UI_OBJS) $(JAMLIB)
+	$(CXX) $(CXXFLAGS) $(CDEFS) $(OBJDIR)/main_ui.o $(UI_OBJS) $(TARGET) $(JAMLIB) \
+	      -o $@ -lstdc++ $(NCURSES_LIB) $(LINK_LIBS)
+endif
 
 clean:
 	rm -rf $(OBJDIR) $(TARGET) $(CRASHEDIT)
