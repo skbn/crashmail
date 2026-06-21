@@ -331,6 +331,7 @@ int handle_search_with_popup(UiApp *app)
     int *rows = NULL, *cols = NULL;
     int match_count;
     int i;
+    int choice;
     const char **contexts = NULL;
     char **context_bufs = NULL;
     int *line_nums = NULL;
@@ -444,7 +445,7 @@ int handle_search_with_popup(UiApp *app)
             }
 
             /* Show popup with results */
-            int choice = ui_popup_search_results("Search Results", line_nums, contexts, match_count, 0);
+            choice = ui_popup_search_results("Search Results", line_nums, contexts, match_count, 0);
 
             if (choice >= 0)
             {

@@ -29,7 +29,7 @@
 #include "attach.h"
 
 /* Create/destroy */
-AttachList *attach_new()
+AttachList *attach_new(void)
 {
     AttachList *list = (AttachList *)calloc(1, sizeof(AttachList));
     return list;

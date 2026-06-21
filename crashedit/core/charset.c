@@ -170,7 +170,7 @@ int charset_body_from_utf8(const char *enc, const char *src, int srclen, char *d
 int charset_count_lossy(const char *utf8, const char *out_cs)
 {
     int srclen, dstsz, n, i;
-    char *tmp;
+    char *tmp = NULL;
     int src_q = 0, dst_q = 0;
 
     if (!utf8 || !out_cs || !out_cs[0])

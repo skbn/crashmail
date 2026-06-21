@@ -485,6 +485,7 @@ char *ftn_inject_kludges(const char *saved, const char *cs, const char *body)
             if (cc_kludges && body_filtered)
             {
                 int bfi = 0;
+                int cc_len;
                 bp = body;
 
                 while (*bp)
@@ -501,7 +502,7 @@ char *ftn_inject_kludges(const char *saved, const char *cs, const char *body)
                             cc_start++;
 
                         /* Copy CC destination (skip trailing \r\n) */
-                        int cc_len = llen - 3;
+                        cc_len = llen - 3;
 
                         while (cc_len > 0 && (cc_start[cc_len - 1] == '\r' || cc_start[cc_len - 1] == '\n'))
                             cc_len--;
@@ -678,7 +679,7 @@ int ftn_get_kludge_value(const char *body, const char *kludge, char *out, int ou
 static int qbuf_reserve(QBuf *q, size_t need)
 {
     size_t want;
-    char *nb;
+    char *nb = NULL;
 
     if (q->len + need + 1 <= q->cap)
         return 0;
@@ -797,7 +798,7 @@ static int qbuf_append_wrapped(QBuf *q, const char *prefix, const char *line, in
 char *ftn_quote_body(const char *body)
 {
     const char *p;
-    char *qb;
+    char *qb = NULL;
     size_t qmax;
     int qi = 0;
 
@@ -1227,7 +1228,7 @@ int ftn_aka_match_zone(const char *akas_base, int aka_count, size_t stride, cons
 /* Tagline & signature */
 char *ftn_random_tagline(const char *path)
 {
-    FILE *f;
+    FILE *f = NULL;
     char buf[256];
     char **lines = NULL;
     int count = 0, cap = 0;
@@ -1305,8 +1306,8 @@ char *ftn_apply_signature(const char *origin, const char *tearline, const char *
 {
     int has_origin;
     size_t bodylen, need;
-    char *out;
-    char *tag;
+    char *out = NULL;
+    char *tag = NULL;
     int taglen;
     const char *tear;
     const char *org;
@@ -1393,7 +1394,7 @@ char *ftn_apply_signature(const char *origin, const char *tearline, const char *
 
 void ftn_lf_to_cr(char *body)
 {
-    char *p;
+    char *p = NULL;
 
     if (!body)
         return;
@@ -1681,7 +1682,7 @@ int ftn_sort_areas(const FtnAreaInfo *areas, int count, const char *spec, const 
 }
 
 /* Detect system timezone offset in minutes (+east/-west of UTC) */
-int ftn_detect_timezone_offset()
+int ftn_detect_timezone_offset(void)
 {
     time_t t = time(NULL);
     struct tm utc_tm, local_tm;

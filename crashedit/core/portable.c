@@ -548,7 +548,10 @@ PfLockFile *pf_lock_create(const char *path)
     n = snprintf(buf, sizeof(buf), "%ld\n", (long)getpid());
 
     if (n > 0)
+    {
         w = write(lk->fd, buf, (size_t)n);
+        (void)w;
+    }
 
     return lk;
 }

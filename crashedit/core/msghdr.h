@@ -50,7 +50,7 @@ typedef struct MsgHdr MsgHdr;
 #define HDR_KEY_HOME 0x102
 #define HDR_KEY_END 0x103
 
-MsgHdr *msghdr_new();
+MsgHdr *msghdr_new(void);
 void msghdr_free(MsgHdr *h);
 
 /* Field position setup */

@@ -637,11 +637,48 @@ void cfg_defaults(CrashEditCfg *cfg)
     cfg->spell_dict_name[0] = '\0';
     cfg->spell_custom_dict[0] = '\0';
 #endif
+
+#ifdef HAVE_HYPHEN
+    cfg->hyph_enabled = 0;
+
+#if defined(PLATFORM_BSD)
+    strncpy(cfg->hyph_dict_path, "/usr/local/share/hyphen", sizeof(cfg->hyph_dict_path) - 1);
+#elif defined(PLATFORM_UNIX)
+    strncpy(cfg->hyph_dict_path, "/usr/share/hyphen", sizeof(cfg->hyph_dict_path) - 1);
+#elif defined(PLATFORM_WIN32)
+    strncpy(cfg->hyph_dict_path, "C:\\Program Files\\LibreOffice\\share\\extensions\\dict-en", sizeof(cfg->hyph_dict_path) - 1);
+#elif defined(PLATFORM_AMIGA)
+    strncpy(cfg->hyph_dict_path, "ENVARC:dictionaries", sizeof(cfg->hyph_dict_path) - 1);
+#else
+    cfg->hyph_dict_path[0] = '\0';
+#endif
+    cfg->hyph_dict_path[sizeof(cfg->hyph_dict_path) - 1] = '\0';
+    cfg->hyph_dict_name[0] = '\0';
+    cfg->hyph_wrap_enabled = 0;
+#endif /* HAVE_HYPHEN */
+
+#ifdef HAVE_MYTHES
+    cfg->thes_enabled = 0;
+
+#if defined(PLATFORM_BSD)
+    strncpy(cfg->thes_dict_path, "/usr/local/share/mythes", sizeof(cfg->thes_dict_path) - 1);
+#elif defined(PLATFORM_UNIX)
+    strncpy(cfg->thes_dict_path, "/usr/share/mythes", sizeof(cfg->thes_dict_path) - 1);
+#elif defined(PLATFORM_WIN32)
+    strncpy(cfg->thes_dict_path, "C:\\Program Files\\LibreOffice\\share\\extensions\\dict-en", sizeof(cfg->thes_dict_path) - 1);
+#elif defined(PLATFORM_AMIGA)
+    strncpy(cfg->thes_dict_path, "ENVARC:dictionaries", sizeof(cfg->thes_dict_path) - 1);
+#else
+    cfg->thes_dict_path[0] = '\0';
+#endif
+    cfg->thes_dict_path[sizeof(cfg->thes_dict_path) - 1] = '\0';
+    cfg->thes_dict_name[0] = '\0';
+#endif /* HAVE_MYTHES */
 }
 
 int cfg_load(CrashEditCfg *cfg, const char *path)
 {
-    FILE *f;
+    FILE *f = NULL;
     char line[512];
     char word[64];
     const char *rest;
@@ -870,7 +907,60 @@ int cfg_load(CrashEditCfg *cfg, const char *path)
 
             cfg->spell_custom_dict[sizeof(cfg->spell_custom_dict) - 1] = '\0';
         }
-#endif
+
+#ifdef HAVE_HYPHEN
+        else if (strcasecmp(word, "HYPH_ENABLED") == 0)
+        {
+            cfg->hyph_enabled = parse_yesno(rest);
+        }
+        else if (strcasecmp(word, "HYPH_DICT_PATH") == 0)
+        {
+            char tmp[CFG_STR_MAX];
+
+            copy_rest(rest, tmp, sizeof(tmp));
+            strip_quotes(tmp);
+
+            if (tmp[0] != '\0')
+            {
+                strncpy(cfg->hyph_dict_path, tmp, sizeof(cfg->hyph_dict_path) - 1);
+                cfg->hyph_dict_path[sizeof(cfg->hyph_dict_path) - 1] = '\0';
+            }
+        }
+        else if (strcasecmp(word, "HYPH_DICT_NAME") == 0)
+        {
+            copy_rest(rest, cfg->hyph_dict_name, sizeof(cfg->hyph_dict_name));
+        }
+        else if (strcasecmp(word, "HYPH_WRAP_ENABLED") == 0)
+        {
+            cfg->hyph_wrap_enabled = parse_yesno(rest);
+        }
+#endif /* HAVE_HYPHEN */
+
+#ifdef HAVE_MYTHES
+        else if (strcasecmp(word, "THES_ENABLED") == 0)
+        {
+            cfg->thes_enabled = parse_yesno(rest);
+        }
+        else if (strcasecmp(word, "THES_DICT_PATH") == 0)
+        {
+            char tmp[CFG_STR_MAX];
+
+            copy_rest(rest, tmp, sizeof(tmp));
+            strip_quotes(tmp);
+
+            if (tmp[0] != '\0')
+            {
+                strncpy(cfg->thes_dict_path, tmp, sizeof(cfg->thes_dict_path) - 1);
+                cfg->thes_dict_path[sizeof(cfg->thes_dict_path) - 1] = '\0';
+            }
+        }
+        else if (strcasecmp(word, "THES_DICT_NAME") == 0)
+        {
+            copy_rest(rest, cfg->thes_dict_name, sizeof(cfg->thes_dict_name));
+        }
+#endif /* HAVE_MYTHES */
+#endif /* HAVE_HUNSPELL */
+
         else if (strcasecmp(word, "TEMPLATEFILE") == 0)
         {
             copy_rest(rest, cfg->template_file, sizeof(cfg->template_file));
@@ -1323,14 +1413,13 @@ int cfg_save(const CrashEditCfg *cfg, const char *path)
 {
     CfgKV kv[64];
     int nkv = 0;
-    FILE *in;
-    FILE *out;
+    FILE *in = NULL;
+    FILE *out = NULL;
     char tmp_path[CFG_STR_MAX + 8];
     char line[1024];
     int i;
     const char *aa_str;
     int fi;
-    char keybuf[40];
 
 #define KV_STR(k, s)                  \
     do                                \
@@ -1441,6 +1530,19 @@ int cfg_save(const CrashEditCfg *cfg, const char *path)
     KV_STR("SPELL_DICT_PATH", cfg->spell_dict_path);
     KV_STR("SPELL_DICT_NAME", cfg->spell_dict_name);
     KV_STR("SPELL_CUSTOM_DICT", cfg->spell_custom_dict);
+
+#ifdef HAVE_HYPHEN
+    KV_YN("HYPH_ENABLED", cfg->hyph_enabled);
+    KV_STR("HYPH_DICT_PATH", cfg->hyph_dict_path);
+    KV_STR("HYPH_DICT_NAME", cfg->hyph_dict_name);
+    KV_YN("HYPH_WRAP_ENABLED", cfg->hyph_wrap_enabled);
+#endif
+
+#ifdef HAVE_MYTHES
+    KV_YN("THES_ENABLED", cfg->thes_enabled);
+    KV_STR("THES_DICT_PATH", cfg->thes_dict_path);
+    KV_STR("THES_DICT_NAME", cfg->thes_dict_name);
+#endif
 #endif
 
     snprintf(tmp_path, sizeof(tmp_path), "%s.tmp", path);

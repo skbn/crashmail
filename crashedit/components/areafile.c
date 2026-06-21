@@ -36,12 +36,15 @@
 /* Ensure capacity for one more entry */
 static int ensure_capacity(AreaList *list)
 {
+    int new_capacity;
+    AreaEntry *new_entries = NULL;
+
     if (list->count < list->capacity)
         return 0;
 
-    int new_capacity = (list->capacity == 0) ? AREA_INITIAL_CAPACITY : list->capacity * AREA_GROWTH_FACTOR;
+    new_capacity = (list->capacity == 0) ? AREA_INITIAL_CAPACITY : list->capacity * AREA_GROWTH_FACTOR;
 
-    AreaEntry *new_entries = realloc(list->entries, sizeof(AreaEntry) * new_capacity);
+    new_entries = realloc(list->entries, sizeof(AreaEntry) * new_capacity);
 
     if (!new_entries)
         return -1;
@@ -147,7 +150,7 @@ static int format_from_token(const char *tok)
 
 int areafile_load(AreaList *list, const char *path)
 {
-    FILE *fp;
+    FILE *fp = NULL;
     char line[1024];
 
     if (!list || !path)
@@ -177,7 +180,7 @@ int areafile_load(AreaList *list, const char *path)
             continue;
 
         /* Extract keyword */
-        while (*p && !isspace((unsigned char)*p) && i < sizeof(keyword) - 1)
+        while (*p && !isspace((unsigned char)*p) && i < (int)sizeof(keyword) - 1)
         {
             keyword[i++] = *p++;
         }
@@ -190,15 +193,17 @@ int areafile_load(AreaList *list, const char *path)
 
         if (strcasecmp(keyword, "ECHO") == 0 || strcasecmp(keyword, "ECHOTAG") == 0 || strcasecmp(keyword, "AREA") == 0 || strcasecmp(keyword, "AREADEF") == 0)
         {
+            AreaEntry *ae = NULL;
+            const char *rest = NULL;
+            char *skip_buf = NULL;
+            char *type_kw = NULL;
+            char *group_str = NULL;
+
             /* Parse GoldED+ AREADEF format */
             if (ensure_capacity(list) != 0)
                 break;
 
-            AreaEntry *ae = &list->entries[list->count];
-            const char *rest;
-            char *skip_buf = NULL;
-            char *type_kw = NULL;
-            char *group_str = NULL;
+            ae = &list->entries[list->count];
 
             memset(ae, 0, sizeof(*ae));
             ae->type = AREATYPE_ECHO; /* Echo by default */
@@ -323,12 +328,14 @@ int areafile_load(AreaList *list, const char *path)
         }
         else if (strcasecmp(keyword, "NETMAIL") == 0 || strcasecmp(keyword, "NETAREA") == 0)
         {
+            AreaEntry *ae;
+            const char *rest;
+            char *skip_buf = NULL;
+
             if (ensure_capacity(list) != 0)
                 break;
 
-            AreaEntry *ae = &list->entries[list->count];
-            const char *rest;
-            char *skip_buf = NULL;
+            ae = &list->entries[list->count];
 
             memset(ae, 0, sizeof(*ae));
             ae->type = AREATYPE_NETMAIL;
@@ -403,12 +410,14 @@ int areafile_load(AreaList *list, const char *path)
         }
         else if (strcasecmp(keyword, "LOCAL") == 0 || strcasecmp(keyword, "LOCALAREA") == 0)
         {
+            AreaEntry *ae;
+            const char *rest;
+            char *skip_buf = NULL;
+
             if (ensure_capacity(list) != 0)
                 break;
 
-            AreaEntry *ae = &list->entries[list->count];
-            const char *rest;
-            char *skip_buf = NULL;
+            ae = &list->entries[list->count];
 
             memset(ae, 0, sizeof(*ae));
             ae->type = AREATYPE_LOCAL;

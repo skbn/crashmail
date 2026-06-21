@@ -36,10 +36,12 @@
 /* Convert entire line to wchar_t string (caller frees) */
 wchar_t *line_to_wcs(EdLine *ln)
 {
+    wchar_t *result;
+
     if (!ln)
         return NULL;
 
-    wchar_t *result = (wchar_t *)malloc((ln->len + 1) * sizeof(wchar_t));
+    result = (wchar_t *)malloc((ln->len + 1) * sizeof(wchar_t));
 
     if (!result)
         return NULL;
@@ -55,11 +57,14 @@ wchar_t *line_to_wcs(EdLine *ln)
 /* Convert line range to wchar_t string (caller frees) */
 wchar_t *line_to_wcs_range(EdLine *ln, int start, int end)
 {
+    int len;
+    wchar_t *result;
+
     if (!ln || start < 0 || end > ln->len || start >= end)
         return NULL;
 
-    int len = end - start;
-    wchar_t *result = (wchar_t *)malloc((len + 1) * sizeof(wchar_t));
+    len = end - start;
+    result = (wchar_t *)malloc((len + 1) * sizeof(wchar_t));
 
     if (!result)
         return NULL;
@@ -495,11 +500,17 @@ int ed_detect_quote_prefix(const wchar_t *line)
 
 int ed_rewrap_paragraph(Ed *ed, int width)
 {
+    return ed_rewrap_paragraph_ex(ed, width, NULL, NULL);
+}
+
+int ed_rewrap_paragraph_ex(Ed *ed, int width, EdHyphenFn hyph, void *hyph_data)
+{
     int first, last, i;
     int prefix_len;
     const wchar_t *line;
     wchar_t prefix[64];
     wchar_t *joined;
+    wchar_t *tmp_joined = NULL;
     size_t cap, used;
 
     int avail = 0;
@@ -517,6 +528,8 @@ int ed_rewrap_paragraph(Ed *ed, int width)
     int cursor_col_before = 0;
     int cursor_row_after = 0;
     int cursor_col_after = 0;
+    int old_count = 0;
+    int doc_count_before = 0;
 
     if (!ed || width < 20 || ed->count <= 0)
         return -1;
@@ -617,7 +630,7 @@ int ed_rewrap_paragraph(Ed *ed, int width)
         if (used + (size_t)(ll - skip) + 2 >= cap)
         {
             cap = (used + (size_t)(ll - skip) + 64) * 2;
-            wchar_t *tmp_joined = (wchar_t *)realloc(joined, cap * sizeof(wchar_t));
+            tmp_joined = (wchar_t *)realloc(joined, cap * sizeof(wchar_t));
 
             if (!tmp_joined)
             {
@@ -656,11 +669,13 @@ int ed_rewrap_paragraph(Ed *ed, int width)
     while (pos < used)
     {
         int line_len, break_at;
+        int hyph_inserted = 0; /* set when we break mid-word with '-' */
+        wchar_t *tmp;
 
         if (out_used + (size_t)prefix_len + (size_t)avail + 2 >= out_cap)
         {
             out_cap = (out_cap + (size_t)avail + 64) * 2;
-            wchar_t *tmp = (wchar_t *)realloc(outw, out_cap * sizeof(wchar_t));
+            tmp = (wchar_t *)realloc(outw, out_cap * sizeof(wchar_t));
 
             if (!tmp)
             {
@@ -686,13 +701,70 @@ int ed_rewrap_paragraph(Ed *ed, int width)
         if ((size_t)(pos + line_len) < used)
         {
             int j;
+            int space_found = 0;
 
             for (j = line_len; j > avail / 3; j--)
             {
                 if (joined[pos + j - 1] == L' ')
                 {
                     break_at = j;
+                    space_found = 1;
                     break;
+                }
+            }
+
+            /* No space and hyphenator available: split the word with '-' */
+            if (!space_found && hyph)
+            {
+                size_t ws, we;
+                char *uw;
+
+                /* Locate the overflow word */
+                ws = pos + (size_t)line_len;
+
+                while (ws > pos && joined[ws - 1] != L' ')
+                    ws--;
+
+                we = pos + (size_t)line_len;
+
+                while (we < used && joined[we] != L' ')
+                    we++;
+
+                if (we > ws + 3)
+                {
+                    uw = wcs_to_utf8(&joined[ws], (int)(we - ws));
+
+                    if (uw)
+                    {
+                        int uw_bytes = (int)strlen(uw);
+                        int hp[16];
+                        int hn = 16;
+
+                        if (hyph(hyph_data, uw, uw_bytes, hp, &hn) && hn > 0)
+                        {
+                            int idx;
+
+                            /* Find rightmost hyphenation point that fits */
+                            for (idx = hn - 1; idx >= 0; idx--)
+                            {
+                                int cco = utf8_charcount(uw, hp[idx]);
+                                int wc_pos = (int)ws + cco; /* in joined */
+                                int line_chars = wc_pos - (int)pos;
+
+                                if (line_chars >= avail) /* leave 1 col for '-' */
+                                    continue;
+
+                                if (line_chars <= 0)
+                                    break;
+
+                                break_at = line_chars;
+                                hyph_inserted = 1;
+                                break;
+                            }
+                        }
+
+                        free(uw);
+                    }
                 }
             }
         }
@@ -700,14 +772,23 @@ int ed_rewrap_paragraph(Ed *ed, int width)
         for (k = 0; k < break_at; k++)
             outw[out_used++] = joined[pos + k];
 
-        /* Trim trailing spaces from the line we just added */
-        while (out_used > 0 && outw[out_used - 1] == L' ')
-            out_used--;
+        if (hyph_inserted)
+        {
+            /* Emit hyphen, continue at the word's second half on the next line */
+            outw[out_used++] = L'-';
+            pos += (size_t)break_at;
+        }
+        else
+        {
+            /* Trim trailing spaces from the line we just added */
+            while (out_used > 0 && outw[out_used - 1] == L' ')
+                out_used--;
 
-        pos += (size_t)break_at;
+            pos += (size_t)break_at;
 
-        while (pos < used && joined[pos] == L' ')
-            pos++;
+            while (pos < used && joined[pos] == L' ')
+                pos++;
+        }
 
         outw[out_used++] = L'\n';
     }
@@ -716,8 +797,7 @@ int ed_rewrap_paragraph(Ed *ed, int width)
     free(joined);
 
     /* Snapshot only affected paragraph to avoid O(N) undo for large files */
-    int old_count = 0;
-    int doc_count_before = ed->count;
+    doc_count_before = ed->count;
 
     if (need_snapshot)
     {
@@ -897,7 +977,7 @@ int ed_load_file_at_cursor(Ed *ed, const char *path, const char *charset_in)
         return -1;
     }
 
-    if (sz > SIZE_MAX - 1)
+    if ((size_t)sz > SIZE_MAX - 1)
     {
         fclose(f);
         return -1;

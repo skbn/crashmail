@@ -23,6 +23,7 @@
  */
 
 /* ui_internal.h -- Internal types and helpers shared between UI modules */
+#define _XOPEN_SOURCE
 #ifndef UI_INTERNAL_H
 #define UI_INTERNAL_H
 
@@ -30,8 +31,10 @@
 #define _XOPEN_SOURCE_EXTENDED 1
 #endif
 
-#include "../wrapper.h"
+#include "ui.h"
 #include <wchar.h>
+#include <strings.h>
+#include <stdio.h>
 
 #define SEARCH_PATTERN_MAX 256
 
@@ -264,9 +267,16 @@ struct UiApp
     char **spell_suggestions;        /* most recent suggestions */
     int spell_suggestion_count;
 #endif
-};
 
-typedef struct UiApp UiApp;
+#ifdef HAVE_HYPHEN
+    void *hyph_handle;     /* opaque HyphDict* */
+    int hyph_wrap_enabled; /* mirrors cfg.hyph_wrap_enabled; runtime toggle */
+#endif
+
+#ifdef HAVE_MYTHES
+    void *thes_handle; /* opaque ThesHandle* */
+#endif
+};
 
 /* Status and UI helpers */
 void ui_status(UiApp *app, const char *fmt, ...);

@@ -27,19 +27,23 @@
 
 #include "ui.h"
 
-/* Word-wrap UTF-8 paste to col columns, preserving newlines. No hard-breaks for URLs/code */
+/* Word-wrap UTF-8 paste to col columns */
 int paste_char_width(wchar_t c);
 
-/* Word-wrap UTF-8 paste to col columns, preserving newlines */
-char *wrap_paste_text(const char *utf8, int col);
+/* Hyphenation callback for wrap_paste_text_ex */
+typedef int (*PasteHyphFn)(void *user_data, const char *word_utf8, int word_byte_len, int *out_byte_pos, int *out_count);
 
-/* Read characters until KEY_PASTE_END. Returns malloc'd UTF-8 buffer or NULL */
+/* Word-wrap UTF-8 paste to col columns (space-only) */
+char *wrap_paste_text(const char *utf8, int col);
+char *wrap_paste_text_ex(const char *utf8, int col, PasteHyphFn hyph, void *hyph_data);
+
+/* Read characters until KEY_PASTE_END */
 char *collect_bracketed_paste(void);
 
-/* Detect rapid paste (fallback for terminals without bracketed paste support) */
+/* Detect rapid paste (fallback for no bracketed paste) */
 char *collect_rapid_paste(wint_t first_wch);
 
-/* Paste UTF-8 buffer at cursor: body preserves newlines, header strips them */
+/* Paste UTF-8 buffer at cursor */
 void deliver_paste(UiApp *app, const char *utf8);
 
 #endif /* UI_EDITOR_PASTE_H */

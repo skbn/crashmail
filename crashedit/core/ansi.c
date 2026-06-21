@@ -89,7 +89,7 @@ static void reset_escape(TermState *st)
 }
 
 /* AnsiCanvas helpers */
-static AnsiCanvas *canvas_new()
+static AnsiCanvas *canvas_new(void)
 {
     AnsiCanvas *cv = (AnsiCanvas *)calloc(1, sizeof(*cv));
 
@@ -134,7 +134,7 @@ static int canvas_ensure_row(AnsiCanvas *cv, int r)
     if (r >= cv->row_cap)
     {
         int new_cap = cv->row_cap > 0 ? cv->row_cap : INIT_ROWS;
-        AnsiRow *nr;
+        AnsiRow *nr = NULL;
 
         while (new_cap <= r)
             new_cap *= 2;
@@ -168,8 +168,8 @@ static int row_ensure_cap(AnsiRow *r, int need)
 {
     int new_cap;
     int old_cap;
-    wchar_t *nw;
-    AnsiCell *nc;
+    wchar_t *nw = NULL;
+    AnsiCell *nc = NULL;
     int i;
 
     if (r->cap >= need)
@@ -247,7 +247,7 @@ static int row_pad_to(AnsiRow *r, int col)
 /* Place glyph at cursor position, advance column clamped to max_cols */
 static int term_putch(AnsiCanvas *cv, TermState *st, wchar_t ch)
 {
-    AnsiRow *r;
+    AnsiRow *r = NULL;
     AnsiCell c;
 
     if (st->row < 0)
@@ -647,10 +647,13 @@ static void apply_csi(AnsiCanvas *cv, TermState *st, int *params, int n_params, 
 /* Main render loop: wchar_t stream through terminal emulator */
 static AnsiCanvas *render_wcs_stream(const wchar_t *all, int all_len, int max_cols)
 {
-    AnsiCanvas *cv;
+    AnsiCanvas *cv = NULL;
     TermState st;
     int i;
     int ok = 1;
+    int params[MAX_CSI_PARAMS];
+    int n_params, priv, final;
+    int consumed;
 
     if (!all || all_len <= 0)
         return NULL;
@@ -753,9 +756,7 @@ static AnsiCanvas *render_wcs_stream(const wchar_t *all, int all_len, int max_co
                         }
 
                         /* Parse and apply CSI */
-                        int params[MAX_CSI_PARAMS];
-                        int n_params, priv, final;
-                        int consumed = parse_csi(st.seq_buf, st.seq_len, params, &n_params, &priv, &final);
+                        consumed = parse_csi(st.seq_buf, st.seq_len, params, &n_params, &priv, &final);
 
                         if (consumed > 0)
                             apply_csi(cv, &st, params, n_params, priv, final);
@@ -900,10 +901,10 @@ static AnsiCanvas *render_wcs_stream(const wchar_t *all, int all_len, int max_co
 
 AnsiCanvas *ansi_render_bytes(const char *bytes, int len, const char *charset, int max_cols)
 {
-    wchar_t *stream;
+    wchar_t *stream = NULL;
     int stream_len = 0;
     int is_utf8;
-    AnsiCanvas *cv;
+    AnsiCanvas *cv = NULL;
 
     if (!bytes || len <= 0)
         return NULL;

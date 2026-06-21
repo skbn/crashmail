@@ -29,8 +29,8 @@ HERE := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 CC = m68k-amigaos-gcc -noixemul -mcpu=68020 -msoft-float -DPLATFORM_AMIGA
 CXX = m68k-amigaos-g++ -noixemul -mcpu=68020 -msoft-float -DPLATFORM_AMIGA
 #CFLAGS = -I$(HERE).. -I$(HERE) -I$(HERE)core -I$(HERE)components -I$(HERE)ui -Wall -std=gnu89 -O2
-CFLAGS = -Wall -std=gnu89 -O2
-CXXFLAGS = -std=c++14 -O2 -Wall -Wno-unused-result -fno-strict-aliasing -fwrapv -fno-omit-frame-pointer -DHUNSPELL_STATIC
+CFLAGS = -Wall -Wextra -Wpedantic -Wmissing-prototypes -Wstrict-prototypes -Wdeclaration-after-statement -Wimplicit-function-declaration -Wno-unused-parameter -std=gnu89 -O2
+CXXFLAGS = -std=c++14 -O2 -Wall -Wextra -Wpedantic -Wno-unused-parameter -Wno-unused-result -fno-strict-aliasing -fwrapv -fno-omit-frame-pointer -DHUNSPELL_STATIC
 AR = m68k-amigaos-ar
 RANLIB = m68k-amigaos-ranlib
 TARGET = $(HERE)libwrapper-amiga.a
@@ -78,12 +78,51 @@ ifeq ($(USE_HUNSPELL),1)
                   $(HUNSPELL_OBJDIR)/replist.o $(HUNSPELL_OBJDIR)/suggestmgr.o
 endif
 
-ALL_OBJS = $(CORE_OBJS) $(COMP_OBJS) $(UI_OBJS) $(SPELL_OBJS)
+# libhyphen support -- requires the hyphen sources to be unpacked under
+# $(HERE)hyphen, exposing libhyphen.a. Pre-built objs live in objs.amiga
+USE_HYPHEN ?= 0
+HYPHEN_DIR     = $(HERE)hyphen
+HYPHEN_OBJDIR  = $(HYPHEN_DIR)/objs.amiga
+HYPHEN_LIB     = $(HYPHEN_DIR)/libhyphen.a
+
+ifeq ($(USE_HYPHEN),1)
+  CFLAGS += -DHAVE_HYPHEN -I$(HYPHEN_DIR)
+  HYPH_OBJS = $(OBJDIR)/hyph.o $(OBJDIR)/ui_hyph.o
+  HYPHEN_BUILD_OBJS = $(HYPHEN_OBJDIR)/hyphen.o $(HYPHEN_OBJDIR)/hnjalloc.o
+else
+  HYPH_OBJS =
+endif
+
+# MyThes support -- requires mythes sources under $(HERE)mythes, exposing
+# libmythes.a. Pre-built objs live in objs.amiga. Uses C++; CXX must be set
+USE_MYTHES ?= 0
+MYTHES_DIR     = $(HERE)mythes
+MYTHES_OBJDIR  = $(MYTHES_DIR)/objs.amiga
+MYTHES_LIB     = $(MYTHES_DIR)/libmythes.a
+
+ifeq ($(USE_MYTHES),1)
+  CFLAGS += -DHAVE_MYTHES -I$(MYTHES_DIR)
+  CXXFLAGS += -DHAVE_MYTHES -I$(MYTHES_DIR) -I$(HERE)core
+  THES_OBJS = $(OBJDIR)/thes.o $(OBJDIR)/ui_thes.o
+  MYTHES_BUILD_OBJS = $(MYTHES_OBJDIR)/mythes.o
+else
+  THES_OBJS =
+endif
+
+ALL_OBJS = $(CORE_OBJS) $(COMP_OBJS) $(UI_OBJS) $(SPELL_OBJS) $(HYPH_OBJS) $(THES_OBJS)
 
 all: $(TARGET) crashedit
 
 ifeq ($(USE_HUNSPELL),1)
 all: $(HUNSPELL_LIB)
+endif
+
+ifeq ($(USE_HYPHEN),1)
+all: $(HYPHEN_LIB)
+endif
+
+ifeq ($(USE_MYTHES),1)
+all: $(MYTHES_LIB)
 endif
 
 $(TARGET): $(ALL_OBJS)
@@ -105,6 +144,19 @@ $(OBJDIR)/spell.o: $(COREDIR)/spell.c $(COREDIR)/spell.h | $(OBJDIR)
 $(OBJDIR)/ui_spell.o: $(UIDIR)/ui_spell.c $(UIDIR)/ui_spell.h $(COREDIR)/spell.h | $(OBJDIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
+# Hyphenation (built only when USE_HYPHEN=1)
+$(OBJDIR)/hyph.o: $(COREDIR)/hyph.c $(COREDIR)/hyph.h | $(OBJDIR)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(OBJDIR)/ui_hyph.o: $(UIDIR)/ui_hyph.c $(UIDIR)/ui_hyph.h $(COREDIR)/hyph.h | $(OBJDIR)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+# Thesaurus (built only when USE_MYTHES=1, C++ compile)
+$(OBJDIR)/thes.o: $(COREDIR)/thes.cpp $(COREDIR)/thes.h $(COREDIR)/spell.h | $(OBJDIR)
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+$(OBJDIR)/ui_thes.o: $(UIDIR)/ui_thes.c $(UIDIR)/ui_thes.h $(COREDIR)/thes.h | $(OBJDIR)
+	$(CC) $(CFLAGS) -c $< -o $@
 
 $(OBJDIR)/portable.o: $(COREDIR)/portable.c $(COREDIR)/portable.h | $(OBJDIR)
 	$(CC) $(CFLAGS) -c $< -o $@
@@ -254,8 +306,12 @@ ifeq ($(USE_HUNSPELL),1)
 $(OBJDIR)/main_ui.o: $(HERE)main_ui.c | $(OBJDIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(CRASHEDIT): $(OBJDIR)/main_ui.o $(TARGET) $(ALL_OBJS) $(HUNSPELL_LIB) $(JAMLIB)
-	$(CXX) $(CFLAGS) $(OBJDIR)/main_ui.o $(ALL_OBJS) $(TARGET) $(HUNSPELL_LIB) $(JAMLIB) -o $@
+# When any C++ static lib is in play we must link with $(CXX) so the C++
+# runtime gets pulled in. Hunspell, MyThes are C++; libhyphen is C-only
+EXTRA_LIBS = $(HUNSPELL_LIB) $(if $(filter 1,$(USE_HYPHEN)),$(HYPHEN_LIB),) $(if $(filter 1,$(USE_MYTHES)),$(MYTHES_LIB),)
+
+$(CRASHEDIT): $(OBJDIR)/main_ui.o $(TARGET) $(ALL_OBJS) $(HUNSPELL_LIB) $(JAMLIB) $(if $(filter 1,$(USE_HYPHEN)),$(HYPHEN_LIB),) $(if $(filter 1,$(USE_MYTHES)),$(MYTHES_LIB),)
+	$(CXX) $(CFLAGS) $(OBJDIR)/main_ui.o $(ALL_OBJS) $(TARGET) $(EXTRA_LIBS) $(JAMLIB) -o $@
 else
 $(CRASHEDIT): $(HERE)main_ui.c $(TARGET) $(ALL_OBJS) $(JAMLIB)
 	$(CC) $(CFLAGS) $(HERE)main_ui.c $(ALL_OBJS) $(TARGET) $(JAMLIB) -o $@
@@ -265,6 +321,12 @@ clean:
 	rm -rf $(OBJDIR) $(TARGET) $(CRASHEDIT)
 ifeq ($(USE_HUNSPELL),1)
 	rm -rf $(HUNSPELL_OBJDIR) $(HUNSPELL_LIB)
+endif
+ifeq ($(USE_HYPHEN),1)
+	rm -rf $(HYPHEN_OBJDIR) $(HYPHEN_LIB)
+endif
+ifeq ($(USE_MYTHES),1)
+	rm -rf $(MYTHES_OBJDIR) $(MYTHES_LIB)
 endif
 
 # prep target - generate version header and patch w_char.hxx (always available)
@@ -313,6 +375,33 @@ $(HUNSPELL_LIB): $(HUNSPELL_OBJS)
 	$(RANLIB) $@
 	@echo ">>> $(HUNSPELL_LIB) built successfully"
 
+endif
+
+# libhyphen build rules (only if USE_HYPHEN=1)
+# Mirror the hunspell pattern: build into objs.amiga then archive
+ifeq ($(USE_HYPHEN),1)
+$(HYPHEN_LIB): $(HYPHEN_BUILD_OBJS)
+	$(AR) rcs $@ $(HYPHEN_BUILD_OBJS)
+	$(RANLIB) $@
+
+$(HYPHEN_OBJDIR):
+	mkdir -p $@
+
+$(HYPHEN_OBJDIR)/%.o: $(HYPHEN_DIR)/%.c | $(HYPHEN_OBJDIR)
+	$(CC) $(CFLAGS) -I$(HYPHEN_DIR) -c $< -o $@
+endif
+
+# MyThes build rules (only if USE_MYTHES=1)
+ifeq ($(USE_MYTHES),1)
+$(MYTHES_LIB): $(MYTHES_BUILD_OBJS)
+	$(AR) rcs $@ $(MYTHES_BUILD_OBJS)
+	$(RANLIB) $@
+
+$(MYTHES_OBJDIR):
+	mkdir -p $@
+
+$(MYTHES_OBJDIR)/%.o: $(MYTHES_DIR)/%.cxx | $(MYTHES_OBJDIR)
+	$(CXX) $(CXXFLAGS) -I$(MYTHES_DIR) -c $< -o $@
 endif
 
 # unprep target - remove generated files (always available)

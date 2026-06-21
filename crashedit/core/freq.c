@@ -259,7 +259,7 @@ int freq_parse_addr(const char *addr, unsigned int *zone, unsigned int *net, uns
 /* Path builders (mirror freq.c build_aso_paths / build_bso_paths) */
 static int build_aso_paths(const char *outbound, unsigned int zone, unsigned int net, unsigned int node, unsigned int point, char *req_path, char *clo_path, int pathsize)
 {
-    char *dot;
+    char *dot = NULL;
 
     if (freq_mkdir_recursive(outbound) < 0 && !freq_path_exists(outbound))
         return -1;
@@ -339,7 +339,7 @@ int freq_write(const char *outbound, int mode, unsigned int zone, unsigned int n
 {
     char req_path[FREQ_MAX_PATH];
     char clo_path[FREQ_MAX_PATH];
-    FILE *f;
+    FILE *f = NULL;
     int i;
     int written = 0;
 

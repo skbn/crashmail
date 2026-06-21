@@ -42,7 +42,7 @@
 static uint32_t s_crc_tab[256];
 static int s_crc_ready = 0;
 
-static void crc_init()
+static void crc_init(void)
 {
     uint32_t i, j, c;
 
@@ -77,10 +77,12 @@ static uint32_t crc32_str(const char *s, int len)
 
 static void safe_copy(char *d, size_t dsz, const char *s, uint32_t slen)
 {
+    uint32_t n;
+
     if (dsz == 0)
         return; /* prevent underflow of dsz-1 */
 
-    uint32_t n = slen < (uint32_t)(dsz - 1) ? slen : (uint32_t)(dsz - 1);
+    n = slen < (uint32_t)(dsz - 1) ? slen : (uint32_t)(dsz - 1);
 
     if (n > 0)
         memcpy(d, s, n);
@@ -204,7 +206,7 @@ static void extract_sf(void *vsp, JamMsgInfo *info)
 int jam_open(JamArea *a, const char *path)
 {
     s_JamBase *b = NULL;
-    s_JamBaseHeader *bh;
+    s_JamBaseHeader *bh = NULL;
 
     if (!a || !path)
         return -1;
@@ -322,7 +324,7 @@ int jam_lock(JamArea *a, int retries)
 
 void jam_unlock(JamArea *a)
 {
-    s_JamBase *b;
+    s_JamBase *b = NULL;
 
     if (!a || !a->is_locked)
         return;
@@ -355,10 +357,10 @@ static char *build_body_with_kludges(s_JamSubPacket *sp, const char *txt, uint32
 {
     char *kbuf; /* ^A kludges */
     char *bbuf; /* SEEN-BY/PATH/Via */
-    char *vbuf;
+    char *vbuf = NULL;
     int klen = 0, blen = 0;
     uint32_t i;
-    char *result;
+    char *result = NULL;
 
     kbuf = (char *)malloc(KBUF_CAP);
     bbuf = (char *)malloc(KBUF_CAP);
@@ -380,8 +382,8 @@ static char *build_body_with_kludges(s_JamSubPacket *sp, const char *txt, uint32
             s_JamSubfield *sf = sp->Fields[i];
             const char *tag = NULL;
             char enc = ' ';
-            char *target;
-            int *tgt_len;
+            char *target = NULL;
+            int *tgt_len = NULL;
             int vlen, wrote;
 
             if (!sf || !sf->Buffer || sf->DatLen == 0)
@@ -546,7 +548,7 @@ static char *build_body_with_kludges(s_JamSubPacket *sp, const char *txt, uint32
 char *jam_read_body(JamArea *a, uint32_t msgnum, uint32_t *out_len)
 {
     s_JamMsgHeader h;
-    s_JamSubPacket *sp;
+    s_JamSubPacket *sp = NULL;
     uint32_t slot, tl;
     char *txt, *result;
 
@@ -679,8 +681,9 @@ int jam_write_lastread(JamArea *a, uint32_t ucrc, uint32_t last, uint32_t high)
 uint32_t jam_write_msg(JamArea *a, const char *from, const char *to, const char *subject, const char *body, uint32_t bodylen, uint32_t attr, uint32_t reply_to, uint32_t date_written, const char *oaddr, const char *daddr)
 {
     s_JamMsgHeader h;
-    s_JamSubPacket *sp;
+    s_JamSubPacket *sp = NULL;
     s_JamSubfield sf;
+    s_JamMsgHeader tmp;
     uint32_t newmsg;
     time_t now;
     uint32_t utc;
@@ -737,8 +740,6 @@ uint32_t jam_write_msg(JamArea *a, const char *from, const char *to, const char 
 
     /* Read back assigned MsgNum from last slot */
     newmsg = 0;
-
-    s_JamMsgHeader tmp;
 
     if (JAM_GetMBSize(BASE(a), &tot) == 0 && tot > 0)
     {
@@ -803,9 +804,9 @@ int jam_mark_sent(JamArea *a, uint32_t msgnum)
 JamMsgInfo *jam_load_headers(JamArea *a, int *out_count, uint32_t filter_mask, uint32_t max_msgs)
 {
     uint32_t total, n, cnt = 0, start, window;
-    JamMsgInfo *msgs;
+    JamMsgInfo *msgs = NULL;
     s_JamMsgHeader h;
-    s_JamSubPacket *sp;
+    s_JamSubPacket *sp = NULL;
 
     if (out_count)
         *out_count = 0;

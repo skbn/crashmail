@@ -23,6 +23,7 @@
  */
 
 #include "spell.h"
+
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -43,19 +44,407 @@
 #include <unistd.h>
 #endif
 
+typedef struct
+{
+    char word[SPELL_CACHE_KEY_MAX]; /* '\0' = empty slot */
+    unsigned char result;           /* 1 = correct, 0 = incorrect */
+    short prev;
+    short next;
+} SpellEntry;
+
+struct SpellChecker
+{
 #ifdef HAVE_HUNSPELL
-struct SpellChecker
-{
     Hunhandle *handle;
+    char *encoding; /* cached encoding */
+#endif
+    short head;
+    short tail;
+    short count;
+    SpellEntry cache[SPELL_CACHE_N];
 };
-#else
-struct SpellChecker
+
+#ifdef HAVE_HUNSPELL
+
+static char *ce_strdup(const char *s)
 {
-    int dummy;
-};
+    size_t n;
+    char *r = NULL;
+
+    if (!s)
+        return NULL;
+
+    n = strlen(s) + 1;
+    r = (char *)malloc(n);
+
+    if (!r)
+        return NULL;
+
+    memcpy(r, s, n);
+    return r;
+}
+
+static void cache_init(SpellChecker *sc)
+{
+    int i;
+
+    sc->head = -1;
+    sc->tail = -1;
+    sc->count = 0;
+
+    for (i = 0; i < SPELL_CACHE_N; i++)
+    {
+        sc->cache[i].word[0] = '\0';
+        sc->cache[i].prev = -1;
+        sc->cache[i].next = -1;
+    }
+}
+
+static void cache_unlink(SpellChecker *sc, int idx)
+{
+    SpellEntry *e = &sc->cache[idx];
+
+    if (e->prev != -1)
+        sc->cache[e->prev].next = e->next;
+    else
+        sc->head = e->next;
+
+    if (e->next != -1)
+        sc->cache[e->next].prev = e->prev;
+    else
+        sc->tail = e->prev;
+
+    e->prev = -1;
+    e->next = -1;
+}
+
+static void cache_push_front(SpellChecker *sc, int idx)
+{
+    SpellEntry *e = &sc->cache[idx];
+
+    e->prev = -1;
+    e->next = sc->head;
+
+    if (sc->head != -1)
+        sc->cache[sc->head].prev = (short)idx;
+
+    sc->head = (short)idx;
+
+    if (sc->tail == -1)
+        sc->tail = (short)idx;
+}
+
+static int cache_find(const SpellChecker *sc, const char *word)
+{
+    int i;
+
+    /* Linear scan over MRU list: faster than hash for small caches */
+    for (i = sc->head; i != -1; i = sc->cache[i].next)
+    {
+        if (strcmp(sc->cache[i].word, word) == 0)
+            return i;
+    }
+
+    return -1;
+}
+
+static int cache_acquire_slot(SpellChecker *sc)
+{
+    int i;
+
+    /* Prefer unused slot, evict from tail when full */
+    if (sc->count < SPELL_CACHE_N)
+    {
+        for (i = 0; i < SPELL_CACHE_N; i++)
+        {
+            if (sc->cache[i].word[0] == '\0')
+            {
+                sc->count++;
+                return i;
+            }
+        }
+    }
+
+    i = sc->tail;
+    cache_unlink(sc, i);
+
+    return i;
+}
+
+static void cache_put(SpellChecker *sc, const char *word, int result)
+{
+    int idx;
+    size_t wlen;
+
+    wlen = strlen(word);
+
+    /* Reject empty key */
+    if (wlen == 0)
+        return;
+
+    if (wlen >= SPELL_CACHE_KEY_MAX)
+        return;
+
+    idx = cache_acquire_slot(sc);
+
+    memcpy(sc->cache[idx].word, word, wlen + 1);
+
+    sc->cache[idx].result = (unsigned char)(result ? 1 : 0);
+
+    cache_push_front(sc, idx);
+}
+
+#endif /* HAVE_HUNSPELL */
+
+void spell_cache_clear(SpellChecker *sc)
+{
+#ifdef HAVE_HUNSPELL
+    if (sc)
+        cache_init(sc);
+#endif
+}
+
+SpellChecker *spell_new(const char *aff_path, const char *dic_path)
+{
+#ifdef HAVE_HUNSPELL
+    SpellChecker *sc = NULL;
+    FILE *fp = NULL;
+    const char *enc;
+
+    if (!aff_path || !dic_path)
+        return NULL;
+
+    /* Probe files first to avoid stderr logging */
+    fp = fopen(aff_path, "rb");
+
+    if (!fp)
+        return NULL;
+
+    fclose(fp);
+
+    fp = fopen(dic_path, "rb");
+
+    if (!fp)
+        return NULL;
+
+    fclose(fp);
+
+    sc = (SpellChecker *)calloc(1, sizeof(*sc));
+
+    if (!sc)
+        return NULL;
+
+    sc->handle = Hunspell_create(aff_path, dic_path);
+
+    if (!sc->handle)
+    {
+        free(sc);
+        return NULL;
+    }
+
+    enc = Hunspell_get_dic_encoding(sc->handle);
+
+    if (enc)
+        sc->encoding = ce_strdup(enc);
+
+    cache_init(sc);
+
+    return sc;
+#else
+
+    return NULL;
+#endif
+}
+
+void spell_free(SpellChecker *sc)
+{
+    if (!sc)
+        return;
+
+#ifdef HAVE_HUNSPELL
+    if (sc->handle)
+        Hunspell_destroy(sc->handle);
+
+    if (sc->encoding)
+        free(sc->encoding);
 #endif
 
-/* Check if filename ends with ".dic" (case-insensitive) */
+    /* Cache lives inside sc, one free() reclaims all */
+    free(sc);
+}
+
+int spell_check(SpellChecker *sc, const char *word)
+{
+#ifdef HAVE_HUNSPELL
+    int result;
+    size_t wlen;
+
+    if (!sc || !sc->handle || !word)
+        return -1;
+
+    /* Empty input is correct (and would corrupt cache) */
+    if (word[0] == '\0')
+        return 1;
+
+    wlen = strlen(word);
+
+    /* Fast path: cache lookup */
+    if (wlen < SPELL_CACHE_KEY_MAX)
+    {
+        int idx = cache_find(sc, word);
+
+        if (idx != -1)
+        {
+            /* Move to MRU front */
+            cache_unlink(sc, idx);
+            cache_push_front(sc, idx);
+
+            return sc->cache[idx].result ? 1 : 0;
+        }
+    }
+
+    /* Slow path: ask Hunspell and cache result */
+    result = Hunspell_spell(sc->handle, word) ? 1 : 0;
+    cache_put(sc, word, result);
+
+    return result;
+#else
+
+    return -1;
+#endif
+}
+
+char **spell_suggest(SpellChecker *sc, const char *word, int *n_suggestions)
+{
+#ifdef HAVE_HUNSPELL
+    char **suggestions;
+
+    if (!sc || !sc->handle || !word || !n_suggestions)
+        return NULL;
+
+    *n_suggestions = Hunspell_suggest(sc->handle, &suggestions, word);
+
+    return suggestions;
+#else
+
+    if (n_suggestions)
+        *n_suggestions = 0;
+
+    return NULL;
+#endif
+}
+
+void spell_free_suggestions(SpellChecker *sc, char **suggestions, int n_suggestions)
+{
+#ifdef HAVE_HUNSPELL
+    if (sc && sc->handle && suggestions && n_suggestions > 0)
+        Hunspell_free_list(sc->handle, &suggestions, n_suggestions);
+#endif
+}
+
+int spell_add_word(SpellChecker *sc, const char *word)
+{
+#ifdef HAVE_HUNSPELL
+    int rc;
+
+    if (!sc || !sc->handle || !word)
+        return -1;
+
+    rc = Hunspell_add(sc->handle, word);
+
+    /* Wipe cache: added word may change verdict for variants */
+    spell_cache_clear(sc);
+
+    return rc;
+#else
+
+    return -1;
+#endif
+}
+
+int spell_remove_word(SpellChecker *sc, const char *word)
+{
+#ifdef HAVE_HUNSPELL
+    int rc;
+
+    if (!sc || !sc->handle || !word)
+        return -1;
+
+    rc = Hunspell_remove(sc->handle, word);
+    spell_cache_clear(sc);
+
+    return rc;
+#else
+
+    return -1;
+#endif
+}
+
+int spell_stem(SpellChecker *sc, const char *word, char ***out_list)
+{
+#ifdef HAVE_HUNSPELL
+    if (out_list)
+        *out_list = NULL;
+
+    if (!sc || !sc->handle || !word || !word[0] || !out_list)
+        return -1;
+
+    return Hunspell_stem(sc->handle, out_list, word);
+#else
+
+    if (out_list)
+        *out_list = NULL;
+
+    return -1;
+#endif
+}
+
+int spell_generate(SpellChecker *sc, const char *word, const char *example, char ***out_list)
+{
+#ifdef HAVE_HUNSPELL
+    if (out_list)
+        *out_list = NULL;
+
+    if (!sc || !sc->handle || !word || !word[0] || !example || !example[0] || !out_list)
+        return -1;
+
+    return Hunspell_generate(sc->handle, out_list, word, example);
+#else
+
+    if (out_list)
+        *out_list = NULL;
+
+    return -1;
+#endif
+}
+
+void spell_free_list(SpellChecker *sc, char **list, int n)
+{
+#ifdef HAVE_HUNSPELL
+    if (sc && sc->handle && list && n > 0)
+        Hunspell_free_list(sc->handle, &list, n);
+#endif
+}
+
+const char *spell_get_encoding(SpellChecker *sc)
+{
+#ifdef HAVE_HUNSPELL
+    return sc ? sc->encoding : NULL;
+#else
+    return NULL;
+#endif
+}
+
+int spell_is_available(void)
+{
+#ifdef HAVE_HUNSPELL
+    return 1;
+#else
+    return 0;
+#endif
+}
+
+/* Check if filename ends with .dic */
 static int ends_with_dic(const char *name)
 {
     size_t len;
@@ -78,7 +467,7 @@ static int ends_with_dic(const char *name)
 static char *extract_dict_name(const char *name)
 {
     size_t len;
-    char *base;
+    char *base = NULL;
 
     if (!name)
         return NULL;
@@ -99,7 +488,7 @@ static char *extract_dict_name(const char *name)
     return base;
 }
 
-/* Check if dict name already exists in array */
+/* Dedupe dictionary names */
 static int dict_exists(char **dicts, int count, const char *name)
 {
     int i;
@@ -111,133 +500,6 @@ static int dict_exists(char **dicts, int count, const char *name)
     }
 
     return 0;
-}
-
-SpellChecker *spell_new(const char *aff_path, const char *dic_path)
-{
-#ifdef HAVE_HUNSPELL
-    SpellChecker *sc;
-
-    if (!aff_path || !dic_path)
-        return NULL;
-
-    sc = (SpellChecker *)malloc(sizeof(SpellChecker));
-
-    if (!sc)
-        return NULL;
-
-    sc->handle = Hunspell_create(aff_path, dic_path);
-
-    if (!sc->handle)
-    {
-        free(sc);
-        return NULL;
-    }
-
-    return sc;
-#else
-    return NULL;
-#endif
-}
-
-void spell_free(SpellChecker *sc)
-{
-#ifdef HAVE_HUNSPELL
-    if (sc)
-    {
-        if (sc->handle)
-            Hunspell_destroy(sc->handle);
-
-        free(sc);
-    }
-#else
-    if (sc)
-        free(sc);
-#endif
-}
-
-int spell_check(SpellChecker *sc, const char *word)
-{
-#ifdef HAVE_HUNSPELL
-    if (!sc || !sc->handle || !word)
-        return -1;
-
-    return Hunspell_spell(sc->handle, word);
-#else
-    return -1;
-#endif
-}
-
-char **spell_suggest(SpellChecker *sc, const char *word, int *n_suggestions)
-{
-#ifdef HAVE_HUNSPELL
-    char **suggestions;
-
-    if (!sc || !sc->handle || !word || !n_suggestions)
-        return NULL;
-
-    *n_suggestions = Hunspell_suggest(sc->handle, &suggestions, word);
-
-    return suggestions;
-#else
-    if (n_suggestions)
-        *n_suggestions = 0;
-
-    return NULL;
-#endif
-}
-
-void spell_free_suggestions(SpellChecker *sc, char **suggestions, int n_suggestions)
-{
-#ifdef HAVE_HUNSPELL
-    if (sc && sc->handle && suggestions && n_suggestions > 0)
-        Hunspell_free_list(sc->handle, &suggestions, n_suggestions);
-#endif
-}
-
-int spell_add_word(SpellChecker *sc, const char *word)
-{
-#ifdef HAVE_HUNSPELL
-    if (!sc || !sc->handle || !word)
-        return 0;
-
-    return Hunspell_add(sc->handle, word);
-#else
-    return 0;
-#endif
-}
-
-int spell_remove_word(SpellChecker *sc, const char *word)
-{
-#ifdef HAVE_HUNSPELL
-    if (!sc || !sc->handle || !word)
-        return 0;
-
-    return Hunspell_remove(sc->handle, word);
-#else
-    return 0;
-#endif
-}
-
-const char *spell_get_encoding(SpellChecker *sc)
-{
-#ifdef HAVE_HUNSPELL
-    if (!sc || !sc->handle)
-        return NULL;
-
-    return Hunspell_get_dic_encoding(sc->handle);
-#else
-    return NULL;
-#endif
-}
-
-int spell_is_available(void)
-{
-#ifdef HAVE_HUNSPELL
-    return 1;
-#else
-    return 0;
-#endif
 }
 
 void spell_free_dictionaries(char **dicts, int n_dicts)
@@ -261,8 +523,8 @@ char **spell_list_dictionaries(const char *search_path, int *n_dicts)
     char **dicts;
     int capacity;
     int count;
-    char *name;
-    char **new_dicts;
+    char *name = NULL;
+    char **new_dicts = NULL;
 
 #ifdef PLATFORM_WIN32
     WIN32_FIND_DATAA fd;
@@ -474,4 +736,101 @@ char **spell_list_dictionaries(const char *search_path, int *n_dicts)
     *n_dicts = count;
 
     return dicts;
+}
+
+int spell_load_custom(SpellChecker *sc, const char *path)
+{
+#ifdef HAVE_HUNSPELL
+    FILE *fp = NULL;
+    char buf[512];
+    int loaded;
+
+    if (!sc || !sc->handle || !path || !path[0])
+        return -1;
+
+    fp = fopen(path, "rb");
+
+    if (!fp)
+        return -1; /* not fatal: no custom dict */
+
+    loaded = 0;
+
+    while (fgets(buf, (int)sizeof(buf), fp))
+    {
+        char *p = buf;
+        size_t len;
+
+        /* Skip UTF-8 BOM on first line */
+        if (loaded == 0 && (unsigned char)p[0] == 0xEF && (unsigned char)p[1] == 0xBB && (unsigned char)p[2] == 0xBF)
+            p += 3;
+
+        /* Strip trailing whitespace */
+        len = strlen(p);
+
+        while (len > 0 && (p[len - 1] == '\n' || p[len - 1] == '\r' || p[len - 1] == ' ' || p[len - 1] == '\t'))
+            p[--len] = '\0';
+
+        /* Strip leading whitespace */
+        while (*p == ' ' || *p == '\t')
+            p++;
+
+        /* Skip empty lines and comments */
+        if (*p == '\0' || *p == '#')
+            continue;
+
+        if (Hunspell_add(sc->handle, p) == 0)
+            loaded++;
+    }
+
+    fclose(fp);
+
+    if (loaded > 0)
+        spell_cache_clear(sc);
+
+    return loaded;
+#else
+
+    return -1;
+#endif
+}
+
+int spell_add_to_custom_dict(SpellChecker *sc, const char *word, const char *custom_dict_path)
+{
+#ifdef HAVE_HUNSPELL
+    FILE *fp;
+    int file_ok;
+    int mem_ok;
+
+    if (!sc || !sc->handle || !word || !word[0])
+        return -1;
+
+    file_ok = 0;
+
+    if (custom_dict_path && custom_dict_path[0])
+    {
+        fp = fopen(custom_dict_path, "ab");
+
+        if (fp)
+        {
+            if (fprintf(fp, "%s\n", word) > 0)
+                file_ok = 1;
+
+            fclose(fp);
+        }
+    }
+    else
+    {
+        /* No file path: add in-memory only */
+        file_ok = 1;
+    }
+
+    mem_ok = (Hunspell_add(sc->handle, word) == 0);
+
+    spell_cache_clear(sc);
+
+    return (file_ok && mem_ok) ? 0 : -1;
+#else
+
+    return -1;
+#endif
 }

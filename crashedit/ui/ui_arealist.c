@@ -796,8 +796,7 @@ UiView ui_arealist_run(UiApp *app)
         refresh();
 
         /* wrapper_read_key() folds ESC+letter -> KEY_ALT() on both Linux and Amiga */
-        wint_t wch;
-        int wrc = wrapper_read_key(&wch);
+        wrc = wrapper_read_key(&wch);
 
         if (wrc == ERR)
             continue;

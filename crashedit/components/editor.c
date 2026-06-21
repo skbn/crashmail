@@ -23,14 +23,15 @@
  */
 
 /* editor.c -- Text editor with wchar_t internal representation */
+#define _XOPEN_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
 #include <wchar.h>
+#include <wctype.h>
 #include "editor.h"
 #include "../core/utf8.h"
-#include <wctype.h>
 #include "../core/charset.h"
 
 /* Forward declarations for undo record helpers (defined after editing funcs) */
@@ -57,9 +58,6 @@ void ed_prefix_invalidate(Ed *ed);
 static int prefix_rebuild(Ed *ed, int width, int max_line);
 static int prefix_rebuild_from(Ed *ed, int from_line, int width);
 
-/* Soft-wrap helper: number of visual sub-rows a logical line occupies */
-static int wrap_count(const wchar_t *line, int len, int width);
-
 static EdLine *line_new(const wchar_t *src, int len)
 {
     EdLine *ln = (EdLine *)malloc(sizeof(EdLine));
@@ -85,7 +83,7 @@ static EdLine *line_new(const wchar_t *src, int len)
     return ln;
 }
 
-static EdLine *line_empty()
+static EdLine *line_empty(void)
 {
     return line_new(L"", 0);
 }
@@ -102,14 +100,14 @@ static void line_free(EdLine *ln)
 static int line_grow(EdLine *ln, int need)
 {
     int nc;
-    wchar_t *t;
+    wchar_t *t = NULL;
 
     if (ln->cap > need + 1)
         return 0;
 
     nc = need + 64;
 
-    if (nc > SIZE_MAX / sizeof(wchar_t))
+    if ((size_t)nc > SIZE_MAX / sizeof(wchar_t))
         return -1;
 
     t = (wchar_t *)realloc(ln->wcs, (size_t)nc * sizeof(wchar_t));
@@ -243,7 +241,7 @@ static int doc_insert_line(Ed *ed, int at, EdLine *ln)
 
 static EdLine *doc_remove_line(Ed *ed, int at)
 {
-    EdLine *ln;
+    EdLine *ln = NULL;
     int i;
 
     if (at < 0 || at >= ed->count)
@@ -345,7 +343,7 @@ int ed_prefix_rebuild_range(Ed *ed, int width, int start_line, int end_line)
     int i;
     int range_size;
     int total;
-    int old_start, old_end, old_width, old_base;
+    int old_start, old_width;
     int need_capacity;
 
     if (!ed)
@@ -384,9 +382,7 @@ int ed_prefix_rebuild_range(Ed *ed, int width, int start_line, int end_line)
     }
 
     old_start = ed->prefix_start;
-    old_end = ed->prefix_end;
     old_width = ed->prefix_width;
-    old_base = ed->prefix_base;
 
     /* Cold cache or width change: compute base by iterating 0..start_line-1 */
     if (!ed->prefix_valid || old_width != width)
@@ -888,11 +884,11 @@ void ed_load(Ed *ed, const char *utf8_text)
 
     while (*p)
     {
-        wchar_t *wcs;
+        wchar_t *wcs = NULL;
         int wlen;
         char *line_utf8;
         int blen;
-        EdLine *ln;
+        EdLine *ln = NULL;
 
         start = p;
 
@@ -952,8 +948,8 @@ char *ed_to_string(const Ed *ed)
     char **parts;
     int i = 0;
     int total = 0;
-    char *out;
-    char *p;
+    char *out = NULL;
+    char *p = NULL;
 
     if (!ed || ed->count == 0)
         return NULL;
@@ -1029,8 +1025,8 @@ char *ed_range_to_string(const Ed *ed, int start, int end)
     int i;
     int n;
     int total = 0;
-    char *out;
-    char *p;
+    char *out = NULL;
+    char *p = NULL;
 
     if (!ed || start < 0 || end <= start || start >= ed->count)
         return NULL;
@@ -1191,7 +1187,7 @@ void ed_move_home(Ed *ed)
 
 void ed_move_end(Ed *ed)
 {
-    EdLine *line;
+    EdLine *line = NULL;
 
     if (!ed)
         return;
@@ -1331,7 +1327,7 @@ static int is_wordch(wchar_t ch)
 
 void ed_word_left(Ed *ed)
 {
-    wchar_t *w;
+    wchar_t *w = NULL;
 
     if (!ed)
         return;
@@ -1356,7 +1352,7 @@ void ed_word_left(Ed *ed)
 
 void ed_word_right(Ed *ed)
 {
-    EdLine *ln;
+    EdLine *ln = NULL;
 
     if (!ed)
         return;
@@ -1381,7 +1377,7 @@ void ed_word_right(Ed *ed)
 /* Editing */
 int ed_insert_char(Ed *ed, wchar_t ch)
 {
-    EdLine *ln;
+    EdLine *ln = NULL;
 
     if (!ed || ch == 0)
         return -1;
@@ -1424,8 +1420,8 @@ int ed_insert_char(Ed *ed, wchar_t ch)
 
 int ed_enter(Ed *ed)
 {
-    EdLine *ln;
-    EdLine *nl;
+    EdLine *ln = NULL;
+    EdLine *nl = NULL;
 
     if (!ed)
         return -1;
@@ -1453,8 +1449,8 @@ int ed_enter(Ed *ed)
 
 int ed_backspace(Ed *ed)
 {
-    EdLine *ln;
-    EdLine *prev;
+    EdLine *ln = NULL;
+    EdLine *prev = NULL;
 
     if (!ed)
         return -1;
@@ -1493,8 +1489,8 @@ int ed_backspace(Ed *ed)
 
 int ed_delete(Ed *ed)
 {
-    EdLine *ln;
-    EdLine *nxt;
+    EdLine *ln = NULL;
+    EdLine *nxt = NULL;
 
     if (!ed)
         return -1;
@@ -1611,7 +1607,7 @@ int ed_delete_line(Ed *ed)
 
 int ed_delete_to_eol(Ed *ed)
 {
-    EdLine *ln;
+    EdLine *ln = NULL;
     wchar_t *deleted_text = NULL;
     int deleted_len;
 
@@ -1652,9 +1648,10 @@ int ed_delete_to_eol(Ed *ed)
 /* Delete from cursor backwards to start of previous word */
 int ed_delete_word_left(Ed *ed)
 {
-    EdLine *ln;
+    EdLine *ln = NULL;
     int target;
-    wchar_t *w;
+    int del_len;
+    wchar_t *w = NULL;
     wchar_t *deleted_text = NULL;
 
     if (!ed)
@@ -1684,7 +1681,7 @@ int ed_delete_word_left(Ed *ed)
         deleted_text = line_to_wcs_range(ln, target, ed->col);
 
     /* Capture length before loop (ed->col changes during deletion) */
-    int del_len = ed->col - target;
+    del_len = ed->col - target;
 
     while (ed->col > target)
     {
@@ -1724,7 +1721,7 @@ int ed_delete_word_left(Ed *ed)
 /* Delete from cursor forward through end of current word */
 int ed_delete_word_right(Ed *ed)
 {
-    EdLine *ln;
+    EdLine *ln = NULL;
     int target;
     wchar_t *deleted_text = NULL;
 
@@ -1790,8 +1787,8 @@ int ed_delete_word_right(Ed *ed)
 
 int ed_duplicate_line(Ed *ed)
 {
-    EdLine *ln;
-    EdLine *dup;
+    EdLine *ln = NULL;
+    EdLine *dup = NULL;
 
     if (!ed)
         return -1;
@@ -1905,7 +1902,7 @@ static wchar_t *block_extract_wcs(const Ed *ed, int *out_len)
     int i;
     size_t need = 0;
     size_t pos = 0;
-    wchar_t *buf;
+    wchar_t *buf = NULL;
 
     block_range(ed, &r1, &c1, &r2, &c2);
 
@@ -1979,7 +1976,7 @@ static wchar_t *block_extract_wcs(const Ed *ed, int *out_len)
 
 int ed_block_copy(Ed *ed)
 {
-    wchar_t *t;
+    wchar_t *t = NULL;
     int tlen;
 
     if (!ed || !ed->block.active)
@@ -2001,9 +1998,9 @@ int ed_block_copy(Ed *ed)
 
 char *ed_block_get_utf8(const Ed *ed)
 {
-    wchar_t *wcs;
+    wchar_t *wcs = NULL;
     int wcs_len;
-    char *utf8;
+    char *utf8 = NULL;
 
     if (!ed || !ed->block.active)
         return NULL;
@@ -2150,11 +2147,10 @@ int ed_block_delete(Ed *ed)
     int i;
     int old_count;
     int new_count;
-    char *snapshot_before;
-    char *snapshot_after;
-    EdLine *first;
-    EdLine *last;
-    UndoGroup *g;
+    char *snapshot_before = NULL;
+    char *snapshot_after = NULL;
+    EdLine *first = NULL;
+    EdLine *last = NULL;
 
     if (!ed || !ed->block.active)
         return -1;
@@ -2241,7 +2237,7 @@ int ed_block_delete(Ed *ed)
 
 int ed_block_paste(Ed *ed)
 {
-    char *utf8;
+    char *utf8 = NULL;
 
     if (!ed || !ed->killbuf || !ed->killlen)
         return -1;
@@ -2281,7 +2277,7 @@ void ed_redo_clear(Ed *ed)
 /* Ensure the undo stack has room for one more group */
 int ed_undo_stack_make_room(UndoGroup **stack, int *top, int *cap, int max)
 {
-    UndoGroup *t;
+    UndoGroup *t = NULL;
     int nc;
 
     if (!stack || !top || !cap)
@@ -2325,7 +2321,7 @@ int ed_undo_stack_make_room(UndoGroup **stack, int *top, int *cap, int max)
 /* Open a new group on top of the undo stack */
 int ed_undo_open_group(Ed *ed)
 {
-    UndoGroup *g;
+    UndoGroup *g = NULL;
 
     if (ed_undo_stack_make_room(&ed->undo_stack, &ed->undo_top, &ed->undo_cap, ed->undo_max) != 0)
         return -1;
@@ -2348,9 +2344,9 @@ int ed_undo_open_group(Ed *ed)
 /* Append one op to the current (top) group */
 static int undo_push_op(Ed *ed, UndoOpType type, int row, int col, const wchar_t *text, int len, int join_col)
 {
-    UndoGroup *g;
-    UndoOp *op;
-    UndoOp *t;
+    UndoGroup *g = NULL;
+    UndoOp *op = NULL;
+    UndoOp *t = NULL;
     int nc;
 
     if (ed->undo_top <= 0)
@@ -2400,8 +2396,8 @@ static int undo_push_op(Ed *ed, UndoOpType type, int row, int col, const wchar_t
 /* Push an OP_SNAPSHOT_RANGE operation to the current undo group */
 static int undo_push_snapshot_range(Ed *ed, int row, int col, char *snapshot_before, char *snapshot_after, int old_count, int new_count, int cur_row, int cur_col, int end_row, int end_col)
 {
-    UndoGroup *g;
-    UndoOp *t;
+    UndoGroup *g = NULL;
+    UndoOp *t = NULL;
     int nc;
 
     if (ed->undo_top <= 0)
@@ -2450,9 +2446,9 @@ static int undo_push_snapshot_range(Ed *ed, int row, int col, char *snapshot_bef
 /* Append a single wchar_t to the text of the last INSERT op */
 static int undo_coalesce_insert(Ed *ed, wchar_t ch)
 {
-    UndoGroup *g;
-    UndoOp *op;
-    wchar_t *t;
+    UndoGroup *g = NULL;
+    UndoOp *op = NULL;
+    wchar_t *t = NULL;
 
     if (ed->undo_top <= 0)
         return -1;
@@ -2481,9 +2477,9 @@ static int undo_coalesce_insert(Ed *ed, wchar_t ch)
 /* Prepend a single wchar_t to the text of the last DELETE op */
 static int undo_coalesce_delete_prepend(Ed *ed, wchar_t ch)
 {
-    UndoGroup *g;
-    UndoOp *op;
-    wchar_t *t;
+    UndoGroup *g = NULL;
+    UndoOp *op = NULL;
+    wchar_t *t = NULL;
 
     if (ed->undo_top <= 0)
         return -1;
@@ -2519,9 +2515,9 @@ static int undo_coalesce_delete_prepend(Ed *ed, wchar_t ch)
 /* Append a single wchar_t to the text of the last DELETE op (Del key) */
 static int undo_coalesce_delete_append(Ed *ed, wchar_t ch)
 {
-    UndoGroup *g;
-    UndoOp *op;
-    wchar_t *t;
+    UndoGroup *g = NULL;
+    UndoOp *op = NULL;
+    wchar_t *t = NULL;
 
     if (ed->undo_top <= 0)
         return -1;
@@ -2700,46 +2696,6 @@ static void record_join(Ed *ed, int row, int join_col)
     ed->undo_last_col_end = 0;
 }
 
-/* Internal backspace without undo recording */
-static int ed_backspace_no_undo(Ed *ed)
-{
-    EdLine *ln;
-    EdLine *prev;
-
-    if (!ed)
-        return -1;
-
-    ln = ed->lines[ed->row];
-
-    if (ed->col > 0)
-    {
-        /* Delete character without recording */
-        line_delete(ln, ed->col - 1);
-
-        ed->col--;
-        ed->modified = 1;
-
-        ed_prefix_invalidate_from(ed, ed->row);
-    }
-    else if (ed->row > 0)
-    {
-        prev = ed->lines[ed->row - 1];
-        ed->col = prev->len;
-
-        /* Join lines without recording */
-        line_append(prev, ln->wcs, ln->len);
-        line_free(doc_remove_line(ed, ed->row));
-
-        ed->row--;
-        ed->modified = 1;
-
-        ed_prefix_invalidate_from(ed, ed->row);
-        ed_ensure_visible(ed);
-    }
-
-    return 0;
-}
-
 /* Replace line range with UTF-8 text for OP_SNAPSHOT_RANGE undo/redo */
 static int doc_replace_range_from_utf8(Ed *ed, int start, int count_to_remove, const char *utf8_text)
 {
@@ -2781,9 +2737,9 @@ static int doc_replace_range_from_utf8(Ed *ed, int start, int count_to_remove, c
         const char *line_start = p;
         int blen;
         char *line_utf8;
-        wchar_t *wcs;
+        wchar_t *wcs = NULL;
         int wlen;
-        EdLine *ln;
+        EdLine *ln = NULL;
 
         while (*p && *p != '\r' && *p != '\n')
             p++;
@@ -2843,10 +2799,10 @@ static int doc_replace_range_from_utf8(Ed *ed, int start, int count_to_remove, c
 static int apply_group_reverse(Ed *ed, UndoGroup *g)
 {
     int i;
-    UndoOp *op;
-    EdLine *prev;
-    EdLine *cur;
-    EdLine *nl;
+    UndoOp *op = NULL;
+    EdLine *prev = NULL;
+    EdLine *cur = NULL;
+    EdLine *nl = NULL;
     int min_row = 0;
     int lines_inserted = 0; /* Track how many lines we've inserted to adjust row indices */
 
@@ -3049,9 +3005,9 @@ static int apply_group_reverse(Ed *ed, UndoGroup *g)
 static int apply_group_forward(Ed *ed, UndoGroup *g)
 {
     int i;
-    UndoOp *op;
-    EdLine *cur;
-    EdLine *nl;
+    UndoOp *op = NULL;
+    EdLine *cur = NULL;
+    EdLine *nl = NULL;
     int min_row = 0;
 
     for (i = 0; i < g->count; i++)
@@ -3206,6 +3162,7 @@ int ed_undo(Ed *ed)
 {
     UndoGroup *src;
     UndoGroup tmp;
+    int min_row;
 
     if (!ed || ed->undo_top <= 0)
         return -1;
@@ -3235,7 +3192,7 @@ int ed_undo(Ed *ed)
     ed->undo_snapshot_mode = 1;
 
     /* Apply ops in reverse */
-    int min_row = apply_group_reverse(ed, &ed->redo_stack[ed->redo_top - 1]);
+    min_row = apply_group_reverse(ed, &ed->redo_stack[ed->redo_top - 1]);
 
     ed->undo_snapshot_mode = 0;
 
@@ -3255,6 +3212,7 @@ int ed_redo(Ed *ed)
 {
     UndoGroup *src;
     UndoGroup tmp;
+    int min_row;
 
     if (!ed || ed->redo_top <= 0)
         return -1;
@@ -3276,7 +3234,7 @@ int ed_redo(Ed *ed)
     ed->undo_snapshot_mode = 1;
 
     /* Apply ops forward */
-    int min_row = apply_group_forward(ed, &ed->undo_stack[ed->undo_top - 1]);
+    min_row = apply_group_forward(ed, &ed->undo_stack[ed->undo_top - 1]);
 
     ed->undo_snapshot_mode = 0;
 
@@ -3496,7 +3454,7 @@ int ed_paste_text_with_undo(Ed *ed, const char *utf8_text)
     int cursor_row_before, cursor_col_before;
     int cursor_row_after, cursor_col_after;
     EdInfo info;
-    UndoGroup *g;
+    UndoGroup *g = NULL;
 
     if (!ed || !utf8_text)
         return -1;

@@ -75,17 +75,19 @@ typedef struct
 } AreaRun;
 
 /* Non-blocking ESC poll, used during long scans so user can cancel without waiting for message loop */
-static int poll_esc()
+static int poll_esc(void)
 {
     int ch;
+
     timeout(0);
     ch = wrapper_getch();
     timeout(-1);
+
     return (ch == 27) ? 1 : 0;
 }
 
 /* Force fresh paint of background, search popups are modal and paint over black background */
-static void wipe_background()
+static void wipe_background(void)
 {
     erase();
 }
@@ -513,8 +515,8 @@ static const char *flag_letters(uint16_t flags)
 /* Persistent result browser: reads search state, preserves cursor/scroll position for reader round-trip, returns VIEW_READER on message open or app->search_from_view on ESC */
 UiView ui_search_results_run(UiApp *app)
 {
-    SearchSession *ss;
-    AreaRun *runs;
+    SearchSession *ss = NULL;
+    AreaRun *runs = NULL;
     int n_runs;
     int mode;
     int area_pick, area_top;
@@ -871,8 +873,8 @@ UiView ui_search_run(UiApp *app, int scope_all_areas)
     int opt_case;
     int opt_whole;
     int opt_max;
-    SearchSession *ss;
-    AreaRun *runs;
+    SearchSession *ss = NULL;
+    AreaRun *runs = NULL;
     int n_runs;
     UiView caller_view;
 

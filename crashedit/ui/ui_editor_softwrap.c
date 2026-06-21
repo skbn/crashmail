@@ -22,6 +22,7 @@
  * General Public License v2.1. See src/jamlib/LICENSE for details.
  */
 
+#define _XOPEN_SOURCE
 #include <wchar.h>
 #include "ui_editor_softwrap.h"
 #include "ui.h"
@@ -719,7 +720,6 @@ void soft_move_pgdn_visual(UiApp *app, int width, int pg)
 void soft_visual_to_logical(Ed *ed, int width, int target_vrow, int target_vcol, int *out_row, int *out_col)
 {
     EdInfo info;
-    int cur_row, cur_sub;
     int new_line, new_sub;
     int seg_start = 0, seg_end = 0;
     const wchar_t *l;
@@ -737,9 +737,6 @@ void soft_visual_to_logical(Ed *ed, int width, int target_vrow, int target_vcol,
     }
 
     /* target_vrow is interpreted as ABSOLUTE distance from line 0 in legacy contract, walk forward from line 0, this is O(target_vrow) but only used by external code paths that don't matter in new design */
-    cur_row = 0;
-    cur_sub = 0;
-
     if (target_vrow > 0)
         walk_vrows_forward(ed, width, 0, 0, target_vrow, &new_line, &new_sub);
     else

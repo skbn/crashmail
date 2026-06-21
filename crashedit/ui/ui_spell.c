@@ -37,10 +37,16 @@
 #ifdef HAVE_HUNSPELL
 #include "../core/spell.h"
 #endif
+#ifdef HAVE_MYTHES
+#include "../core/thes.h"
+#endif
 
 #ifndef A_BOLD
 #include <ncurses.h>
 #endif
+
+/* Sentinel: add word to custom dictionary instead of replace */
+#define UI_SPELL_ADD_TO_DICT (-2)
 
 static void spell_panel_geometry(int *x, int *y, int *w, int *h)
 {
@@ -52,9 +58,9 @@ static void spell_panel_geometry(int *x, int *y, int *w, int *h)
     *w = W;
     *h = SPELL_PANEL_H;
 
-    /* Full width, just above status bar */
+    /* Full width above status bar */
     *x = 0;
-    *y = H - *h - 1; /* -1 for status bar */
+    *y = H - *h - 1; /* above status bar */
 
     if (*y < 1)
         *y = 1;
@@ -86,7 +92,7 @@ void ui_spell_draw_panel(UiApp *app)
     }
     else if (app->spell_current_word[0])
     {
-        char *u8;
+        char *u8 = NULL;
         const char *status_txt;
         int status_col;
 
@@ -178,7 +184,12 @@ int ui_spell_load_from_config(UiApp *app)
 
     cfg = app->cfg;
 
-    /* Drop any previously-loaded dictionary */
+    /* Drop dictionary (detaches from thesaurus) */
+#ifdef HAVE_MYTHES
+    if (app->thes_handle)
+        thes_set_speller((ThesHandle *)app->thes_handle, NULL);
+#endif
+
     ui_spell_unload(app);
 
     if (!cfg->spell_enabled)
@@ -198,6 +209,16 @@ int ui_spell_load_from_config(UiApp *app)
         return 0;
     }
 
+    /* Load custom dictionary (silent failure) */
+    if (cfg->spell_custom_dict[0])
+        spell_load_custom(app->spell_handle, cfg->spell_custom_dict);
+
+    /* Re-attach speller to thesaurus */
+#ifdef HAVE_MYTHES
+    if (app->thes_handle)
+        thes_set_speller((ThesHandle *)app->thes_handle, (SpellChecker *)app->spell_handle);
+#endif
+
     app->spell_enabled = cfg->spell_enabled;
     app->spell_active = 0;
 
@@ -215,7 +236,6 @@ int ui_spell_toggle_panel(UiApp *app)
     return 1;
 }
 
-/* word_chars_only: include letters and apostrophes (typical word boundary) */
 int spell_is_word_char(wchar_t c)
 {
     if (iswalnum((wint_t)c))
@@ -227,10 +247,9 @@ int spell_is_word_char(wchar_t c)
     return 0;
 }
 
-/* Simple word check for highlighting - returns 1 if incorrect, 0 if correct */
 int ui_spell_check_word_simple(UiApp *app, const wchar_t *word, int word_len)
 {
-    char *word_utf8;
+    char *word_utf8 = NULL;
     int result;
 
     if (!app || !app->spell_handle || !app->spell_active)
@@ -248,23 +267,56 @@ int ui_spell_check_word_simple(UiApp *app, const wchar_t *word, int word_len)
 
     free(word_utf8);
 
-    /* spell_check returns 1 for correct, 0 for incorrect */
+    /* spell_check: 1=correct, 0=incorrect */
     return result == 0;
+}
+
+/* Show suggestions popup with "Add to dictionary" option */
+static int ui_spell_suggest_popup(const char *word, char **suggestions, int count)
+{
+    const char **items;
+    char add_label[160];
+    int total;
+    int selected;
+    int i;
+
+    total = (count > 0 ? count : 0) + 1; /* always offer Add */
+    items = (const char **)malloc((size_t)total * sizeof(char *));
+
+    if (!items)
+        return -1;
+
+    for (i = 0; i < count; i++)
+        items[i] = suggestions[i];
+
+    snprintf(add_label, sizeof(add_label), "[+ Add \"%s\" to dictionary]", word ? word : "");
+
+    items[total - 1] = add_label;
+
+    selected = ui_popup_list("Spelling Suggestions", items, total, 0);
+    free(items);
+
+    if (selected == total - 1)
+        return UI_SPELL_ADD_TO_DICT;
+
+    if (selected >= 0 && selected < count)
+        return selected;
+
+    return -1;
 }
 
 int ui_spell_check_word_at_cursor(UiApp *app)
 {
-    Ed *ed;
+    Ed *ed = NULL;
     EdInfo info;
     const wchar_t *line;
     int line_len, ws, we, i;
     wchar_t wbuf[256];
-    char *u8;
+    char *u8 = NULL;
     int correct;
-    char **sugs;
+    char **sugs = NULL;
     int n_sugs, sel, sug_len;
-    wchar_t *sug_wcs;
-    const char *u8_status;
+    wchar_t *sug_wcs = NULL;
 
     if (!app || !app->editor || !app->spell_handle)
         return 0;
@@ -279,7 +331,7 @@ int ui_spell_check_word_at_cursor(UiApp *app)
 
     line_len = ed_line_len(ed, info.row);
 
-    /* Locate word boundaries around the cursor column */
+    /* Find word boundaries */
     ws = info.col;
 
     while (ws > 0 && spell_is_word_char(line[ws - 1]))
@@ -304,7 +356,7 @@ int ui_spell_check_word_at_cursor(UiApp *app)
 
     wbuf[we - ws] = L'\0';
 
-    /* Stash for the panel */
+    /* Stash for panel */
     if ((we - ws) < (int)(sizeof(app->spell_current_word) / sizeof(app->spell_current_word[0])))
     {
         wcsncpy(app->spell_current_word, wbuf, sizeof(app->spell_current_word) / sizeof(app->spell_current_word[0]) - 1);
@@ -324,7 +376,6 @@ int ui_spell_check_word_at_cursor(UiApp *app)
     {
         app->spell_word_status = 1;
 
-        /* Free any previous suggestions before marking as correct */
         if (app->spell_suggestions)
         {
             spell_free_suggestions(app->spell_handle, app->spell_suggestions, app->spell_suggestion_count);
@@ -333,8 +384,7 @@ int ui_spell_check_word_at_cursor(UiApp *app)
             app->spell_suggestion_count = 0;
         }
 
-        u8_status = u8;
-        ui_status(app, "'%s' is correct", u8_status);
+        ui_status(app, "'%s' is correct", u8);
 
         free(u8);
         return 1;
@@ -342,7 +392,7 @@ int ui_spell_check_word_at_cursor(UiApp *app)
 
     app->spell_word_status = 2;
 
-    /* Free any previous suggestions before fetching new ones */
+    /* Free previous suggestions */
     if (app->spell_suggestions)
     {
         spell_free_suggestions(app->spell_handle, app->spell_suggestions, app->spell_suggestion_count);
@@ -353,12 +403,32 @@ int ui_spell_check_word_at_cursor(UiApp *app)
 
     sugs = spell_suggest(app->spell_handle, u8, &n_sugs);
 
+    /* No suggestions: offer Add directly */
     if (!sugs || n_sugs == 0)
     {
+        char prompt[256];
+
         if (sugs)
             spell_free_suggestions(app->spell_handle, sugs, n_sugs);
 
-        ui_status(app, "No suggestions for '%s'", u8);
+        snprintf(prompt, sizeof(prompt), "Add \"%s\" to your custom dictionary?", u8);
+
+        if (ui_popup_confirm("Unknown word", prompt) == 1)
+        {
+            if (spell_add_to_custom_dict(app->spell_handle, u8, app->cfg->spell_custom_dict) == 0)
+            {
+                app->spell_word_status = 1;
+                ui_status(app, "Added '%s' to dictionary", u8);
+            }
+            else
+            {
+                ui_status(app, "Failed to add '%s'", u8);
+            }
+        }
+        else
+        {
+            ui_status(app, "No suggestions for '%s'", u8);
+        }
 
         free(u8);
         return 1;
@@ -367,9 +437,21 @@ int ui_spell_check_word_at_cursor(UiApp *app)
     app->spell_suggestions = sugs;
     app->spell_suggestion_count = n_sugs;
 
-    sel = ui_popup_list("Spelling Suggestions", (const char **)sugs, n_sugs, 0);
+    sel = ui_spell_suggest_popup(u8, sugs, n_sugs);
 
-    if (sel >= 0 && sel < n_sugs)
+    if (sel == UI_SPELL_ADD_TO_DICT)
+    {
+        if (spell_add_to_custom_dict(app->spell_handle, u8, app->cfg->spell_custom_dict) == 0)
+        {
+            app->spell_word_status = 1;
+            ui_status(app, "Added '%s' to dictionary", u8);
+        }
+        else
+        {
+            ui_status(app, "Failed to add '%s'", u8);
+        }
+    }
+    else if (sel >= 0 && sel < n_sugs)
     {
         sug_wcs = utf8_to_wcs(sugs[sel], &sug_len);
 
@@ -387,14 +469,13 @@ int ui_spell_check_word_at_cursor(UiApp *app)
             ui_status(app, "Replaced with '%s'", sugs[sel]);
             free(sug_wcs);
 
-            /* Word fixed -- mark it correct in the panel */
             app->spell_word_status = 1;
         }
     }
 
     free(u8);
 
-    /* Release suggestions now that the user has chosen (or cancelled) */
+    /* Release suggestions */
     spell_free_suggestions(app->spell_handle, app->spell_suggestions, app->spell_suggestion_count);
 
     app->spell_suggestions = NULL;

@@ -38,6 +38,12 @@
 #ifdef HAVE_HUNSPELL
 #include "../core/spell.h"
 #endif
+#ifdef HAVE_HYPHEN
+#include "../core/hyph.h"
+#endif
+#ifdef HAVE_MYTHES
+#include "../core/thes.h"
+#endif
 
 #ifdef PLATFORM_AMIGA
 #ifdef HAVE_HUNSPELL
@@ -86,6 +92,14 @@ typedef enum
     ,
     FT_DICTLIST,  /* cycle through available Hunspell dictionaries */
     FT_CUSTOMDICT /* select or create custom dictionary */
+#ifdef HAVE_HYPHEN
+    ,
+    FT_HYPHLIST /* cycle through available libhyphen dictionaries */
+#endif
+#ifdef HAVE_MYTHES
+    ,
+    FT_THESLIST /* cycle through available MyThes dictionaries */
+#endif
 #endif
 } FieldType;
 
@@ -234,11 +248,33 @@ static const SetupField st_fields[] =
         {7, "Dict Path", FT_STR, offsetof(CrashEditCfg, spell_dict_path), CFG_STR_MAX},
         {7, "Dictionary", FT_DICTLIST, offsetof(CrashEditCfg, spell_dict_name), 0},
         {7, "Custom Dict", FT_CUSTOMDICT, offsetof(CrashEditCfg, spell_custom_dict), 0},
+#ifdef HAVE_HYPHEN
+        {7, "Hyphen Enabled", FT_BOOL, offsetof(CrashEditCfg, hyph_enabled), 0},
+        {7, "Hyphen Path", FT_STR, offsetof(CrashEditCfg, hyph_dict_path), CFG_STR_MAX},
+        {7, "Hyphen Dictionary", FT_HYPHLIST, offsetof(CrashEditCfg, hyph_dict_name), 0},
+        {7, "Hyphen Wrap", FT_BOOL, offsetof(CrashEditCfg, hyph_wrap_enabled), 0},
+#endif
+#ifdef HAVE_MYTHES
+        {7, "Thesaurus Enabled", FT_BOOL, offsetof(CrashEditCfg, thes_enabled), 0},
+        {7, "Thesaurus Path", FT_STR, offsetof(CrashEditCfg, thes_dict_path), CFG_STR_MAX},
+        {7, "Thesaurus Dictionary", FT_THESLIST, offsetof(CrashEditCfg, thes_dict_name), 0},
+#endif
 #else
         {6, "Spell Enabled", FT_BOOL, offsetof(CrashEditCfg, spell_enabled), 0},
         {6, "Dict Path", FT_STR, offsetof(CrashEditCfg, spell_dict_path), CFG_STR_MAX},
         {6, "Dictionary", FT_DICTLIST, offsetof(CrashEditCfg, spell_dict_name), 0},
         {6, "Custom Dict", FT_CUSTOMDICT, offsetof(CrashEditCfg, spell_custom_dict), 0},
+#ifdef HAVE_HYPHEN
+        {6, "Hyphen Enabled", FT_BOOL, offsetof(CrashEditCfg, hyph_enabled), 0},
+        {6, "Hyphen Path", FT_STR, offsetof(CrashEditCfg, hyph_dict_path), CFG_STR_MAX},
+        {6, "Hyphen Dictionary", FT_HYPHLIST, offsetof(CrashEditCfg, hyph_dict_name), 0},
+        {6, "Hyphen Wrap", FT_BOOL, offsetof(CrashEditCfg, hyph_wrap_enabled), 0},
+#endif
+#ifdef HAVE_MYTHES
+        {6, "Thesaurus Enabled", FT_BOOL, offsetof(CrashEditCfg, thes_enabled), 0},
+        {6, "Thesaurus Path", FT_STR, offsetof(CrashEditCfg, thes_dict_path), CFG_STR_MAX},
+        {6, "Thesaurus Dictionary", FT_THESLIST, offsetof(CrashEditCfg, thes_dict_name), 0},
+#endif
 #endif
 #endif
 };
@@ -490,6 +526,24 @@ static void st_format_value(const CrashEditCfg *w, const SetupField *fld, char *
         snprintf(buf, bufsz, "%s", s[0] ? s : "(none)");
         break;
     }
+#ifdef HAVE_HYPHEN
+    case FT_HYPHLIST:
+    {
+        const char *s = base + fld->off;
+
+        snprintf(buf, bufsz, "%s", s[0] ? s : "(none)");
+        break;
+    }
+#endif
+#ifdef HAVE_MYTHES
+    case FT_THESLIST:
+    {
+        const char *s = base + fld->off;
+
+        snprintf(buf, bufsz, "%s", s[0] ? s : "(none)");
+        break;
+    }
+#endif
 #endif
     }
 }
@@ -506,7 +560,9 @@ static void st_edit_field(CrashEditCfg *w, const SetupField *fld)
         char *s = base + fld->off;
 
         /* Special case: Dict Path uses directory picker */
-        if (strcmp(fld->label, "Dict Path") == 0)
+        if (strcmp(fld->label, "Dict Path") == 0 ||
+            strcmp(fld->label, "Hyphen Path") == 0 ||
+            strcmp(fld->label, "Thesaurus Path") == 0)
         {
             char tmp[CFG_STR_MAX];
 
@@ -679,7 +735,7 @@ static void st_edit_field(CrashEditCfg *w, const SetupField *fld)
         {
             wchar_t wtmp[CFG_STR_MAX];
             int cap = fld->maxlen > 0 && fld->maxlen < (int)sizeof(wtmp) ? fld->maxlen : (int)sizeof(wtmp);
-            wchar_t *w_initial;
+            wchar_t *w_initial = NULL;
 
             w_initial = utf8_to_wcs(s, NULL);
             wtmp[0] = L'\0';
@@ -752,7 +808,7 @@ static void st_edit_field(CrashEditCfg *w, const SetupField *fld)
             char *s = base + fld->off;
             wchar_t wtmp[CFG_STR_MAX];
             int cap = fld->maxlen > 0 && fld->maxlen < (int)sizeof(wtmp) ? fld->maxlen : (int)sizeof(wtmp);
-            wchar_t *w_initial;
+            wchar_t *w_initial = NULL;
 
             w_initial = utf8_to_wcs(s, NULL);
             wtmp[0] = L'\0';
@@ -792,10 +848,11 @@ static void st_edit_field(CrashEditCfg *w, const SetupField *fld)
         int *v = (int *)(base + fld->off);
         wchar_t wtmp[32];
         char tmp[32];
+        wchar_t *w_initial = NULL;
 
         snprintf(tmp, sizeof(tmp), "%d", *v);
 
-        wchar_t *w_initial = utf8_to_wcs(tmp, NULL);
+        w_initial = utf8_to_wcs(tmp, NULL);
         wtmp[0] = L'\0';
 
         if (w_initial)
@@ -902,6 +959,8 @@ static void st_edit_field(CrashEditCfg *w, const SetupField *fld)
         int pair_index = (fld->off - offsetof(CrashEditCfg, color_fg)) / sizeof(int);
         int *fg = (int *)(base + fld->off);
         int *bg = (int *)(base + offsetof(CrashEditCfg, color_bg) + pair_index * sizeof(int));
+        int fg_result;
+        int bg_result;
 
         /* Color names and their values */
         static const char *color_names[] =
@@ -911,13 +970,13 @@ static void st_edit_field(CrashEditCfg *w, const SetupField *fld)
                 "bright blue", "bright magenta", "bright cyan", "bright white"};
 
         /* Select foreground color */
-        int fg_result = ui_popup_list("Select Foreground", color_names, 16, *fg);
+        fg_result = ui_popup_list("Select Foreground", color_names, 16, *fg);
 
         if (fg_result < 0)
             return; /* User canceled */
 
         /* Select background color */
-        int bg_result = ui_popup_list("Select Background", color_names, 16, *bg);
+        bg_result = ui_popup_list("Select Background", color_names, 16, *bg);
 
         if (bg_result < 0)
             return; /* User canceled */
@@ -984,6 +1043,109 @@ static void st_edit_field(CrashEditCfg *w, const SetupField *fld)
         spell_free_dictionaries(dicts, n_dicts);
         break;
     }
+
+#ifdef HAVE_HYPHEN
+    case FT_HYPHLIST:
+    {
+        char *s = base + fld->off;
+        char **dicts;
+        int n_dicts;
+        int i;
+        int current = -1;
+        int selected;
+        char *hyph_path = w->hyph_dict_path;
+
+        if (!hyph_path || !hyph_path[0])
+        {
+            mvaddnwstr(LINES / 2, (COLS - 40) / 2, L"Error: Hyphen Path not set", 27);
+            refresh();
+            wrapper_getch();
+            break;
+        }
+
+        dicts = hyph_list_dictionaries(hyph_path, &n_dicts);
+
+        if (!dicts || n_dicts == 0)
+        {
+            mvaddnwstr(LINES / 2, (COLS - 40) / 2, L"No hyphen dictionaries found", 28);
+            refresh();
+            wrapper_getch();
+            break;
+        }
+
+        for (i = 0; i < n_dicts; i++)
+        {
+            if (strcmp(s, dicts[i]) == 0)
+            {
+                current = i;
+                break;
+            }
+        }
+
+        selected = ui_popup_list("Select Hyphenation", (const char **)dicts, n_dicts, current);
+
+        if (selected >= 0 && selected < n_dicts)
+        {
+            strncpy(s, dicts[selected], CFG_STR_MAX - 1);
+            s[CFG_STR_MAX - 1] = '\0';
+        }
+
+        hyph_free_dictionaries(dicts, n_dicts);
+        break;
+    }
+#endif /* HAVE_HYPHEN */
+
+#ifdef HAVE_MYTHES
+    case FT_THESLIST:
+    {
+        char *s = base + fld->off;
+        char **dicts;
+        int n_dicts;
+        int i;
+        int current = -1;
+        int selected;
+        char *thes_path = w->thes_dict_path;
+
+        if (!thes_path || !thes_path[0])
+        {
+            mvaddnwstr(LINES / 2, (COLS - 40) / 2, L"Error: Thesaurus Path not set", 29);
+            refresh();
+            wrapper_getch();
+            break;
+        }
+
+        dicts = thes_list_dictionaries(thes_path, &n_dicts);
+
+        if (!dicts || n_dicts == 0)
+        {
+            mvaddnwstr(LINES / 2, (COLS - 40) / 2, L"No thesaurus dictionaries found", 31);
+            refresh();
+            wrapper_getch();
+            break;
+        }
+
+        for (i = 0; i < n_dicts; i++)
+        {
+            if (strcmp(s, dicts[i]) == 0)
+            {
+                current = i;
+                break;
+            }
+        }
+
+        selected = ui_popup_list("Select Thesaurus", (const char **)dicts, n_dicts, current);
+
+        if (selected >= 0 && selected < n_dicts)
+        {
+            strncpy(s, dicts[selected], CFG_STR_MAX - 1);
+            s[CFG_STR_MAX - 1] = '\0';
+        }
+
+        thes_free_dictionaries(dicts, n_dicts);
+        break;
+    }
+#endif /* HAVE_MYTHES */
+
     case FT_CUSTOMDICT:
     {
         char *s = base + fld->off;
@@ -1160,7 +1322,6 @@ int ui_setup_run(UiApp *app)
     int key;
     int dirty = 0;
     char orig_ttf_font[512];
-    int orig_ttf_size;
 
     if (!app || !app->cfg)
         return 0;
@@ -1170,7 +1331,6 @@ int ui_setup_run(UiApp *app)
     /* Save original font values to detect changes */
     strncpy(orig_ttf_font, work.ttf_font, sizeof(orig_ttf_font) - 1);
     orig_ttf_font[sizeof(orig_ttf_font) - 1] = '\0';
-    orig_ttf_size = work.ttf_size;
 
     for (;;)
     {
@@ -1178,6 +1338,7 @@ int ui_setup_run(UiApp *app)
         int tabx;
         int nfields = st_tab_field_count(tab);
         int valw;
+        int visible_fields;
 
         erase();
 
@@ -1208,7 +1369,7 @@ int ui_setup_run(UiApp *app)
         }
 
         /* Fields of the current tab */
-        int visible_fields = LINES - 6;
+        visible_fields = LINES - 6;
 
         if (visible_fields < 1)
             visible_fields = 1;
@@ -1236,7 +1397,7 @@ int ui_setup_run(UiApp *app)
             else
                 attron(COLOR_PAIR(COL_NORMAL));
 
-            int valw = COLS - 24;
+            valw = COLS - 24;
 
             if (valw < 1)
                 valw = 1; /* never pass a negative precision to printf */

@@ -26,32 +26,29 @@
 #include "ui.h"
 #include "ui_internal.h"
 #include "ui_editor_internal.h"
+#include "ui_editor_helper.h"
+#include "ui_editor_search.h"
 #include "../core/charset.h"
 #include "../core/msghdr.h"
+#include "../core/utf8.h"
 #include "../components/editor.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <wchar.h>
 
-/* Forward declaration for reset_search (defined in ui_editor_search.c) */
-extern void reset_search(UiApp *app);
-
-/* Forward declaration for editor_eff_wrap (defined in ui_editor.c) */
-extern int editor_eff_wrap(const UiApp *app);
-
-/* Word-wrap UTF-8 paste to col columns, preserving newlines, no hard-breaks for URLs/code */
+/* Word-wrap UTF-8 paste to col columns */
 int paste_char_width(wchar_t c)
 {
-    /* For FTN editing: does this char take 1 column or 0, zero-width cases: combining marks, BOM, CJK treated as 1 */
+    /* Zero-width chars: combining marks, BOM, control */
     if (c == 0)
         return 0;
 
     if (c < 0x20)
-        return 0; /* control chars, including \r */
+        return 0; /* control chars */
 
     if (c >= 0x0300 && c <= 0x036F)
-        return 0; /* combining diacritical marks */
+        return 0; /* combining marks */
 
     if (c == 0x200B || c == 0xFEFF)
         return 0; /* ZWSP / BOM */
@@ -59,18 +56,24 @@ int paste_char_width(wchar_t c)
     return 1;
 }
 
-/* Word-wrap UTF-8 paste to col columns, preserving newlines */
+/* Word-wrap UTF-8 paste (space-only variant) */
 char *wrap_paste_text(const char *utf8, int col)
 {
-    wchar_t *w;
+    return wrap_paste_text_ex(utf8, col, NULL, NULL);
+}
+
+/* Word-wrap UTF-8 paste with hyphenation support */
+char *wrap_paste_text_ex(const char *utf8, int col, PasteHyphFn hyph, void *hyph_data)
+{
+    wchar_t *w = NULL;
     int wlen = 0;
     int i;
     int line_start = 0;
     int last_space = -1;
     int col_pos = 0;
     int out_cap, out_len = 0;
-    wchar_t *out;
-    char *result;
+    wchar_t *out = NULL;
+    char *result = NULL;
 
     if (col <= 0)
         return NULL;
@@ -100,12 +103,12 @@ char *wrap_paste_text(const char *utf8, int col)
                 out[out_len++] = L'\n';
             else
             {
-                /* Buffer full: need to expand */
+                /* Buffer full: expand */
                 int new_cap = out_cap * 2;
                 wchar_t *new_out = (wchar_t *)realloc(out, (size_t)new_cap * sizeof(wchar_t));
 
                 if (!new_out)
-                    break; /* Cannot expand, discard remaining */
+                    break;
 
                 out = new_out;
                 out_cap = new_cap;
@@ -118,6 +121,7 @@ char *wrap_paste_text(const char *utf8, int col)
 
             continue;
         }
+
         if (ch == L'\r')
             continue;
 
@@ -130,12 +134,11 @@ char *wrap_paste_text(const char *utf8, int col)
             out[out_len++] = ch;
         else
         {
-            /* Buffer full: need to expand */
             int new_cap = out_cap * 2;
             wchar_t *new_out = (wchar_t *)realloc(out, (size_t)new_cap * sizeof(wchar_t));
 
             if (!new_out)
-                break; /* Cannot expand, discard remaining */
+                break;
 
             out = new_out;
             out_cap = new_cap;
@@ -147,24 +150,126 @@ char *wrap_paste_text(const char *utf8, int col)
 
         col_pos += cw;
 
-        if (col_pos > col && last_space > line_start)
+        if (col_pos > col)
         {
             int new_start;
             int j;
             int width_after = 0;
+            int break_found = 0;
 
-            out[last_space] = L'\n';
-            new_start = last_space + 1;
-
-            for (j = new_start; j < out_len; j++)
+            /* Try hyphenation break first */
+            if (hyph)
             {
-                int w2 = (out[j] == L'\t') ? 1 : paste_char_width(out[j]);
-                width_after += w2;
+                int word_start = (last_space >= 0) ? last_space + 1 : line_start;
+                int word_end = out_len;
+                int word_wlen = word_end - word_start;
+
+                if (word_wlen > 3 && word_wlen < 512)
+                {
+                    char *utf8_word = wcs_to_utf8(&out[word_start], word_wlen);
+
+                    if (utf8_word)
+                    {
+                        int utf8_len = (int)strlen(utf8_word);
+                        int hp[16];
+                        int hn = 16;
+                        int k;
+
+                        if (hyph(hyph_data, utf8_word, utf8_len, hp, &hn) && hn > 0)
+                        {
+                            /* Find rightmost hyphenation point that fits */
+                            for (k = hn - 1; k >= 0; k--)
+                            {
+                                int char_off = utf8_charcount(utf8_word, hp[k]);
+                                int break_at = word_start + char_off;
+                                int break_col = 0;
+                                int m;
+
+                                if (break_at <= word_start || break_at >= word_end)
+                                    continue;
+
+                                if (break_at <= line_start)
+                                    continue;
+
+                                for (m = line_start; m < break_at; m++)
+                                    break_col += (out[m] == L'\t') ? 1 : paste_char_width(out[m]);
+
+                                /* Reserve column for '-' */
+                                if (break_col > col - 1)
+                                    continue;
+
+                                /* Need room for '-' and '\n' */
+                                if (out_len + 2 > out_cap)
+                                {
+                                    int new_cap = (out_cap + 64) * 2;
+                                    wchar_t *new_out = (wchar_t *)realloc(out, (size_t)new_cap * sizeof(wchar_t));
+
+                                    if (!new_out)
+                                        break; /* abort hyph attempt */
+
+                                    out = new_out;
+                                    out_cap = new_cap;
+                                }
+
+                                if (out_len + 2 > out_cap)
+                                    break; /* no room */
+
+                                /* Shift [break_at..out_len) right by 2 */
+                                for (m = out_len - 1; m >= break_at; m--)
+                                    out[m + 2] = out[m];
+
+                                out[break_at] = L'-';
+                                out[break_at + 1] = L'\n';
+
+                                out_len += 2;
+                                new_start = break_at + 2;
+                                break_found = 1;
+
+                                width_after = 0;
+
+                                for (m = new_start; m < out_len; m++)
+                                    width_after += (out[m] == L'\t') ? 1 : paste_char_width(out[m]);
+
+                                line_start = new_start;
+                                last_space = -1;
+                                col_pos = width_after;
+                                break;
+                            }
+                        }
+
+                        free(utf8_word);
+                    }
+                }
             }
 
-            line_start = new_start;
-            last_space = -1;
-            col_pos = width_after;
+            if (!break_found && last_space > line_start)
+            {
+                /* Space-based break */
+                out[last_space] = L'\n';
+                new_start = last_space + 1;
+
+                for (j = new_start; j < out_len; j++)
+                {
+                    int w2 = (out[j] == L'\t') ? 1 : paste_char_width(out[j]);
+                    width_after += w2;
+                }
+
+                line_start = new_start;
+                last_space = -1;
+                col_pos = width_after;
+            }
+            else if (!break_found)
+            {
+                /* No space, no hyphenation: hard cut */
+                if (out_len + 1 < out_cap)
+                {
+                    out[out_len++] = L'\n';
+
+                    line_start = out_len;
+                    last_space = -1;
+                    col_pos = 0;
+                }
+            }
         }
     }
 
@@ -181,7 +286,32 @@ char *wrap_paste_text(const char *utf8, int col)
     return result;
 }
 
-/* Paste UTF-8 buffer at cursor: body preserves newlines, header strips them */
+/* Adapter: HyphDict callback for PasteHyphFn */
+#ifdef HAVE_HYPHEN
+#include "../core/hyph.h"
+
+static int paste_hyph_thunk(void *user_data, const char *word, int word_len, int *out_pos, int *out_count)
+{
+    HyphDict *h = (HyphDict *)user_data;
+    int n;
+
+    if (!out_count)
+        return 0;
+
+    n = 0;
+
+    if (!hyph_breakpoints(h, word, word_len, out_pos, &n) || n == 0)
+    {
+        *out_count = 0;
+        return 0;
+    }
+
+    *out_count = n;
+    return 1;
+}
+#endif
+
+/* Paste UTF-8 buffer at cursor */
 void deliver_paste(UiApp *app, const char *utf8)
 {
     if (!utf8 || !utf8[0])
@@ -193,14 +323,22 @@ void deliver_paste(UiApp *app, const char *utf8)
         const char *to_insert = utf8;
         int reported_len;
 
-        /* HARD-WRAP only: reflow pasted text, soft-wrap inserts verbatim */
+        /* HARD-WRAP: reflow pasted text */
         if (app->cfg && app->cfg->hard_wrap)
         {
             int pw = editor_eff_wrap(app);
 
             if (pw > 0)
             {
+#ifdef HAVE_HYPHEN
+                /* Use hyphenation if enabled */
+                if (app->hyph_wrap_enabled && app->hyph_handle)
+                    wrapped = wrap_paste_text_ex(utf8, pw, paste_hyph_thunk, app->hyph_handle);
+                else
+                    wrapped = wrap_paste_text(utf8, pw);
+#else
                 wrapped = wrap_paste_text(utf8, pw);
+#endif
 
                 if (wrapped)
                     to_insert = wrapped;
@@ -240,12 +378,12 @@ void deliver_paste(UiApp *app, const char *utf8)
     }
 }
 
-/* Read characters until KEY_PASTE_END. Returns malloc'd UTF-8 buffer or NULL. Keeps tabs, line feeds, printable; drops other control codes */
+/* Read characters until KEY_PASTE_END */
 char *collect_bracketed_paste()
 {
     wchar_t *wbuf = NULL;
     int wlen = 0, wcap = 0;
-    char *out;
+    char *out = NULL;
 
     for (;;)
     {
@@ -259,7 +397,7 @@ char *collect_bracketed_paste()
             break;
 
         if (wrc == KEY_CODE_YES)
-            continue; /* ignore stray special keys during paste */
+            continue; /* ignore special keys */
 
         if (wch != L'\n' && wch != L'\t' && wch < 0x20)
             continue;
@@ -297,21 +435,24 @@ char *collect_bracketed_paste()
     return out;
 }
 
-/* Detect rapid paste (fallback for terminals without bracketed paste support) */
+/* Detect rapid paste (fallback for no bracketed paste) */
 char *collect_rapid_paste(wint_t first_wch)
 {
     wchar_t *wbuf = NULL;
     int wlen = 0, wcap = 0;
-    char *out;
-    const int MAX_CHARS = 10; /* If 10+ chars arrive instantly, it's a paste not manual typing */
+    char *out = NULL;
+    const int MAX_CHARS = 10; /* 10+ chars = paste */
+    wint_t next_wch;
+    wint_t third_wch;
+    int next_wrc;
+    int third_wrc;
 
-    /* Check if more characters are available (rapid paste detection) */
+    /* Check if more chars available */
     nodelay(stdscr, TRUE);
 
-    wint_t next_wch;
-    int next_wrc = get_wch(&next_wch);
+    next_wrc = get_wch(&next_wch);
 
-    /* No more characters: not a paste, return NULL so caller handles single char */
+    /* No more chars: not a paste */
     if (next_wrc == ERR)
     {
         nodelay(stdscr, FALSE);
@@ -325,19 +466,18 @@ char *collect_rapid_paste(wint_t first_wch)
         return NULL;
     }
 
-    /* At least one more char available, check for 2 more to confirm paste */
-    wint_t third_wch;
-    int third_wrc = get_wch(&third_wch);
+    /* Check for 2 more to confirm paste */
+    third_wrc = get_wch(&third_wch);
 
     if (third_wrc == ERR || third_wrc == KEY_CODE_YES)
     {
-        /* Only 2 chars total, probably manual typing, push back the second char */
+        /* Only 2 chars: manual typing */
         nodelay(stdscr, FALSE);
         ungetch((int)next_wch);
         return NULL;
     }
 
-    /* We have at least 3 chars, this is a paste, collect them all */
+    /* 3+ chars: this is a paste */
     wbuf = (wchar_t *)malloc(256 * sizeof(wchar_t));
 
     if (!wbuf)
@@ -351,13 +491,13 @@ char *collect_rapid_paste(wint_t first_wch)
     wbuf[wlen++] = (wchar_t)next_wch;
     wbuf[wlen++] = (wchar_t)third_wch;
 
-    /* Continue collecting remaining characters */
+    /* Continue collecting */
     while (wlen < MAX_CHARS)
     {
         wint_t more_wch;
         int more_wrc = get_wch(&more_wch);
 
-        /* No more characters: end of rapid paste */
+        /* No more chars: end of paste */
         if (more_wrc == ERR)
             break;
 

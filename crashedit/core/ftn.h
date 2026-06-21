@@ -136,7 +136,7 @@ int ftn_prev_unread(const MsgInfo *msgs, int count, int cur_idx, uint32_t lastre
 int ftn_sort_areas(const FtnAreaInfo *areas, int count, const char *spec, const char *filter, int *order_out);
 
 /* Timezone kludge (^ATZUTC) */
-int ftn_detect_timezone_offset();                               /* returns minutes (+east/-west) */
+int ftn_detect_timezone_offset(void);                           /* returns minutes (+east/-west) */
 int ftn_effective_tz_offset(int cfg_offset, int cfg_is_manual); /* auto unless manual / Amiga */
 void ftn_build_tzutc(int offset_mins, char *out, int outsz);
 void ftn_build_tzutc(int utc_offset_mins, char *out, int outsz);

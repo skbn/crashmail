@@ -115,7 +115,7 @@ static int contains(const char *hay, int n, const char *needle, int m, int csens
 
 SearchSession *search_new(const char *pattern, int search_headers, int search_body, int case_sensitive, int whole_word, int max_hits)
 {
-    SearchSession *s;
+    SearchSession *s = NULL;
     size_t pl;
 
     if (!pattern || !pattern[0])
@@ -192,7 +192,7 @@ static void clip_copy(char *dst, int cap, const char *src)
 /* Append one hit to session, 1 if added, 0 if cap hit */
 static int record_hit(SearchSession *s, int area_idx, const MsgInfo *msg, uint16_t flags)
 {
-    SearchHit *h;
+    SearchHit *h = NULL;
 
     if (s->n_hits >= s->max_hits)
     {
@@ -214,9 +214,16 @@ static int record_hit(SearchSession *s, int area_idx, const MsgInfo *msg, uint16
 /* Test one header bundle against the pattern */
 static int header_matches(const SearchSession *s, const MsgInfo *msg)
 {
-    const char *fields_word[] = {msg->subject, msg->from, msg->to};
-    const char *fields_noword[] = {msg->msgid, msg->oaddress, msg->daddress};
     int i;
+    const char *fields_word[3];
+    const char *fields_noword[3];
+
+    fields_word[0] = msg->subject;
+    fields_word[1] = msg->from;
+    fields_word[2] = msg->to;
+    fields_noword[0] = msg->msgid;
+    fields_noword[1] = msg->oaddress;
+    fields_noword[2] = msg->daddress;
 
     for (i = 0; i < 3; i++)
     {
@@ -241,7 +248,7 @@ static int header_matches(const SearchSession *s, const MsgInfo *msg)
 static int body_matches(const SearchSession *s, MsgBase *area, uint32_t msgnum)
 {
     uint32_t body_len = 0;
-    char *body;
+    char *body = NULL;
     int rc;
 
     body = mb_read_body(area, msgnum, &body_len);
@@ -263,7 +270,7 @@ static int body_matches(const SearchSession *s, MsgBase *area, uint32_t msgnum)
 int search_scan_area(SearchSession *s, AreaEntry *area, int area_idx)
 {
     MsgBase ja;
-    MsgInfo *msgs;
+    MsgInfo *msgs = NULL;
     int nmsgs = 0;
     int i;
     int hits_before;

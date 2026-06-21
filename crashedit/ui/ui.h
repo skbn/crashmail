@@ -26,9 +26,13 @@
 #ifndef UI_UI_H
 #define UI_UI_H
 
+#include <strings.h>
 #include "../wrapper.h"
 
+#ifndef UI_UIAPP_TYPEDEF
+#define UI_UIAPP_TYPEDEF
 typedef struct UiApp UiApp;
+#endif
 
 /* Initialize ncurses, colors, all views, load extended config (cfg/areas must outlive app, NULL on failure) */
 UiApp *ui_init(CrashEditCfg *cfg, AreaList *areas);

@@ -89,7 +89,6 @@ static FileEnt *load_dir(const char *dir, int *out_n)
     int n = 0, cap = 0;
     int i, j;
     int at_root;
-    const char *colon;
 
     *out_n = 0;
 
@@ -233,7 +232,15 @@ static FileEnt *load_dir(const char *dir, int *out_n)
             FileEnt *nb = (FileEnt *)realloc(ents, (size_t)nc * sizeof(FileEnt));
 
             if (!nb)
-                break;
+            {
+                int i;
+
+                for (i = 0; i < n; i++)
+                    free(ents[i].name);
+
+                free(ents);
+                return NULL;
+            }
 
             ents = nb;
             cap = nc;
@@ -290,6 +297,7 @@ static FileEnt *load_dir(const char *dir, int *out_n)
 
                 free(ents);
 
+                closedir(dp);
                 return NULL;
             }
 
@@ -797,6 +805,9 @@ int ui_files_pick_dir(const char *title, const char *start_dir, char *out_path, 
 
     for (;;)
     {
+        int dir_count_total = 0;
+        int i;
+
         ents = load_dir(dir_input, &nents);
 
         if (!ents)
@@ -806,8 +817,6 @@ int ui_files_pick_dir(const char *title, const char *start_dir, char *out_path, 
         }
 
         /* Count directories first to adjust sel */
-        int dir_count_total = 0;
-        int i;
 
         for (i = 0; i < nents; i++)
         {

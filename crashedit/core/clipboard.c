@@ -119,7 +119,7 @@ char *clipboard_paste(void)
     struct IFFHandle *iff;
     struct ClipboardHandle *clip;
     char *out = NULL;
-    char *malloc_copy;
+    char *malloc_copy = NULL;
     ULONG total = 0;
     ULONG alloc = 0;
     LONG error;
@@ -157,7 +157,7 @@ char *clipboard_paste(void)
     {
         struct ContextNode *cn = CurrentChunk(iff);
         ULONG size;
-        char *grown;
+        char *grown = NULL;
         ULONG new_alloc;
         LONG got;
 
@@ -304,7 +304,7 @@ int clipboard_copy(const char *utf8)
 int clipboard_copy(const char *utf8)
 {
     HGLOBAL hglb;
-    char *lptstr;
+    char *lptstr = NULL;
 
     if (!utf8 || !utf8[0])
         return -1;
@@ -332,10 +332,10 @@ int clipboard_copy(const char *utf8)
     return 0;
 }
 
-char *clipboard_paste()
+char *clipboard_paste(void)
 {
     HGLOBAL hglb;
-    char *lptstr;
+    char *lptstr = NULL;
     char *out = NULL;
 
     if (!IsClipboardFormatAvailable(CF_TEXT))
@@ -405,8 +405,8 @@ static char *slurp(FILE *fp)
 
 static char *try_cmd(const char *cmd)
 {
-    FILE *fp;
-    char *out;
+    FILE *fp = NULL;
+    char *out = NULL;
     fp = popen(cmd, "r");
 
     if (!fp)
@@ -430,7 +430,7 @@ static char *try_cmd(const char *cmd)
     return out;
 }
 
-char *clipboard_paste()
+char *clipboard_paste(void)
 {
     /* Try Wayland, X11 (xclip/xsel), MacOS in order, stderr suppressed */
     static const char *const cmds[] =
@@ -459,7 +459,7 @@ static int try_copy_cmd(const char *cmd, const char *data)
     size_t len;
     char tmp_file[256];
     int tmp_fd;
-    FILE *tmp_fp;
+    FILE *tmp_fp = NULL;
     pid_t pid;
     int status;
 
@@ -550,10 +550,6 @@ int clipboard_use_external(void)
 
 int clipboard_copy(const char *utf8)
 {
-    if (!utf8 || !utf8[0])
-        return -1;
-
-    /* Try Wayland, X11 (xclip/xsel), MacOS in order, stderr suppressed */
     static const char *const cmds[] =
         {
             "wl-copy 2>/dev/null",
@@ -563,6 +559,11 @@ int clipboard_copy(const char *utf8)
             NULL};
 
     int i;
+
+    if (!utf8 || !utf8[0])
+        return -1;
+
+    /* Try Wayland, X11 (xclip/xsel), MacOS in order, stderr suppressed */
 
     for (i = 0; cmds[i]; i++)
     {

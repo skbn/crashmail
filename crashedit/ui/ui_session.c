@@ -34,9 +34,11 @@
 /* Open / close */
 void ui_session_close(UiApp *app)
 {
-    UiSession *s;
+    UiSession *s = NULL;
+
     if (!app)
         return;
+
     s = &app->sess;
 
     /* Refresh cached counts before closing */
@@ -66,8 +68,8 @@ void ui_session_close(UiApp *app)
 
 int ui_session_open(UiApp *app, int area_idx)
 {
-    UiSession *s;
-    AreaEntry *ae;
+    UiSession *s = NULL;
+    AreaEntry *ae = NULL;
     int count = 0;
     uint32_t mask;
     uint32_t ls;
@@ -160,7 +162,7 @@ int ui_session_open(UiApp *app, int area_idx)
 /* Message list filtering and sorting */
 static int field_matches_wcs(const char *hay_utf8, const wchar_t *needle)
 {
-    wchar_t *w;
+    wchar_t *w = NULL;
     int found;
 
     if (!needle || !needle[0])
@@ -183,7 +185,7 @@ static int field_matches_wcs(const char *hay_utf8, const wchar_t *needle)
 
 void ui_session_rebuild_order(UiApp *app)
 {
-    UiSession *s;
+    UiSession *s = NULL;
     int i, n;
     unsigned char *match_tbl = NULL;
 

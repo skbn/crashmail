@@ -127,7 +127,7 @@ struct Ed
 
 #define INIT_ALLOC 256
 
-Ed *ed_new();
+Ed *ed_new(void);
 void ed_free(Ed *ed);
 void ed_clear_undo_redo(Ed *ed);                            /* Clear undo/redo stacks to free memory */
 void ed_load(Ed *ed, const char *utf8_text);                /* UTF-8 in */
@@ -210,6 +210,12 @@ int ed_search_all_custom(Ed *ed, const wchar_t *needle, int case_sensitive, int 
 int ed_rewrap_paragraph(Ed *ed, int width);
 int ed_rewrap_document(Ed *ed, int width);
 
+/* Hyphenation callback: returns break positions in a UTF-8 word */
+typedef int (*EdHyphenFn)(void *user_data, const char *word_utf8, int word_byte_len, int *out_byte_pos, int *out_count);
+
+/* Like ed_rewrap_paragraph, but uses hyph to split overflow words */
+int ed_rewrap_paragraph_ex(Ed *ed, int width, EdHyphenFn hyph, void *hyph_data);
+
 /* Insert a text file at the cursor position (with undo) */
 int ed_load_file_at_cursor(Ed *ed, const char *path, const char *charset_in);
 /* Export the current block selection (F6 to mark) to a text file */
@@ -243,5 +249,10 @@ void ed_prefix_invalidate_from(Ed *ed, int from_line);
 int ed_undo_stack_make_room(UndoGroup **stack, int *top, int *cap, int max);
 void ed_set_pos(Ed *ed, int row, int col);
 int ed_detect_quote_prefix(const wchar_t *line);
+
+/* Helper functions from editor_helper.c */
+wchar_t *line_to_wcs(EdLine *ln);
+wchar_t *line_to_wcs_range(EdLine *ln, int start, int end);
+char *ed_block_to_string(Ed *ed, int r1, int c1, int r2, int c2);
 
 #endif

@@ -762,7 +762,7 @@ static int cmp_u32(const void *pa, const void *pb)
 static int nums_grow(MsgArea *a, int need)
 {
     int new_cap;
-    uint32_t *p;
+    uint32_t *p = NULL;
 
     if (a->nums_cap >= need)
         return 0;
@@ -919,7 +919,7 @@ static void nums_remove_value(MsgArea *a, uint32_t n)
 static void read_hwm_from_1_msg(MsgArea *a)
 {
     char full[300];
-    FILE *fp;
+    FILE *fp = NULL;
     unsigned char hdr[MSG_STORED_HDR_SIZE];
 
     a->hwm = 0;
@@ -940,7 +940,7 @@ static void read_hwm_from_1_msg(MsgArea *a)
 /* Directory scan -- rebuild a->nums + low/high + hwm */
 static int scan_dir(MsgArea *a)
 {
-    PfDir *d;
+    PfDir *d = NULL;
     const char *name;
     uint32_t n;
     int r;
@@ -1104,9 +1104,9 @@ void msg_unlock(MsgArea *a)
 /* Read full message body */
 static char *slurp_msg_file(const char *fullpath, size_t *out_total, size_t *out_body_off)
 {
-    FILE *fp;
+    FILE *fp = NULL;
     long sz;
-    char *buf;
+    char *buf = NULL;
     size_t n;
 
     if (!fullpath)
@@ -1137,7 +1137,7 @@ static char *slurp_msg_file(const char *fullpath, size_t *out_total, size_t *out
         return NULL;
     }
 
-    if (sz > SIZE_MAX - 1)
+    if ((size_t)sz > SIZE_MAX - 1)
     {
         fclose(fp);
         return NULL;
@@ -1235,14 +1235,14 @@ char *msg_read_body(MsgArea *a, uint32_t msgnum, uint32_t *out_len)
 static LrRec *lr_read_all(const MsgArea *a, int *out_count, int *out_status)
 {
     char full[300];
-    FILE *fp;
+    FILE *fp = NULL;
     unsigned char hdr[12];
     unsigned char buf[12];
     uint32_t magic;
     uint32_t version;
     uint32_t count;
     uint32_t i;
-    LrRec *recs;
+    LrRec *recs = NULL;
 
     *out_count = 0;
     *out_status = 0;
@@ -1322,7 +1322,7 @@ static int lr_write_all(const MsgArea *a, const LrRec *recs, int count)
 {
     char full[300];
     char tmp[316];
-    FILE *fp;
+    FILE *fp = NULL;
     unsigned char hdr[12];
     unsigned char buf[12];
     int i;
@@ -1383,7 +1383,7 @@ static int lr_write_all(const MsgArea *a, const LrRec *recs, int count)
 
 int msg_read_lastread_pair(MsgArea *a, uint32_t ucrc, uint32_t *out_last, uint32_t *out_high)
 {
-    LrRec *recs;
+    LrRec *recs = NULL;
     int count;
     int status;
     int i;
@@ -1488,7 +1488,7 @@ int msg_write_lastread(MsgArea *a, uint32_t ucrc, uint32_t last, uint32_t high)
 /* Header reading helpers */
 static int read_msg_prefix(const char *fullpath, unsigned char *hdr_out, char *body_out, size_t scan_max, size_t *body_bytes)
 {
-    FILE *fp;
+    FILE *fp = NULL;
     size_t got;
 
     if (body_bytes)
@@ -1701,10 +1701,10 @@ JamMsgInfo *msg_load_headers(MsgArea *a, int *out_count, uint32_t filter_mask, u
     int want;
     int i;
     int kept;
-    JamMsgInfo *out;
+    JamMsgInfo *out = NULL;
     JamMsgInfo info;
     unsigned char hdr[MSG_STORED_HDR_SIZE];
-    char *body_buf;
+    char *body_buf = NULL;
     uint32_t mn;
     char name[16];
     char full[300];
@@ -2068,7 +2068,7 @@ int msg_mark_sent(MsgArea *a, uint32_t msgnum)
 {
     char name[16];
     char full[300];
-    FILE *fp;
+    FILE *fp = NULL;
     unsigned char attr_buf[2];
     uint16_t attr;
 

@@ -32,6 +32,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <wchar.h>
+#include <wctype.h>
 
 /* Calculate width needed for line numbers (digits + 1 space) */
 int lineno_width(int line_count)
@@ -57,7 +58,7 @@ void draw_edit_header(UiApp *app)
     AreaEntry *ae;
     const wchar_t *from = msghdr_get(app->edit_hdr, HDR_FROM);
     const wchar_t *to = msghdr_get(app->edit_hdr, HDR_TO);
-    static const char SPACES[256] =
+    static const char SPACES[257] =
         "                                                                "
         "                                                                "
         "                                                                "

@@ -173,7 +173,7 @@ static void trim_trailing(char *s)
 /* Parse one line, mutates zone/net/boss_* to track context, boss_set != 0 means in pointlist */
 static void parse_line(Nodelist *nl, char *line, int *zone, int *net, int *boss_set, int *boss_z, int *boss_n, int *boss_f, const char *default_network)
 {
-    char *p, *type, *num, *system, *loc, *sysop;
+    char *p, *type, *num, *sysop;
     int node_num;
 
     if (!line || !line[0])
@@ -189,8 +189,8 @@ static void parse_line(Nodelist *nl, char *line, int *zone, int *net, int *boss_
     p = line;
     type = next_field(&p);
     num = next_field(&p);
-    system = next_field(&p);
-    loc = next_field(&p);
+    next_field(&p);
+    next_field(&p);
     sysop = next_field(&p);
 
     if (!type)
@@ -305,7 +305,7 @@ static void parse_line(Nodelist *nl, char *line, int *zone, int *net, int *boss_
 
 int nodelist_load_file(Nodelist *nl, const char *path, const char *default_network)
 {
-    FILE *fp;
+    FILE *fp = NULL;
     char line[1024];
     int added = 0;
     int before;

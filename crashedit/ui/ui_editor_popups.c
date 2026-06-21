@@ -39,7 +39,7 @@ void editor_kludge_popup(UiApp *app)
     int count = 0, cap = 0;
     int total_lines = 0; /* original number of lines parsed */
     int i;
-    char *p;
+    char *p = NULL;
     int sel;
     int deleted_any = 0;
 
@@ -176,6 +176,7 @@ void editor_kludge_popup(UiApp *app)
     {
         size_t cap2 = 256, used = 0;
         char *new_buf = (char *)malloc(cap2);
+        char *tmp_buf = NULL;
 
         if (new_buf)
         {
@@ -189,7 +190,7 @@ void editor_kludge_popup(UiApp *app)
                 if (used + ll + 2 >= cap2)
                 {
                     cap2 = (used + ll + 64) * 2;
-                    char *tmp_buf = (char *)realloc(new_buf, cap2);
+                    tmp_buf = (char *)realloc(new_buf, cap2);
 
                     if (!tmp_buf)
                     {

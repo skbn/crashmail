@@ -22,21 +22,30 @@
  * General Public License v2.1. See src/jamlib/LICENSE for details.
  */
 
-/* clipboard.h -- System clipboard access (paste only) */
+#ifndef UI_HYPH_H
+#define UI_HYPH_H
 
-#ifndef WRAPPER_CLIPBOARD_H
-#define WRAPPER_CLIPBOARD_H
+#include "ui_internal.h"
 
-#ifdef PLATFORM_AMIGA
-#include <exec/types.h>
-#include <exec/libraries.h>
-extern struct Library *IFFParseBase;
+#ifdef __cplusplus
+extern "C"
+{
 #endif
 
-char *clipboard_paste(void);
-int clipboard_copy(const char *utf8);
+    /* Load hyphenation dictionary from config */
+    int ui_hyph_load_from_config(UiApp *app);
 
-/* Returns 1 if external clipboard should be used, 0 for internal only */
-int clipboard_use_external(void);
+    /* Free hyphenation handle */
+    void ui_hyph_unload(UiApp *app);
 
+    /* Get hyphenation break points for UTF-8 word */
+    int ui_hyph_split_word(UiApp *app, const char *word, int word_len, int *out_pos, int *out_count);
+
+    /* Find hyphenation break point for word at column limit */
+    int ui_hyph_find_break(UiApp *app, const wchar_t *word, int word_len, int col_limit);
+
+#ifdef __cplusplus
+}
 #endif
+
+#endif /* UI_HYPH_H */

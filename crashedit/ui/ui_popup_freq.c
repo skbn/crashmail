@@ -53,7 +53,7 @@ static const char *freq_mode_name(int mode)
 }
 
 /* Ask user to pick outbound layout when none configured, returns FREQ_MODE_* value or FREQ_MODE_UNSET if cancelled */
-static int freq_pick_mode()
+static int freq_pick_mode(void)
 {
     int key;
 
@@ -379,6 +379,7 @@ int ui_popup_freq(UiApp *app)
         {
             wchar_t wname[FREQ_UI_NAME_MAX];
             char name[FREQ_UI_NAME_MAX];
+            size_t nl;
             wname[0] = L'\0';
 
             if (nfiles >= FREQ_UI_MAX_FILES)
@@ -397,7 +398,7 @@ int ui_popup_freq(UiApp *app)
                     name[sizeof(name) - 1] = '\0';
                     free(u);
 
-                    size_t nl = strlen(name);
+                    nl = strlen(name);
 
                     if (nl >= FREQ_UI_NAME_MAX)
                         nl = FREQ_UI_NAME_MAX - 1;

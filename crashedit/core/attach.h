@@ -53,7 +53,7 @@ typedef struct
     AttachMode mode; /* attach vs filerequest */
 } AttachList;
 
-AttachList *attach_new();
+AttachList *attach_new(void);
 void attach_free(AttachList *list);
 
 /* Attachment operations (0=success, -1=error) */

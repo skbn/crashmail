@@ -22,21 +22,38 @@
  * General Public License v2.1. See src/jamlib/LICENSE for details.
  */
 
-/* clipboard.h -- System clipboard access (paste only) */
+#ifndef UI_THES_H
+#define UI_THES_H
 
-#ifndef WRAPPER_CLIPBOARD_H
-#define WRAPPER_CLIPBOARD_H
+#include "ui_internal.h"
 
-#ifdef PLATFORM_AMIGA
-#include <exec/types.h>
-#include <exec/libraries.h>
-extern struct Library *IFFParseBase;
+#ifdef __cplusplus
+extern "C"
+{
 #endif
 
-char *clipboard_paste(void);
-int clipboard_copy(const char *utf8);
+#ifdef HAVE_MYTHES
 
-/* Returns 1 if external clipboard should be used, 0 for internal only */
-int clipboard_use_external(void);
+    /* Load thesaurus from config */
+    int ui_thes_load_from_config(UiApp *app);
+
+    /* Free thesaurus handle */
+    void ui_thes_unload(UiApp *app);
+
+    /* Look up word under cursor, show synonyms popup */
+    int ui_thes_lookup_word(UiApp *app);
+
+#else /* !HAVE_MYTHES */
+
+/* Inert stubs for callers */
+int ui_thes_load_from_config(UiApp *app);
+void ui_thes_unload(UiApp *app);
+int ui_thes_lookup_word(UiApp *app);
 
 #endif
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif /* UI_THES_H */

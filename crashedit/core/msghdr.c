@@ -160,7 +160,7 @@ static int field_delete(HField *f, int pos)
     return 0;
 }
 
-MsgHdr *msghdr_new()
+MsgHdr *msghdr_new(void)
 {
     MsgHdr *h = (MsgHdr *)calloc(1, sizeof(MsgHdr));
 
@@ -273,6 +273,7 @@ int msghdr_field_width(const MsgHdr *h, int field)
 static void format_date(uint32_t epoch, int reader_offset, int tzutc_offset, char *buf, int bufsz)
 {
     time_t t = (time_t)epoch;
+    struct tm *tm;
 
     /* Add timezone offset to UTC epoch, use gmtime() since TZ may not be set */
     if (tzutc_offset != -1)
@@ -280,7 +281,7 @@ static void format_date(uint32_t epoch, int reader_offset, int tzutc_offset, cha
     else if (reader_offset != 0)
         t += (time_t)reader_offset * 60;
 
-    struct tm *tm = gmtime(&t);
+    tm = gmtime(&t);
 
     if (tm)
         snprintf(buf, (size_t)bufsz, "%02d %s %02d %02d:%02d", tm->tm_mday, "Jan\0Feb\0Mar\0Apr\0May\0Jun\0Jul\0Aug\0Sep\0Oct\0Nov\0Dec" + (tm->tm_mon * 4), tm->tm_year % 100, tm->tm_hour, tm->tm_min);

@@ -119,7 +119,7 @@ char *wrapper_read_utf8(MsgBase *a, uint32_t msgnum, char *enc_out)
 {
     /* Backwards-compatible wrapper, use _ex to distinguish "no CHRS" from "CHRS UTF-8" */
     char detected[CHARSET_NAME_MAX];
-    char *body;
+    char *body = NULL;
 
     detected[0] = '\0';
     body = wrapper_read_utf8_ex(a, msgnum, NULL, NULL, detected, sizeof(detected));
@@ -202,7 +202,7 @@ char *wrapper_prepare_body(const char *utf8_body, const char *saved_kludges, con
 static char *header_to_charset(const char *utf8, const char *cs)
 {
     int slen, dstmax, n;
-    char *dst;
+    char *dst = NULL;
 
     if (!utf8)
         return NULL;
@@ -225,17 +225,18 @@ static char *header_to_charset(const char *utf8, const char *cs)
         return NULL;
 
     n = charset_body_from_utf8(cs, utf8, slen, dst, dstmax);
+    (void)n;
 
     return dst;
 }
 
 uint32_t wrapper_write_msg(MsgBase *a, const char *from, const char *to, const char *subject, const char *utf8_body, const char *saved_kludges, const char *out_charset, uint32_t attr, uint32_t reply_to, uint32_t date_written, const char *oaddr, const char *daddr)
 {
-    char *body;
+    char *body = NULL;
     char *from_cs = NULL, *to_cs = NULL, *subj_cs = NULL;
     int bodylen;
     uint32_t result;
-    const char *cs;
+    const char *cs = NULL;
 
     if (!a || !a->is_open)
         return 0;

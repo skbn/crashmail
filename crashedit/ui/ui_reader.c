@@ -86,8 +86,8 @@ void ui_editor_prep_edit(UiApp *app, uint32_t msgnum);
 /* Update area's cached counts after reader moves lastread/lastseen */
 static void update_area_counts_in_memory(UiApp *app)
 {
-    UiSession *s;
-    AreaEntry *ae;
+    UiSession *s = NULL;
+    AreaEntry *ae = NULL;
     int i, unread, new_count;
 
     if (!app)
@@ -124,7 +124,7 @@ static void update_area_counts_in_memory(UiApp *app)
 /* Update lastread and persist to JAM, skip if from search (browsing shouldn't mutate) */
 static void reader_save_lastread(UiApp *app)
 {
-    UiSession *s;
+    UiSession *s = NULL;
     uint32_t msgnum;
 
     if (!app)
@@ -159,7 +159,7 @@ static UiView reader_exit_view(const UiApp *app)
 /* Strip FTS-1 kludge lines and SEEN-BY/PATH trailers for ANSI rendering, returns malloc'd buffer (caller frees), NULL on failure */
 static char *strip_kludges_for_ansi(const char *raw, int raw_len, int *out_len)
 {
-    char *out;
+    char *out = NULL;
     int i = 0;
     int j = 0;
     int at_line_start = 1;
@@ -226,12 +226,12 @@ static char *strip_kludges_for_ansi(const char *raw, int raw_len, int *out_len)
 /* Load current message into reader */
 static int load_msg(UiApp *app, uint32_t msgnum)
 {
-    UiSession *s;
+    UiSession *s = NULL;
     int idx;
     char *body_utf8 = NULL;
     int wrap_w;
     const wchar_t *cur;
-    char *cur_utf8;
+    char *cur_utf8 = NULL;
     int needs_fallback;
     int ansi_on_outer = 0;
     char detected[CHARSET_NAME_MAX];
@@ -241,7 +241,6 @@ static int load_msg(UiApp *app, uint32_t msgnum)
     uint32_t raw_len = 0;
     char *raw_bytes = NULL;
     int has_chrs = 0;
-    const char *p;
     int oi;
 
     if (!app)
@@ -451,12 +450,12 @@ static int load_msg(UiApp *app, uint32_t msgnum)
 /* Try to go to next area in area_order, returns 1 on success, 0 otherwise */
 static int try_goto_next_area(UiApp *app)
 {
-    UiSession *s;
+    UiSession *s = NULL;
     int current_area_idx;
     int current_order_idx = -1;
     int next_area_idx = -1;
     int i;
-    AreaEntry *next_ae;
+    AreaEntry *next_ae = NULL;
     char prompt[256];
 
     if (!app)
@@ -537,7 +536,7 @@ static void draw_header_bar(UiApp *app)
     int i;
     const wchar_t *from, *to, *subj, *date;
     char attr_str[40];
-    static const char SPACES[256] =
+    static const char SPACES[257] =
         "                                                                "
         "                                                                "
         "                                                                "
@@ -646,7 +645,6 @@ static void draw_ansi_line(int row_y, const wchar_t *wcs, int len, const struct 
     {
         int run_color = cells[i].color_pair;
         int run_attrs = cells[i].attrs;
-        int run_start = i;
         int run_chars = 0;
         int run_bytes = 0;
 
@@ -685,8 +683,6 @@ static void draw_body(UiApp *app)
 {
     int rows = LINES - 8;
     int i;
-    const wchar_t *wcs;
-    int wlen;
 
     if (rows < 1)
         return;
@@ -846,7 +842,7 @@ static int reader_goto_raw(UiApp *app, int raw_idx)
 UiView ui_reader_run(UiApp *app)
 {
     int ch;
-    UiSession *s;
+    UiSession *s = NULL;
     int saved_viewansi;
 
     if (!app)
@@ -1121,6 +1117,8 @@ UiView ui_reader_run(UiApp *app)
             int *rows = NULL, *cols = NULL;
             int match_count;
             int i;
+            int choice;
+            char *utf8 = NULL;
             const char **contexts = NULL;
             char **context_bufs = NULL;
             int *line_nums = NULL;
@@ -1213,7 +1211,7 @@ UiView ui_reader_run(UiApp *app)
                                 if (copy_len > 60)
                                     copy_len = 60;
 
-                                char *utf8 = wcs_to_utf8(line, copy_len);
+                                utf8 = wcs_to_utf8(line, copy_len);
 
                                 if (utf8)
                                 {
@@ -1236,7 +1234,7 @@ UiView ui_reader_run(UiApp *app)
                     }
 
                     /* Show popup with results */
-                    int choice = ui_popup_search_results("Search Results", line_nums, contexts, match_count, 0);
+                    choice = ui_popup_search_results("Search Results", line_nums, contexts, match_count, 0);
 
                     if (choice >= 0)
                     {
@@ -1420,13 +1418,14 @@ UiView ui_reader_run(UiApp *app)
                 int match_line;
                 int visible_lines = rd_visible(app->reader);
                 int center_offset = visible_lines / 2;
+                int target_top;
 
                 app->reader_search.current_match = (app->reader_search.current_match - 1 + app->reader_search.match_count) % app->reader_search.match_count;
                 app->reader_search.match_current = app->reader_search.current_match + 1;
                 match_line = app->reader_search.rows[app->reader_search.current_match];
 
                 /* Center the match on screen (always ensure visible like te) */
-                int target_top = match_line - center_offset;
+                target_top = match_line - center_offset;
 
                 if (target_top < 0)
                     target_top = 0;
@@ -1451,13 +1450,14 @@ UiView ui_reader_run(UiApp *app)
                 int match_line;
                 int visible_lines = rd_visible(app->reader);
                 int center_offset = visible_lines / 2;
+                int target_top;
 
                 app->reader_search.current_match = (app->reader_search.current_match + 1) % app->reader_search.match_count;
                 app->reader_search.match_current = app->reader_search.current_match + 1;
                 match_line = app->reader_search.rows[app->reader_search.current_match];
 
                 /* Center the match on screen (always ensure visible like te) */
-                int target_top = match_line - center_offset;
+                target_top = match_line - center_offset;
 
                 if (target_top < 0)
                     target_top = 0;
@@ -1479,8 +1479,8 @@ UiView ui_reader_run(UiApp *app)
         {
             char path[256];
             char out_cs[CHARSET_NAME_MAX];
-            UiSession *s;
-            char *body_utf8;
+            UiSession *s = NULL;
+            char *body_utf8 = NULL;
             int written;
 
             path[0] = '\0';

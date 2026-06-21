@@ -37,6 +37,13 @@
 #include "ui_editor_paste.h"
 #include "ui_editor_draw.h"
 #include "ui_spell.h"
+#ifdef HAVE_MYTHES
+#include "ui_thes.h"
+#endif
+#ifdef HAVE_HYPHEN
+#include "../core/hyph.h"
+#include "ui_hyph.h"
+#endif
 #include "ui_editor_helper.h"
 #include "ui_aka.h"
 #include "ui_attr.h"
@@ -110,6 +117,12 @@ static const char *EDITOR_HELP[] =
         "    Alt+E           Toggle spell panel",
         "    Alt+T           Toggle spell active",
         "    Alt+W           Spell check word",
+#ifdef HAVE_MYTHES
+        "    Alt+J           Thesaurus / synonyms",
+#endif
+#ifdef HAVE_HYPHEN
+        "    Alt+L           Toggle hyph-wrap (hard-wrap only)",
+#endif
         "",
         "  Attachments:",
         "    Alt+A           Add attachment (file)",
@@ -421,6 +434,27 @@ static int handle_function_keys(UiApp *app, int ch, int is_key)
     return 0;
 }
 
+#ifdef HAVE_HYPHEN
+/* Thunk: adapt hyph_breakpoints to EdHyphenFn signature */
+static int rewrap_hyph_thunk(void *user_data, const char *word, int word_len, int *out_pos, int *out_count)
+{
+    HyphDict *h = (HyphDict *)user_data;
+    int n = 0;
+
+    if (!out_count)
+        return 0;
+
+    if (!hyph_breakpoints(h, word, word_len, out_pos, &n) || n == 0)
+    {
+        *out_count = 0;
+        return 0;
+    }
+
+    *out_count = n;
+    return 1;
+}
+#endif
+
 /* Handle control key combinations (Ctrl+...), returns 1 if handled, 0 otherwise */
 static int handle_control_keys(UiApp *app, int ch, int is_key)
 {
@@ -533,7 +567,17 @@ static int handle_control_keys(UiApp *app, int ch, int is_key)
     /* Ctrl+W : rewrap paragraph */
     if (!is_key && ch == CTRL('W'))
     {
-        if (ed_rewrap_paragraph(app->editor, app->cfg->autowrap_col > 0 ? app->cfg->autowrap_col : 75) == 0)
+        int rwrap = app->cfg->autowrap_col > 0 ? app->cfg->autowrap_col : 75;
+        int rc;
+
+#ifdef HAVE_HYPHEN
+        if (app->hyph_wrap_enabled && app->hyph_handle)
+            rc = ed_rewrap_paragraph_ex(app->editor, rwrap, rewrap_hyph_thunk, app->hyph_handle);
+        else
+#endif
+            rc = ed_rewrap_paragraph(app->editor, rwrap);
+
+        if (rc == 0)
         {
             reset_search(app);
             ui_status(app, "Paragraph rewrapped");
@@ -838,6 +882,49 @@ static int handle_alt_keys(UiApp *app, int ch, int is_key)
 
         return 1;
     }
+
+#ifdef HAVE_MYTHES
+    /* Alt+J : look up synonyms for the word under cursor */
+    if (ch == KEY_ALT('J'))
+    {
+        if (!app->thes_handle)
+        {
+            ui_status(app, "No thesaurus loaded (configure THES_DICT_*)");
+            return 1;
+        }
+
+        if (app->edit_active_field != EF_BODY)
+        {
+            ui_status(app, "Thesaurus only available in body");
+            return 1;
+        }
+
+        ui_thes_lookup_word(app);
+        return 1;
+    }
+#endif
+
+#ifdef HAVE_HYPHEN
+    /* Alt+L : toggle automatic hyphenation when hard-wrap is on */
+    if (ch == KEY_ALT('L'))
+    {
+        if (!app->hyph_handle)
+        {
+            ui_status(app, "No hyphenation dictionary loaded (configure HYPH_DICT_*)");
+            return 1;
+        }
+
+        if (!app->cfg || !app->cfg->hard_wrap)
+        {
+            ui_status(app, "Hyphen wrap requires hard-wrap mode");
+            return 1;
+        }
+
+        app->hyph_wrap_enabled = !app->hyph_wrap_enabled;
+        ui_status(app, "Hyphenation wrap: %s", app->hyph_wrap_enabled ? "ON" : "OFF");
+        return 1;
+    }
+#endif
 
     return 0;
 }
@@ -1398,44 +1485,109 @@ static int handle_body_input(UiApp *app, int ch, int is_key, wint_t wch, int sof
                     ed_get_info(app->editor, &wi);
                     linelen = ed_line_len(app->editor, wi.row);
 
-                    if (wi.col > eff_wrap && wi.col == linelen)
+                    /* Activate when cursor is at end of line */
+                    if (wi.col == linelen)
                     {
                         const wchar_t *line = ed_line_wcs(app->editor, wi.row);
-                        int brk = -1;
-                        int k;
 
                         if (line)
                         {
-                            int limit = eff_wrap;
+                            int word_start = 0;
+                            int word_len;
+                            int space_available;
+                            int k;
+                            int hyphen_performed = 0;
 
-                            if (limit > linelen)
-                                limit = linelen;
-
-                            for (k = limit; k > 0; k--)
+                            /* Identify the current word (from last space to cursor) */
+                            for (k = wi.col; k > 0; k--)
                             {
-                                if (line[k - 1] == L' ')
+                                if (line[k - 1] == L' ' || line[k - 1] == L'\n' || line[k - 1] == L'\t')
                                 {
-                                    brk = k - 1;
+                                    word_start = k;
                                     break;
                                 }
                             }
-                        }
 
-                        if (wch == L' ')
-                        {
-                            ed_backspace(app->editor); /* replace trailing space with newline */
-                            ed_enter(app->editor);
-                            reset_search(app);
-                        }
-                        else if (brk >= 0)
-                        {
-                            int tail = linelen - brk - 1;
+                            word_len = wi.col - word_start;
+                            space_available = eff_wrap - word_start;
 
-                            ed_set_pos(app->editor, wi.row, brk);
-                            ed_delete(app->editor);
-                            ed_enter(app->editor);
-                            reset_search(app);
-                            ed_set_pos(app->editor, wi.row + 1, tail);
+#ifdef HAVE_HYPHEN
+                            /* If word doesn't fit in available space, try hyphen */
+                            if (word_len > space_available && space_available >= 0 && app->hyph_wrap_enabled && app->hyph_handle)
+                            {
+                                int hyph_break = ui_hyph_find_break(app, &line[word_start], word_len, space_available);
+
+                                /* Validate hyphenation breakpoint: must be valid and leave at least one character after hyphen */
+                                if (hyph_break >= 0 && hyph_break > 0 && hyph_break < word_len - 1)
+                                {
+                                    int break_pos = word_start + hyph_break;
+
+                                    /* Validate that break_pos is within the line */
+                                    if (break_pos < linelen)
+                                    {
+                                        /* Save state for undo */
+                                        ed_save_undo(app->editor);
+
+                                        /* Insert '-' at breakpoint */
+                                        ed_set_pos(app->editor, wi.row, break_pos);
+
+                                        if (ed_insert_char(app->editor, L'-') == 0)
+                                        {
+                                            /* Insert '\n' after '-' using ed_enter to properly split the line */
+                                            if (ed_enter(app->editor) == 0)
+                                            {
+                                                /* Calculate tail: characters remaining after breakpoint in the word */
+                                                int tail = word_len - hyph_break;
+
+                                                if (tail < 0)
+                                                    tail = 0;
+
+                                                ed_set_pos(app->editor, wi.row + 1, tail);
+                                                reset_search(app);
+
+                                                hyphen_performed = 1;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+#endif
+
+                            /* If line exceeds limit, try to break at space (but not if hyphen already handled it) */
+                            if (wi.col > eff_wrap && !hyphen_performed)
+                            {
+                                int brk = -1;
+                                int limit = eff_wrap;
+
+                                if (limit > linelen)
+                                    limit = linelen;
+
+                                for (k = limit; k > 0; k--)
+                                {
+                                    if (line[k - 1] == L' ')
+                                    {
+                                        brk = k - 1;
+                                        break;
+                                    }
+                                }
+
+                                if (wch == L' ')
+                                {
+                                    ed_backspace(app->editor); /* replace trailing space with newline */
+                                    ed_enter(app->editor);
+                                    reset_search(app);
+                                }
+                                else if (brk >= 0)
+                                {
+                                    int tail = linelen - brk - 1;
+
+                                    ed_set_pos(app->editor, wi.row, brk);
+                                    ed_delete(app->editor);
+                                    ed_enter(app->editor);
+                                    reset_search(app);
+                                    ed_set_pos(app->editor, wi.row + 1, tail);
+                                }
+                            }
                         }
                     }
                 }
@@ -1450,13 +1602,10 @@ static int handle_body_input(UiApp *app, int ch, int is_key, wint_t wch, int sof
 
 UiView ui_editor_run(UiApp *app)
 {
-    AreaEntry *ae;
     int eff_wrap;
 
     if (!app)
         return VIEW_QUIT;
-
-    ae = &app->areas->entries[app->sess.area_idx];
 
     /* Initial wrap column (handles starting on a small screen) */
     eff_wrap = editor_eff_wrap(app);
@@ -1475,6 +1624,8 @@ UiView ui_editor_run(UiApp *app)
         int wrc;
         int ch;
         int is_key;
+        int width;
+        int func_result;
         int soft_active;
         int body_width;
         int body_rows;
@@ -1486,7 +1637,7 @@ UiView ui_editor_run(UiApp *app)
         eff_wrap = editor_eff_wrap(app);
 
         /* Calculate width for line numbers BEFORE resize check - TinyEdit style */
-        int width = COLS;
+        width = COLS;
 
         if (app->cfg && app->cfg->show_line_numbers)
         {
@@ -1554,7 +1705,7 @@ UiView ui_editor_run(UiApp *app)
         }
 
         /* Handle function keys (F1-F11) */
-        int func_result = handle_function_keys(app, ch, is_key);
+        func_result = handle_function_keys(app, ch, is_key);
 
         if (func_result == 2)
         {

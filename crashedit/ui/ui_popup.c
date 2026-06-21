@@ -170,7 +170,6 @@ void ui_popup_message(const char *title, const char *msg)
     int y, x, h, w;
     int msglen = msg ? (int)strlen(msg) : 0;
     int want_w = msglen + 8;
-    int ch;
 
     if (want_w < 40)
         want_w = 40;
@@ -784,7 +783,7 @@ static int popup_input_core(const char *title, const char *prompt, wchar_t *wbuf
     wint_t wch;
     int rc;
     InputState state;
-    WINDOW *saved;
+    WINDOW *saved = NULL;
 
     if (!wbuf || wcap < 2)
         return -1;
@@ -822,8 +821,6 @@ static int popup_input_core(const char *title, const char *prompt, wchar_t *wbuf
 
     for (;;)
     {
-        int i;
-
         ui_draw_popup_frame(y, x, h, w, title ? title : "Input");
         attron(COLOR_PAIR(COL_POPUP));
 
@@ -944,7 +941,8 @@ int ui_popup_sort(char *spec, int specsz, const char *cfg_default)
     if (strcmp(sort_preset_specs[choice], "_CUSTOM_") == 0)
     {
         wchar_t wtmp[CFG_SORT_MAX];
-        wchar_t *w_initial;
+        wchar_t *w_initial = NULL;
+        char *u = NULL;
 
         w_initial = utf8_to_wcs(spec, NULL);
         wtmp[0] = L'\0';
@@ -959,7 +957,7 @@ int ui_popup_sort(char *spec, int specsz, const char *cfg_default)
         if (ui_popup_input("Custom sort spec", "Letters: A B D E F G M O P T U X Y Z (prefix - = desc)", wtmp, CFG_SORT_MAX) != 0)
             return -1;
 
-        char *u = wcs_to_utf8(wtmp, (int)wcslen(wtmp));
+        u = wcs_to_utf8(wtmp, (int)wcslen(wtmp));
         if (u)
         {
             strncpy(spec, u, (size_t)(specsz - 1));

@@ -68,6 +68,7 @@ void ui_editor_prep_edit(UiApp *app, uint32_t msgnum);
 static void format_date_short(uint32_t epoch, int reader_offset, int tzutc_offset, char *buf, int bufsz)
 {
     time_t t = (time_t)epoch;
+    struct tm *tm;
 
     /* crashmail stores header as UTC but it's sender's local time, TZUTC: -0400 = local is 4h behind UTC */
     if (tzutc_offset != -1)
@@ -77,7 +78,7 @@ static void format_date_short(uint32_t epoch, int reader_offset, int tzutc_offse
     if (reader_offset != 0)
         t -= (time_t)reader_offset * 60;
 
-    struct tm *tm = gmtime(&t);
+    tm = gmtime(&t);
 
     if (tm)
         snprintf(buf, (size_t)bufsz, "%02d/%02d/%02d", tm->tm_mday, tm->tm_mon + 1, tm->tm_year % 100);
@@ -231,8 +232,8 @@ static void draw_msg_row(int y, int width, const MsgInfo *m, uint32_t lastread, 
 /* Mark area seen on entry, update lastseen to max msgnum, clear "*" indicator */
 static void msglist_mark_seen(UiApp *app)
 {
-    UiSession *s;
-    AreaEntry *ae;
+    UiSession *s = NULL;
+    AreaEntry *ae = NULL;
     uint32_t hi = 0;
     int i;
 
@@ -271,8 +272,8 @@ static void msglist_mark_seen(UiApp *app)
 /* Main loop */
 UiView ui_msglist_run(UiApp *app)
 {
-    UiSession *s;
-    AreaEntry *ae;
+    UiSession *s = NULL;
+    AreaEntry *ae = NULL;
     int rows;
     int ch;
     int i;

@@ -22,6 +22,7 @@
  * General Public License v2.1. See src/jamlib/LICENSE for details.
  */
 
+#define _XOPEN_SOURCE
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>

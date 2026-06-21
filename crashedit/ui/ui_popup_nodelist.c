@@ -40,7 +40,7 @@ static int entry_matches(const NodelistEntry *e, const char *needle)
 
 int ui_popup_nodelist(UiApp *app, int allow_pick, char *out_name, int name_sz, char *out_addr, int addr_sz)
 {
-    Nodelist *nl;
+    Nodelist *nl = NULL;
     int y, x, h, w;
     int row_top, row_sel;
     int filtered_count;
@@ -48,7 +48,7 @@ int ui_popup_nodelist(UiApp *app, int allow_pick, char *out_name, int name_sz, c
     int filtered_cap = 0;
     char needle[64];
     int nlen = 0;
-    WINDOW *saved;
+    WINDOW *saved = NULL;
     int rc_picked = 0;
     int rebuild = 1;
     int want_h, want_w;

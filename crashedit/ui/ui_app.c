@@ -29,6 +29,13 @@
 #include "ui.h"
 #include "ui_internal.h"
 #include "ui_spell.h"
+
+#ifdef HAVE_HYPHEN
+#include "ui_hyph.h"
+#endif
+#ifdef HAVE_MYTHES
+#include "ui_thes.h"
+#endif
 #include <locale.h>
 
 #if !defined(PLATFORM_WIN32) && !defined(PLATFORM_AMIGA)
@@ -47,7 +54,7 @@
 /* Cursor color setup (platform-specific) */
 static void ui_apply_cursor_color(const CrashEditCfg *cfg)
 {
-    FILE *tty;
+    FILE *tty = NULL;
     int color_to_use;
 
 #ifdef PLATFORM_AMIGA
@@ -218,7 +225,7 @@ static void setup_colors(const CrashEditCfg *cfg)
     refresh();
 }
 
-/* Apply config changes in-place (colors, font, cursor) without restarting */
+/* Apply config changes without restarting */
 void ui_reapply_config(UiApp *app)
 {
     if (!app || !app->cfg)
@@ -260,6 +267,14 @@ void ui_reapply_config(UiApp *app)
     ui_spell_load_from_config(app);
 #endif
 
+    /* Load hyphenation and thesaurus (thesaurus needs speller) */
+#ifdef HAVE_HYPHEN
+    ui_hyph_load_from_config(app);
+#endif
+#ifdef HAVE_MYTHES
+    ui_thes_load_from_config(app);
+#endif
+
 #ifdef PLATFORM_AMIGA
     {
         extern void amiga_force_redraw(void);
@@ -286,7 +301,7 @@ void ui_status(UiApp *app, const char *fmt, ...)
     app->status_dirty = 1;
 }
 
-/* Build right-hand portion of status bar (INS/OVR + local time) */
+/* Build right-hand status bar (INS/OVR + time) */
 static void build_status_right(const UiApp *app, char *out, int outsz)
 {
     char tbuf[8];
@@ -294,7 +309,7 @@ static void build_status_right(const UiApp *app, char *out, int outsz)
     struct tm *lt;
     tbuf[0] = '\0';
 
-    /* Apply effective TZ offset, then gmtime() for wall-clock fields */
+    /* Apply TZ offset, then gmtime() for wall-clock */
 #ifndef PLATFORM_AMIGA
     if (app->cfg)
     {
@@ -314,11 +329,18 @@ static void build_status_right(const UiApp *app, char *out, int outsz)
 
         ed_get_info(app->editor, &info);
 #ifdef HAVE_HUNSPELL
-        snprintf(out, (size_t)outsz, " %s %s%s %s ", app->cfg->hard_wrap ? "HARD" : "SOFT",
-                 (app->spell_enabled && app->spell_active && app->spell_handle) ? "SPELL " : "",
+        snprintf(out, (size_t)outsz, " %s %s%s%s %s ", app->cfg->hard_wrap ? "HARD" : "SOFT",
+                 (app->spell_enabled && app->spell_active && app->spell_handle) ? "SP " : "",
+#ifdef HAVE_HYPHEN
+                 (app->hyph_wrap_enabled && app->hyph_handle) ? "HY " : "",
+#endif
                  info.insert_mode ? "INS" : "OVR", tbuf);
 #else
-        snprintf(out, (size_t)outsz, " %s %s %s ", app->cfg->hard_wrap ? "HARD" : "SOFT", info.insert_mode ? "INS" : "OVR", tbuf);
+        snprintf(out, (size_t)outsz, " %s %s%s %s ", app->cfg->hard_wrap ? "HARD" : "SOFT",
+#ifdef HAVE_HYPHEN
+                 (app->hyph_wrap_enabled && app->hyph_handle) ? "HY " : "",
+#endif
+                 info.insert_mode ? "INS" : "OVR", tbuf);
 #endif
     }
     else
@@ -327,7 +349,7 @@ static void build_status_right(const UiApp *app, char *out, int outsz)
     }
 }
 
-/* Build centre portion of status bar (msg/line counters) */
+/* Build centre status bar (msg/line counters) */
 static void build_status_center(const UiApp *app, char *out, int outsz)
 {
     out[0] = '\0';
@@ -380,7 +402,7 @@ void ui_draw_statusbar(UiApp *app)
     build_status_center(app, center, sizeof(center));
     build_status_right(app, right, sizeof(right));
 
-    /* Status bar: left=status, right=counter+time (2 zones for narrow terminals) */
+    /* Status bar: left=status, right=counter+time */
     if (center[0])
         snprintf(rzone, sizeof(rzone), " %s %s", center, right);
     else
@@ -395,16 +417,16 @@ void ui_draw_statusbar(UiApp *app)
     left_len = (int)strlen(app->status);
     rzone_len = (int)strlen(rzone);
 
-    /* Right block flush to edge, drop if window too narrow */
+    /* Right block flush to edge, drop if too narrow */
     if (rzone_len + 2 < COLS)
         rzone_start = COLS - rzone_len - 1;
     else
-        rzone_start = COLS; /* no room: skip right block */
+        rzone_start = COLS; /* no room */
 
     if (rzone_start < COLS)
         mvaddnstr(y, rzone_start, rzone, rzone_len);
 
-    /* Left status, truncated so it never reaches the right block */
+    /* Left status, truncated before right block */
     max_left = (rzone_start < COLS ? rzone_start : COLS) - 2;
 
     if (max_left > left_len)
@@ -497,7 +519,7 @@ void ui_hline(int y, int x, int len)
         mvaddch(y, x + i, ACS_HLINE);
 }
 
-/* wchar_t -> UTF-8 with rotating static buffers (AmigaOS vsnprintf lacks %ls) */
+/* wchar_t -> UTF-8 with rotating static buffers */
 const char *ui_wcs2u8(const wchar_t *wcs)
 {
     static char pool[8][512];
@@ -589,11 +611,11 @@ int ui_is_netmail(const UiApp *app)
     return app->areas->entries[app->sess.area_idx].type == AREATYPE_NETMAIL;
 }
 
-/* UTF-8 locale init, Amiga/Win32 skip (wrappers handle encoding) */
-static void ui_init_locale()
+/* UTF-8 locale init, Amiga/Win32 skip */
+static void ui_init_locale(void)
 {
 #if defined(PLATFORM_AMIGA) || defined(PLATFORM_WIN32)
-    /* Wrapper layers handle encoding, just set whatever the env says */
+    /* Wrapper layers handle encoding */
     setlocale(LC_ALL, "");
 #else
 
@@ -613,9 +635,9 @@ static void ui_init_locale()
     codeset = nl_langinfo(CODESET);
 
     if (codeset && (strcmp(codeset, "UTF-8") == 0 || strcmp(codeset, "utf8") == 0 || strcmp(codeset, "UTF8") == 0))
-        return; /* environment already gives us UTF-8 */
+        return; /* environment already UTF-8 */
 
-    /* Try to upgrade LC_CTYPE to UTF-8 locale for ncursesw wide char rendering */
+    /* Try to upgrade LC_CTYPE to UTF-8 locale */
     for (i = 0; utf8_fallbacks[i]; i++)
     {
         if (setlocale(LC_CTYPE, utf8_fallbacks[i]))
@@ -631,31 +653,30 @@ static void ui_init_locale()
 
 UiApp *ui_init(CrashEditCfg *cfg, AreaList *areas)
 {
-    UiApp *app;
-    char *s;
+    UiApp *app = NULL;
+    char *s = NULL;
     int k;
     const char *default_net;
-    int fi;
 
     if (!cfg || !areas)
         return NULL;
 
-    /* Locale init for wide-character (UTF-8) ncursesw rendering */
+    /* Locale init for wide-character ncursesw */
     ui_init_locale();
 
 #ifdef PLATFORM_AMIGA
-    /* Amiga setup (before initscr): background color and font */
+    /* Amiga setup (before initscr) */
     amiga_set_default_bg_color(cfg->default_bg_color);
     amiga_set_font_name(cfg->font);
     amiga_set_ansi_font_name(cfg->ansifont);
 
-    /* Optional TrueType (ignored if ttf_enabled=0 or path empty) */
+    /* Optional TrueType (ignored if disabled) */
     if (cfg->ttf_enabled)
     {
         amiga_set_ttf(cfg->ttf_font, cfg->ttf_size, cfg->ttf_antialias);
         amiga_set_ttf_encoding(cfg->ttf_use_utf8);
 
-        /* Pass TTF_FALLBACK<N> entries to engine, empty slots skipped */
+        /* Pass TTF_FALLBACK<N> entries to engine */
 #ifdef AMIGA_TTF_TE
         amiga_clear_ttf_fallbacks();
 
@@ -671,7 +692,7 @@ UiApp *ui_init(CrashEditCfg *cfg, AreaList *areas)
     }
     else
     {
-        /* Explicitly disable TTF when ttf_enabled=0 */
+        /* Explicitly disable TTF when disabled */
         amiga_set_ttf(NULL, 0, 0);
 #ifdef AMIGA_TTF_TE
         amiga_clear_ttf_fallbacks();
@@ -680,7 +701,7 @@ UiApp *ui_init(CrashEditCfg *cfg, AreaList *areas)
 #endif
 
 #ifdef PLATFORM_WIN32
-    /* Windows setup (before initscr): font, UTF-8 decoder stores proper Unicode in cells */
+    /* Windows setup (before initscr) */
     win32_set_font_name(cfg->font);
 #endif
 
@@ -709,7 +730,7 @@ UiApp *ui_init(CrashEditCfg *cfg, AreaList *areas)
     define_key("\033z", KEY_ALT('Z'));        /* Alt+Z redo */
     define_key("\033Z", KEY_ALT('Z'));        /* Alt+Shift+Z */
 
-    /* Ctrl+Arrow keys for navigation (avoid Shift+Arrow collision) */
+    /* Ctrl+Arrow keys for navigation */
 
     s = tigetstr("kLFT5"); /* Ctrl+Left */
 
@@ -725,7 +746,7 @@ UiApp *ui_init(CrashEditCfg *cfg, AreaList *areas)
     define_key("\033[1;5D", KEY_CLEFT);
     define_key("\033[1;5C", KEY_CRIGHT);
 
-    /* Alt+Left/Right: word movement in editor */
+    /* Alt+Left/Right: word movement */
     s = tigetstr("kLFT3"); /* Alt+Left */
 
     if (s && s != (char *)-1)
@@ -736,7 +757,7 @@ UiApp *ui_init(CrashEditCfg *cfg, AreaList *areas)
     if (s && s != (char *)-1)
         define_key(s, KEY_ARIGHT);
 
-    /* Common escape sequences for Alt+Left/Right across different terminals */
+    /* Common Alt+Left/Right sequences */
     /* $ showkey -a
     Pulse cualquier tecla -- o Ctrl-D para salir de este programa
     ^[b      27 0033 0x1b
@@ -789,6 +810,26 @@ UiApp *ui_init(CrashEditCfg *cfg, AreaList *areas)
     define_key("\033R", KEY_ALT('R')); /* Alt+Shift+R */
     define_key("\033p", KEY_ALT('P')); /* Alt+P nodelist picker */
     define_key("\033P", KEY_ALT('P')); /* Alt+Shift+P */
+    define_key("\033q", KEY_ALT('Q')); /* Alt+Q toggle wrap */
+    define_key("\033Q", KEY_ALT('Q')); /* Alt+Shift+Q */
+    define_key("\033b", KEY_ALT('B')); /* Alt+B toggle block */
+    define_key("\033B", KEY_ALT('B')); /* Alt+Shift+B */
+    define_key("\033n", KEY_ALT('N')); /* Alt+N next match */
+    define_key("\033N", KEY_ALT('N')); /* Alt+Shift+N */
+    define_key("\033o", KEY_ALT('O')); /* Alt+O insert file */
+    define_key("\033O", KEY_ALT('O')); /* Alt+Shift+O */
+    define_key("\033k", KEY_ALT('K')); /* Alt+K kludges */
+    define_key("\033K", KEY_ALT('K')); /* Alt+Shift+K */
+    define_key("\033m", KEY_ALT('M')); /* Alt+M list attachments */
+    define_key("\033M", KEY_ALT('M')); /* Alt+Shift+M */
+    define_key("\033e", KEY_ALT('E')); /* Alt+E spell panel */
+    define_key("\033E", KEY_ALT('E')); /* Alt+Shift+E */
+    define_key("\033w", KEY_ALT('W')); /* Alt+W spell word */
+    define_key("\033W", KEY_ALT('W')); /* Alt+Shift+W */
+    define_key("\033j", KEY_ALT('J')); /* Alt+J thesaurus */
+    define_key("\033J", KEY_ALT('J')); /* Alt+Shift+J */
+    define_key("\033z", KEY_ALT('Z')); /* Alt+Z redo */
+    define_key("\033Z", KEY_ALT('Z')); /* Alt+Shift+Z */
 #endif
 
     app = (UiApp *)calloc(1, sizeof(UiApp));
@@ -810,10 +851,10 @@ UiApp *ui_init(CrashEditCfg *cfg, AreaList *areas)
 
     app->search_opt_headers = 1;
 
-    /* view_charset: runtime override (popup "View:" pick), init EMPTY for Auto mode */
+    /* view_charset: runtime override, init EMPTY for Auto */
     app->view_charset[0] = '\0';
 
-    /* edit_charset stays seeded from cfg->charset: sensible default for composing */
+    /* edit_charset seeded from cfg->charset */
     strncpy(app->edit_charset, cfg->charset, sizeof(app->edit_charset) - 1);
     app->edit_charset[sizeof(app->edit_charset) - 1] = '\0';
 
@@ -823,7 +864,7 @@ UiApp *ui_init(CrashEditCfg *cfg, AreaList *areas)
 
 #ifdef HAVE_HUNSPELL
     /* Initialize spell checker state */
-    app->spell_active = 0; /* Disabled by default, user must activate with Alt+H */
+    app->spell_active = 0; /* Disabled by default */
 #endif
 
     app->reader = rd_new(cfg->viewkludge, cfg->viewhidden);
@@ -871,11 +912,10 @@ UiApp *ui_init(CrashEditCfg *cfg, AreaList *areas)
 
     ui_arealist_rebuild_order(app);
 
-    /* Load FTS-5000 nodelists / pointlists from config INCLUDE */
+    /* Load FTS-5000 nodelists from config INCLUDE */
     nodelist_init(&app->nodelist);
 
-    /* default_net = "fidonet"; */
-    default_net = NULL; /* No @network suffix in nodelist addresses */
+    default_net = NULL; /* No @network suffix */
 
     if (cfg->aka_count > 0)
     {
@@ -901,8 +941,15 @@ UiApp *ui_init(CrashEditCfg *cfg, AreaList *areas)
     }
 
 #ifdef HAVE_HUNSPELL
-    /* Load Hunspell dictionary if configured (silent failure) */
+    /* Load Hunspell dictionary if configured */
     ui_spell_load_from_config(app);
+#endif
+
+#ifdef HAVE_HYPHEN
+    ui_hyph_load_from_config(app);
+#endif
+#ifdef HAVE_MYTHES
+    ui_thes_load_from_config(app);
 #endif
 
     ui_status(app, "Welcome to CrashEdit. Press F1 or ? for help");
@@ -927,7 +974,7 @@ int ui_run(UiApp *app)
     if (!app)
         return 0;
 
-    /* First-run / no-usable-config: go straight into setup, skip normal view loop */
+    /* First-run / no-usable-config: go to setup */
     if (app->force_setup)
     {
         int saved = ui_setup_run(app);
@@ -936,7 +983,7 @@ int ui_run(UiApp *app)
 
         if (saved == 1)
         {
-            /* First-run: areas weren't loaded yet, must reload from disk */
+            /* First-run: reload areas from disk */
             return 1;
         }
 
@@ -976,6 +1023,15 @@ void ui_cleanup(UiApp *app)
     if (!app)
         return;
 
+    /* Tear-down order: detach speller, then free thes, hyph, spell */
+#ifdef HAVE_MYTHES
+    ui_thes_unload(app);
+#endif
+
+#ifdef HAVE_HYPHEN
+    ui_hyph_unload(app);
+#endif
+
 #ifdef HAVE_HUNSPELL
     ui_spell_unload(app);
 #endif
@@ -1000,7 +1056,7 @@ void ui_cleanup(UiApp *app)
     if (app->saved_kludges)
         free(app->saved_kludges);
 
-    /* Release any pending search session */
+    /* Release pending search session */
     ui_search_cleanup(app);
 
     nodelist_free(&app->nodelist);

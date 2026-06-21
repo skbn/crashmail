@@ -35,7 +35,7 @@
 /* Small helpers */
 const char *editor_daddr_for_intl(UiApp *app, const char *daddr)
 {
-    AreaEntry *ae;
+    AreaEntry *ae = NULL;
 
     if (daddr && daddr[0])
         return daddr;
@@ -170,7 +170,7 @@ static char *build_header_frame(const CrashEditCfg *cfg, const char *to_name, co
     char tof[96], frf[96], onf[96];
     char line[CFG_STR_MAX * 2];
     size_t cap = 1, len = 0;
-    char *out;
+    char *out = NULL;
     size_t ll;
 
     first_name(to_name, tof, sizeof(tof));
@@ -250,7 +250,7 @@ static char *build_signature(const CrashEditCfg *cfg, const char *from_name)
 {
     char frf[96];
     char line[CFG_STR_MAX * 2];
-    char *out;
+    char *out = NULL;
     size_t ll;
 
     if (!cfg->signature || !cfg->signature_text[0])
@@ -384,9 +384,9 @@ char *editor_build_kludge_block(const CrashEditCfg *cfg, const char *oaddr, cons
 /* Load <path> as UTF-8 text up to <max> bytes, call ed_load() on success (TEMPLATE feature) */
 static void load_template_if_any(Ed *editor, const char *path)
 {
-    FILE *f;
+    FILE *f = NULL;
     long sz;
-    char *tmpl;
+    char *tmpl = NULL;
     size_t r;
 
     if (!path || !path[0])
@@ -446,12 +446,12 @@ static int extract_msgid(const char *body_utf8, char *out, int outsz)
 /* Prep for NEW message */
 void ui_editor_prep_new(UiApp *app)
 {
-    AreaEntry *ae;
+    AreaEntry *ae = NULL;
     const char *oaddr;
     const char *area_tag;
     const char *daddr_new;
-    char *hdr;
-    char *sig;
+    char *hdr = NULL;
+    char *sig = NULL;
     size_t hl;
     size_t sl;
 
@@ -561,7 +561,7 @@ static char *build_quote_source(const char *body_utf8, int want_klg, int want_vi
 {
     const char *p = body_utf8;
     size_t cap, len;
-    char *out;
+    char *out = NULL;
 
     if (!body_utf8)
         return NULL;
@@ -627,18 +627,17 @@ static char *build_quote_source(const char *body_utf8, int want_klg, int want_vi
 /* Prep for REPLY */
 void ui_editor_prep_reply(UiApp *app, uint32_t orig_msgnum)
 {
-    UiSession *s;
-    AreaEntry *ae;
+    UiSession *s = NULL;
+    AreaEntry *ae = NULL;
     int idx;
-    char *body_utf8;
-    char *quoted;
+    char *body_utf8 = NULL;
+    char *quoted = NULL;
     const char *oaddr;
     char re_subj[128];
     char reply_to_msgid[200];
     const MsgInfo *m;
     const char *daddr_reply;
     char detected_orig[32];
-    int has_chrs = 0;
     detected_orig[0] = '\0';
 
     if (!app)
@@ -707,7 +706,6 @@ void ui_editor_prep_reply(UiApp *app, uint32_t orig_msgnum)
             {
                 if (strncasecmp(p + 1, "CHRS:", 5) == 0 || strncasecmp(p + 1, "CHRS ", 5) == 0 || strncasecmp(p + 1, "CHARSET:", 8) == 0)
                 {
-                    has_chrs = 1;
                     break;
                 }
             }
@@ -792,14 +790,15 @@ void ui_editor_prep_reply(UiApp *app, uint32_t orig_msgnum)
         {
             /* GoldED+ framing for reply: [greeting] [attribution] <quote> <blank> [sig] */
             char odate[64];
-            char *frame;
-            char *sig;
+            char *frame = NULL;
+            char *sig = NULL;
             size_t fl, ql, sl, n;
-            char *buf;
+            char *buf = NULL;
             int to_me = 0;
             const char *eh_from;
             const char *eh_to;
             int off;
+            struct tm *tm;
 
             /* Use current time in LOCAL timezone for reply attribution */
             time_t t = time(NULL);
@@ -812,7 +811,7 @@ void ui_editor_prep_reply(UiApp *app, uint32_t orig_msgnum)
 #endif
             /* On Amiga: time() already returns local time, no adjustment needed */
 
-            struct tm *tm = gmtime(&t);
+            tm = gmtime(&t);
 
             if (tm)
                 snprintf(odate, sizeof(odate), "%02d %s %02d %02d:%02d", tm->tm_mday, "Jan\0Feb\0Mar\0Apr\0May\0Jun\0Jul\0Aug\0Sep\0Oct\0Nov\0Dec" + (tm->tm_mon * 4), tm->tm_year % 100, tm->tm_hour, tm->tm_min);
@@ -905,14 +904,13 @@ void ui_editor_prep_reply(UiApp *app, uint32_t orig_msgnum)
 /* Prep for EDIT existing */
 void ui_editor_prep_edit(UiApp *app, uint32_t msgnum)
 {
-    UiSession *s;
-    AreaEntry *ae;
+    UiSession *s = NULL;
+    AreaEntry *ae = NULL;
     int idx;
-    char *body_utf8;
+    char *body_utf8 = NULL;
     const char *oaddr;
     const char *daddr_edit;
     char detected[CHARSET_NAME_MAX];
-    int has_chrs = 0;
 
     if (!app)
         return;
@@ -968,7 +966,6 @@ void ui_editor_prep_edit(UiApp *app, uint32_t msgnum)
             {
                 if (strncasecmp(p + 1, "CHRS:", 5) == 0 || strncasecmp(p + 1, "CHRS ", 5) == 0 || strncasecmp(p + 1, "CHARSET:", 8) == 0)
                 {
-                    has_chrs = 1;
                     break;
                 }
             }
@@ -1003,7 +1000,7 @@ void ui_editor_prep_edit(UiApp *app, uint32_t msgnum)
     {
         const char *content;
         size_t cl;
-        char *with_nl;
+        char *with_nl = NULL;
         char *kludges_out = NULL;
         char *clean_out = NULL;
 

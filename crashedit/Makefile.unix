@@ -38,7 +38,7 @@ endif
 
 CC ?= cc
 #CFLAGS += -I$(HERE).. -I$(HERE) -I$(HERE)core -I$(HERE)components -I$(HERE)ui -Wall -Wextra -std=gnu89 -O2 -D_XOPEN_SOURCE_EXTENDED
-CFLAGS += -Wall -Wextra -std=gnu89 -O2 -D_XOPEN_SOURCE_EXTENDED
+CFLAGS += -Wall -Wextra -Wpedantic -Wmissing-prototypes -Wstrict-prototypes -Wdeclaration-after-statement -Wimplicit-function-declaration -Wno-unused-parameter -std=gnu89 -O2 -D_XOPEN_SOURCE_EXTENDED
 AR = ar
 
 # Platform define
@@ -93,6 +93,32 @@ CORE_OBJS += $(OBJDIR)/spell.o
 SPELL_LIB := -lhunspell
 else
 SPELL_LIB :=
+endif
+
+# Hyphenation -- opt-in. Requires libhyphen (Debian/Ubuntu: libhyphen-dev;
+# BSD: from ports/pkg or built from source under hyphen/). Compiles
+# core/hyph.o and ui_hyph.o
+ifeq ($(USE_HYPHEN),1)
+CDEFS    += -DHAVE_HYPHEN
+CORE_OBJS += $(OBJDIR)/hyph.o
+UI_OBJS   += $(OBJDIR)/ui_hyph.o
+HYPH_LIB  := -lhyphen
+else
+HYPH_LIB  :=
+endif
+
+# Thesaurus (MyThes) -- opt-in. Requires libmythes (Debian/Ubuntu:
+# libmythes-dev). C++ source, so we link the C++ stdlib too. Compiles
+# core/thes.o and ui_thes.o
+ifeq ($(USE_MYTHES),1)
+CDEFS    += -DHAVE_MYTHES
+CORE_OBJS += $(OBJDIR)/thes.o
+UI_OBJS   += $(OBJDIR)/ui_thes.o
+MYTHES_LIB := -lmythes-1.2 -lstdc++
+CXX       ?= c++
+CXXFLAGS  += -Wall -Wextra -Wpedantic -Wno-unused-parameter -O2
+else
+MYTHES_LIB :=
 endif
 
 ALL_OBJS = $(CORE_OBJS) $(COMP_OBJS)
@@ -252,6 +278,20 @@ $(OBJDIR)/spell.o: $(COREDIR)/spell.c $(COREDIR)/spell.h | $(OBJDIR)
 $(OBJDIR)/ui_spell.o: $(UIDIR)/ui_spell.c $(UIDIR)/ui_spell.h $(COREDIR)/spell.h | $(OBJDIR)
 	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
 
+# Hyphenation -- compiled only when USE_HYPHEN=1
+$(OBJDIR)/hyph.o: $(COREDIR)/hyph.c $(COREDIR)/hyph.h | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
+$(OBJDIR)/ui_hyph.o: $(UIDIR)/ui_hyph.c $(UIDIR)/ui_hyph.h $(COREDIR)/hyph.h | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
+# Thesaurus -- compiled only when USE_MYTHES=1. Note the C++ compile rule
+$(OBJDIR)/thes.o: $(COREDIR)/thes.cpp $(COREDIR)/thes.h $(COREDIR)/spell.h | $(OBJDIR)
+	$(CXX) $(CXXFLAGS) $(CDEFS) -c $< -o $@
+
+$(OBJDIR)/ui_thes.o: $(UIDIR)/ui_thes.c $(UIDIR)/ui_thes.h $(COREDIR)/thes.h | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
 # Application
 JAMLIB = $(HERE)../src/jamlib/jamlib.a
 CRASHEDIT = $(HERE)../bin/crashedit
@@ -260,7 +300,7 @@ crashedit: $(CRASHEDIT)
 
 $(CRASHEDIT): $(HERE)main_ui.c $(TARGET) $(UI_OBJS) $(JAMLIB)
 	$(CC) $(CFLAGS) $(CDEFS) $(HERE)main_ui.c $(UI_OBJS) $(TARGET) $(JAMLIB) \
-	      -o $@ $(NCURSES_LIB) $(SPELL_LIB)
+	      -o $@ $(NCURSES_LIB) $(SPELL_LIB) $(HYPH_LIB) $(MYTHES_LIB)
 
 clean:
 	rm -rf $(OBJDIR) $(TARGET) $(CRASHEDIT)

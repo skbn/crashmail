@@ -38,8 +38,8 @@
 /* After attaching, refresh edit_hdr SUBJECT field if editing (shows filename immediately) */
 static void refresh_subject_if_editing(UiApp *app)
 {
-    char *subject_str;
-    wchar_t *wsubj;
+    char *subject_str = NULL;
+    wchar_t *wsubj = NULL;
     size_t len;
 
     if (!app || !app->edit_hdr)

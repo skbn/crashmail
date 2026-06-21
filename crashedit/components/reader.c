@@ -63,7 +63,7 @@ struct Reader
 static int rd_grow(Reader *rd)
 {
     int na;
-    RdLine *t;
+    RdLine *t = NULL;
 
     if (rd->count < rd->alloc)
         return 0;
@@ -82,7 +82,7 @@ static int rd_grow(Reader *rd)
 
 static int rd_add(Reader *rd, const wchar_t *wcs, int len, int type, int ansi_color, int ansi_attrs, const AnsiCell *cells)
 {
-    RdLine *ln;
+    RdLine *ln = NULL;
 
     if (rd_grow(rd) != 0)
         return -1;
@@ -287,7 +287,7 @@ static void rd_apply_canvas(Reader *rd, AnsiCanvas *cv)
 
 void rd_load_ansi(Reader *rd, const char *raw_bytes, int raw_len, const char *charset, int max_cols)
 {
-    AnsiCanvas *cv;
+    AnsiCanvas *cv = NULL;
 
     if (!rd)
         return;
@@ -343,8 +343,8 @@ void rd_load(Reader *rd, const char *utf8_body, int wrap_width)
     {
         const char *start = p;
         int blen, wlen, type;
-        char *line_utf8;
-        wchar_t *wcs;
+        char *line_utf8 = NULL;
+        wchar_t *wcs = NULL;
 
         while (*p && *p != '\r' && *p != '\n')
             p++;
@@ -762,8 +762,8 @@ int rd_line_utf8(const Reader *rd, int vi, char *buf, int bufsz)
 /* Write message to file with wide reader to avoid wrapped lines, Unix line endings */
 int rd_export_to_file(const Reader *src, const char *body_utf8, const char *path, const char *charset_out)
 {
-    Reader *ex;
-    FILE *f;
+    Reader *ex = NULL;
+    FILE *f = NULL;
     int total;
     int i;
     int written = 0;

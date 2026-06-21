@@ -128,6 +128,19 @@ typedef struct
     char spell_dict_path[CFG_STR_MAX];   /* directory containing .aff/.dic */
     char spell_dict_name[CFG_STR_MAX];   /* dict base name, e.g. "es_ES" */
     char spell_custom_dict[CFG_STR_MAX]; /* optional custom .dic */
+
+#ifdef HAVE_HYPHEN
+    int hyph_enabled;
+    char hyph_dict_path[CFG_STR_MAX]; /* directory containing hyph_*.dic */
+    char hyph_dict_name[CFG_STR_MAX]; /* base name, e.g. "es_ES" */
+    int hyph_wrap_enabled;            /* 1 = hyphenate at hard-wrap column */
+#endif
+
+#ifdef HAVE_MYTHES
+    int thes_enabled;
+    char thes_dict_path[CFG_STR_MAX]; /* directory containing th_*.idx/.dat */
+    char thes_dict_name[CFG_STR_MAX]; /* base name, e.g. "es_v2" */
+#endif
 } CrashEditCfg;
 
 /* Load config from path (0=ok, -1=error) */
