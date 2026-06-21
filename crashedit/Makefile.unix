@@ -90,7 +90,28 @@ UI_OBJS   = $(OBJDIR)/ui_app.o \
 ifeq ($(USE_HUNSPELL),1)
 CDEFS    += -DHAVE_HUNSPELL
 CORE_OBJS += $(OBJDIR)/spell.o
+
+HUNSPELL_PKG_CONFIG_CFLAGS := $(shell pkg-config --cflags hunspell 2>/dev/null)
+HUNSPELL_PKG_CONFIG_LIBS   := $(shell pkg-config --libs   hunspell 2>/dev/null)
+
+ifneq ($(HUNSPELL_PKG_CONFIG_LIBS),)
+CFLAGS    += $(HUNSPELL_PKG_CONFIG_CFLAGS)
+SPELL_LIB := $(HUNSPELL_PKG_CONFIG_LIBS)
+else
+ifeq ($(OS),NetBSD)
+CFLAGS    += -I/usr/pkg/include
+SPELL_LIB := -L/usr/pkg/lib -Wl,-rpath,/usr/pkg/lib -lhunspell-1.7
+else ifeq ($(OS),FreeBSD)
+CFLAGS    += -I/usr/local/include
+SPELL_LIB := -L/usr/local/lib -Wl,-rpath,/usr/local/lib -lhunspell-1.7
+else ifeq ($(OS),OpenBSD)
+CFLAGS    += -I/usr/local/include
+SPELL_LIB := -L/usr/local/lib -Wl,-rpath,/usr/local/lib -lhunspell-1.7
+else
 SPELL_LIB := -lhunspell
+endif
+endif
+
 else
 SPELL_LIB :=
 endif
@@ -102,7 +123,28 @@ ifeq ($(USE_HYPHEN),1)
 CDEFS    += -DHAVE_HYPHEN
 CORE_OBJS += $(OBJDIR)/hyph.o
 UI_OBJS   += $(OBJDIR)/ui_hyph.o
+
+HYPHEN_PKG_CONFIG_CFLAGS := $(shell pkg-config --cflags hyphen 2>/dev/null)
+HYPHEN_PKG_CONFIG_LIBS   := $(shell pkg-config --libs   hyphen 2>/dev/null)
+
+ifneq ($(HYPHEN_PKG_CONFIG_LIBS),)
+CFLAGS    += $(HYPHEN_PKG_CONFIG_CFLAGS)
+HYPH_LIB  := $(HYPHEN_PKG_CONFIG_LIBS)
+else
+ifeq ($(OS),NetBSD)
+CFLAGS    += -I/usr/pkg/include
+HYPH_LIB  := -L/usr/pkg/lib -Wl,-rpath,/usr/pkg/lib -lhyphen
+else ifeq ($(OS),FreeBSD)
+CFLAGS    += -I/usr/local/include
+HYPH_LIB  := -L/usr/local/lib -Wl,-rpath,/usr/local/lib -lhyphen
+else ifeq ($(OS),OpenBSD)
+CFLAGS    += -I/usr/local/include
+HYPH_LIB  := -L/usr/local/lib -Wl,-rpath,/usr/local/lib -lhyphen
+else
 HYPH_LIB  := -lhyphen
+endif
+endif
+
 else
 HYPH_LIB  :=
 endif
@@ -114,9 +156,34 @@ ifeq ($(USE_MYTHES),1)
 CDEFS    += -DHAVE_MYTHES
 CORE_OBJS += $(OBJDIR)/thes.o
 UI_OBJS   += $(OBJDIR)/ui_thes.o
-MYTHES_LIB := -lmythes-1.2 -lstdc++
 CXX       ?= c++
 CXXFLAGS  += -Wall -Wextra -Wpedantic -Wno-unused-parameter -O2
+
+MYTHES_PKG_CONFIG_CFLAGS := $(shell pkg-config --cflags mythes 2>/dev/null)
+MYTHES_PKG_CONFIG_LIBS   := $(shell pkg-config --libs   mythes 2>/dev/null)
+
+ifneq ($(MYTHES_PKG_CONFIG_LIBS),)
+CFLAGS    += $(MYTHES_PKG_CONFIG_CFLAGS)
+CXXFLAGS  += $(MYTHES_PKG_CONFIG_CFLAGS)
+MYTHES_LIB := $(MYTHES_PKG_CONFIG_LIBS)
+else
+ifeq ($(OS),NetBSD)
+CFLAGS    += -I/usr/pkg/include
+CXXFLAGS  += -I/usr/pkg/include
+MYTHES_LIB := -L/usr/pkg/lib -Wl,-rpath,/usr/pkg/lib -lmythes-1.2 -lstdc++
+else ifeq ($(OS),FreeBSD)
+CFLAGS    += -I/usr/local/include
+CXXFLAGS  += -I/usr/local/include
+MYTHES_LIB := -L/usr/local/lib -Wl,-rpath,/usr/local/lib -lmythes-1.2 -lstdc++
+else ifeq ($(OS),OpenBSD)
+CFLAGS    += -I/usr/local/include
+CXXFLAGS  += -I/usr/local/include
+MYTHES_LIB := -L/usr/local/lib -Wl,-rpath,/usr/local/lib -lmythes-1.2 -lstdc++
+else
+MYTHES_LIB := -lmythes-1.2 -lstdc++
+endif
+endif
+
 else
 MYTHES_LIB :=
 endif
