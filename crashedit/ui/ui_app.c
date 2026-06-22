@@ -726,6 +726,17 @@ UiApp *ui_init(CrashEditCfg *cfg, AreaList *areas)
     setup_colors(cfg);
 
 #if !defined(PLATFORM_AMIGA) && !defined(PLATFORM_WIN32)
+    /* Disable mouse in SSH sessions to avoid escape code issues */
+    if (!getenv("SSH_TTY") && !getenv("SSH_CONNECTION"))
+    {
+        mousemask(ALL_MOUSE_EVENTS | REPORT_MOUSE_POSITION, NULL);
+        mouseinterval(0);
+
+        /* Button event tracking: motion while button held */
+        printf("\033[?1002h");
+        fflush(stdout);
+    }
+
     set_escdelay(25);
 
     /* Register custom key sequences */
@@ -749,6 +760,30 @@ UiApp *ui_init(CrashEditCfg *cfg, AreaList *areas)
     /* xterm/vte/etc. fallback sequences */
     define_key("\033[1;5D", KEY_CLEFT);
     define_key("\033[1;5C", KEY_CRIGHT);
+    define_key("\033[1;5A", KEY_CUP);   /* Ctrl+Up */
+    define_key("\033[1;5B", KEY_CDOWN); /* Ctrl+Down */
+    define_key("\033[1;5H", KEY_CHOME); /* Ctrl+Home */
+    define_key("\033[1;5F", KEY_CEND);  /* Ctrl+End */
+
+    /* Shift+Arrow keys */
+    define_key("\033[1;2A", KEY_SUP);    /* Shift+Up */
+    define_key("\033[1;2B", KEY_SDOWN);  /* Shift+Down */
+    define_key("\033[1;2D", KEY_SLEFT);  /* Shift+Left */
+    define_key("\033[1;2C", KEY_SRIGHT); /* Shift+Right */
+    define_key("\033[1;2H", KEY_SHOME);  /* Shift+Home */
+    define_key("\033[1;2F", KEY_SEND);   /* Shift+End */
+
+    /* Ctrl+Shift+Arrow keys */
+    define_key("\033[1;6A", KEY_CSUP);    /* Ctrl+Shift+Up */
+    define_key("\033[1;6B", KEY_CSDOWN);  /* Ctrl+Shift+Down */
+    define_key("\033[1;6D", KEY_CSLEFT);  /* Ctrl+Shift+Left */
+    define_key("\033[1;6C", KEY_CSRIGHT); /* Ctrl+Shift+Right */
+    define_key("\033[1;6H", KEY_CSHOME);  /* Ctrl+Shift+Home */
+    define_key("\033[1;6F", KEY_CSEND);   /* Ctrl+Shift+End */
+    define_key("\033[5;2~", KEY_SPPAGE);  /* Shift+PageUp */
+    define_key("\033[6;2~", KEY_SNPAGE);  /* Shift+PageDown */
+    define_key("\033[1;6d", KEY_CSUPD);   /* Ctrl+Shift+D */
+    define_key("\033[1;6u", KEY_CSDOWNU); /* Ctrl+Shift+U */
 
     /* Alt+Left/Right: word movement */
     s = tigetstr("kLFT3"); /* Alt+Left */
@@ -840,6 +875,14 @@ UiApp *ui_init(CrashEditCfg *cfg, AreaList *areas)
 
     if (!app)
     {
+#if !defined(PLATFORM_AMIGA) && !defined(PLATFORM_WIN32)
+        /* Disable button event tracking only if not in SSH */
+        if (!getenv("SSH_TTY") && !getenv("SSH_CONNECTION"))
+        {
+            printf("\033[?1002l");
+            fflush(stdout);
+        }
+#endif
 #ifndef PLATFORM_WIN32
         endwin();
 #endif

@@ -55,6 +55,24 @@ Se abre el **Editor** con el cursor en el campo "To" (Para):
 
 **Nota para Netmail:**
 - `Ctrl+A` o `F4`: Cambiar AKA (dirección de envío). Muestra lista de AKAs configurados en areas.golded
+- **`F10`** / **`Alt+P`**: Nodelist picker - seleccionar destinatario del nodelist para el campo To
+
+### Nodelist Picker
+
+El **Nodelist Picker** permite seleccionar destinatarios de nodelists cargados (configurados con `INCLUDE` en crashedit.conf).
+
+**Uso:**
+- Desde el campo "To" en el editor, presiona **`F10`** o **`Alt+P`**
+- Aparece una lista con todos los nodos del nodelist
+- Puedes escribir para filtrar por nombre o dirección (type-ahead)
+- Presiona `Enter` para seleccionar el destinatario
+- El nombre y dirección se copian automáticamente al campo "To"
+
+**Navegación en el picker:**
+- **`↑`** / **`↓`**: Navegar lista
+- **`F10`**: Seleccionar destinatario
+- **`Ctrl+F10`**: Navegar nodelist sin seleccionar (modo browse)
+- **`Esc`**: Cancelar
 
 ### Escribir el Cuerpo y Guardar
 
@@ -120,6 +138,33 @@ En mensajes **netmail**, puedes adjuntar archivos para enviarlos a otros nodos:
 
 **Para recibir archivos adjuntos:**
 El mailer recibirá los archivos y los colocará en tu directorio de inbound. El mensaje en CrashEdit mostrará los nombres de archivo en el asunto.
+
+---
+
+## Lista de Mensajes
+
+Cuando entras en un área (presionando `Enter` en la lista de áreas), aparece la **Lista de Mensajes** de esa área.
+
+**Qué ves:**
+- Número de mensaje
+- Fecha
+- Remitente (From)
+- Destinatario (To)
+- Asunto (Subject)
+- Indicador de si está marcado para borrar
+
+**Qué puedes hacer:**
+- **`↑`** / **`↓`**: Navegar entre mensajes
+- **`Enter`**: Leer el mensaje seleccionado
+- **`N`** / **`Ins`**: Escribir nuevo mensaje
+- **`r`**: Responder al mensaje seleccionado
+- **`e`**: Editar mensaje propio
+- **`d`**: Borrar mensaje
+- **`C`**: Marcar todos como leídos (catch-up)
+- **`/`**: Búsqueda rápida (From/To/Subj)
+- **`P`**: Búsqueda completa (headers + body)
+- **`Ctrl+F`**: File Request (solicitar archivos)
+- **`q`**: Volver a lista de áreas
 
 ---
 
@@ -292,20 +337,18 @@ El editor se utiliza para escribir y modificar mensajes. Se accede desde:
 - **`Enter`** en cabecera: Ir al cuerpo directamente
 - **`Ctrl+N`** o **`Ctrl+P`** estando en el body: Volver a la cabecera
 
-### Selección y Bloques (F6)
+### Selección y Bloques
 
-**Marcar un bloque:**
-1. Coloca el cursor donde inicia la selección
-2. Presiona **`F6`** - aparece indicador de bloque activo
-3. Mueve el cursor al final de la selección
-4. El texto entre ambas posiciones se resalta
+**Selección extendida por palabras:**
+- **`Ctrl+Shift+Left/Right`**: Seleccionar palabra por palabra horizontalmente
+- **`Ctrl+Shift+Up/Down`**: Seleccionar línea por línea verticalmente
 
-**Operaciones con bloque:**
-- **`Ctrl+C`**: Copiar bloque (también al portapapeles del sistema)
-- **`Ctrl+X`**: Cortar bloque (también al portapapeles)
-- **`Ctrl+V`**: Pegar bloque (o desde portapapeles si no hay bloque interno)
-- **`Delete` o `Backspace`**: Borrar bloque seleccionado
-- **`Ctrl+O`**: Exportar bloque a archivo
+**Operaciones con selección:**
+- **`Ctrl+C`**: Copiar selección (también al portapapeles del sistema)
+- **`Ctrl+X`**: Cortar selección (también al portapapeles)
+- **`Ctrl+V`**: Pegar (o desde portapapeles si no hay selección interna)
+- **`Delete` o `Backspace`**: Borrar selección
+- **`Ctrl+O`**: Exportar selección a archivo
 
 ### Portapapeles del Sistema
 
@@ -313,7 +356,7 @@ CrashEdit se integra con el portapapeles del sistema operativo:
 
 - **Copiar (`Ctrl+C`)**: El texto seleccionado se copia tanto al portapapeles interno como al del sistema. Puedes pegarlo en otras aplicaciones.
 - **Cortar (`Ctrl+X`)**: Igual que copiar, pero borra el texto del editor.
-- **Pegar (`Ctrl+V`)**: Primero intenta pegar desde el portapapeles interno (bloque marcado con F6). Si no hay bloque interno, pega desde el portapapeles del sistema.
+- **Pegar (`Ctrl+V`)**: Primero intenta pegar desde el portapapeles interno. Si no hay bloque interno, pega desde el portapapeles del sistema.
 
 Esto permite intercambiar texto entre CrashEdit y otras aplicaciones (navegador, editor de texto, etc.).
 
@@ -321,6 +364,7 @@ Esto permite intercambiar texto entre CrashEdit y otras aplicaciones (navegador,
 
 - **`F5`**: Buscar texto hacia adelante
 - **`Ctrl+R`**: Buscar y reemplazar interactivo
+- **`F6`** / **`Alt+B`**: Reemplazar todas las ocurrencias (modo búsqueda)
 - **`Ctrl+G`**: Ir a número de línea específico
 
 ### Deshacer/Rehacer
@@ -346,6 +390,44 @@ Esto permite intercambiar texto entre CrashEdit y otras aplicaciones (navegador,
 - **`Ctrl+Q`**: Quitar adjunto
 - **`Ctrl+L`**: Listar adjuntos
 - **`Alt+L`**: Limpiar todos los adjuntos
+
+### Spell Checker (Corrector Ortográfico)
+
+- **`Alt+E`**: Mostrar/ocultar panel de ortografía
+- **`Alt+T`**: Activar/desactivar corrección ortográfica
+- **`Alt+W`**: Verificar palabra bajo cursor
+
+**Configuración:**
+Estas opciones se configuran desde el **Setup** (tecla `S`):
+- Spell Checker Enabled: Habilitar/deshabilitar spell checker
+- Spell Dictionary Path: Directorio con diccionarios Hunspell (.aff/.dic)
+- Spell Dictionary Name: Nombre del diccionario (ej: en_US, es_ES)
+- Spell Custom Dictionary: Archivo de diccionario personalizado
+
+### Hyphenation (Guiones)
+
+- **`Alt+L`**: Activar/desactivar hyphenation en hard-wrap (solo modo hard-wrap)
+
+**Configuración:**
+Estas opciones se configuran desde el **Setup** (tecla `S`):
+- Hyphenation Enabled: Habilitar/deshabilitar hyphenation
+- Hyphenation Dictionary Path: Directorio con diccionarios de hyphenation (hyph_*.dic)
+- Hyphenation Dictionary Name: Nombre del diccionario (ej: en_US, es_ES)
+- Hyphenation Wrap Enabled: Habilitar hyphenation al wrap
+
+### Thesaurus (Sinónimos)
+
+- **`Alt+J`**: Buscar sinónimos de la palabra bajo cursor
+
+**Configuración:**
+Estas opciones se configuran desde el **Setup** (tecla `S`):
+- Thesaurus Enabled: Habilitar/deshabilitar thesaurus
+- Thesaurus Path: Directorio con diccionarios thesaurus (th_*.idx/.dat)
+- Thesaurus Dictionary: Nombre del diccionario (ej: en_US_v2, es_v2)
+
+### Glyph Picker (Selector de Caracteres Unicode)
+
+- **`Alt+U`**: Abrir selector de caracteres Unicode para insertar símbolos especiales
 
 ---
 

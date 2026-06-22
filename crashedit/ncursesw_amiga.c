@@ -1,7 +1,5 @@
 /*
- * crashedit - Message area editor for AmigaOS
- *
- * This file is part of the crashedit project.
+ * tinyedit - Text editor for AmigaOS
  *
  * Copyright (C) 2026 Tanausú M. 39:190/101@amiganet 2:341/207@fidonet
  *
@@ -9,17 +7,6 @@
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 2 of the License, or
  * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <https://www.gnu.org/licenses/>.
- *
- * This program uses JAMLIB, which is licensed under the GNU Lesser
- * General Public License v2.1. See src/jamlib/LICENSE for details.
  */
 
 /* ncursesw_amiga.c -- Complete ncursesw implementation for AmigaOS 3 */
@@ -44,16 +31,17 @@
 #include <intuition/screens.h>
 #include <libraries/keymap.h>
 
+#include <devices/timer.h>
 #include <proto/diskfont.h>
 #include <proto/exec.h>
 #include <proto/graphics.h>
 #include <proto/intuition.h>
 #include <proto/keymap.h>
+#include <proto/timer.h>
 
 #include "ncursesw_amiga.h"
 #include "ttengine_amiga.h"
-
-/* Global state */
+#include "ui/ui_mouse.h"
 
 WINDOW *stdscr = NULL;
 WINDOW *curscr = NULL;
@@ -68,6 +56,10 @@ static struct RastPort *ami_rp = NULL;
 static struct TextFont *ami_font = NULL;
 static struct TextFont *ami_font_normal = NULL;
 static struct TextFont *ami_font_ansi = NULL;
+
+static struct MsgPort *s_timer_port = NULL;
+static struct timerequest *s_timer_req = NULL;
+struct Device *TimerBase = NULL;
 
 #define AMI_FONT_NAME_MAX 256
 static char ami_font_name[AMI_FONT_NAME_MAX] = "topaz.font";
@@ -136,6 +128,17 @@ static unsigned char s_dirty_tmp[SHADOW_DIRTY_MAX_COLS];
 static UBYTE s_key_queue[16];
 static int s_key_queue_len = 0;
 static int s_key_queue_pos = 0;
+
+/* Mouse state */
+static int s_left_button_held = 0;
+static unsigned long s_mouse_event = 0;
+static int s_mouse_event_pending = 0;
+
+/* Pack mouse event: type (8 bits) | x (12 bits) | y (12 bits) */
+static unsigned long pack_mouse(UiMouseEventType type, int x, int y)
+{
+    return ((unsigned long)type & 0xFF) | (((unsigned long)x & 0xFFF) << 8) | (((unsigned long)y & 0xFFF) << 20);
+}
 
 /* Cell helpers */
 static int px(int col) { return bx + col * fw; }
@@ -954,6 +957,31 @@ WINDOW *initscr()
     ULONG idcmp, wfl;
     int dw, dh, sw, sh;
 
+    /* Open timer.device for reliable click timestamps */
+    s_timer_port = CreateMsgPort();
+
+    if (s_timer_port)
+    {
+        s_timer_req = (struct timerequest *)CreateIORequest(s_timer_port, sizeof(struct timerequest));
+
+        if (s_timer_req)
+        {
+            if (OpenDevice(TIMERNAME, UNIT_VBLANK, (struct IORequest *)s_timer_req, 0) == 0)
+                TimerBase = (struct Device *)s_timer_req->tr_node.io_Device;
+            else
+            {
+                DeleteIORequest((struct IORequest *)s_timer_req);
+                s_timer_req = NULL;
+            }
+        }
+
+        if (!s_timer_req)
+        {
+            DeleteMsgPort(s_timer_port);
+            s_timer_port = NULL;
+        }
+    }
+
     /* Try TrueType font first; on failure fall back to bitmap */
     s_use_ttf = ami_ttf_try_open();
 
@@ -1044,7 +1072,7 @@ WINDOW *initscr()
     if (dh > sh)
         dh = sh;
 
-    idcmp = IDCMP_RAWKEY | IDCMP_CLOSEWINDOW | IDCMP_REFRESHWINDOW | IDCMP_NEWSIZE;
+    idcmp = IDCMP_RAWKEY | IDCMP_CLOSEWINDOW | IDCMP_REFRESHWINDOW | IDCMP_NEWSIZE | IDCMP_MOUSEBUTTONS | IDCMP_MOUSEMOVE;
     wfl = WFLG_SIZEGADGET | WFLG_DRAGBAR | WFLG_DEPTHGADGET | WFLG_CLOSEGADGET | WFLG_ACTIVATE | WFLG_SIZEBBOTTOM | WFLG_SMART_REFRESH | WFLG_RMBTRAP;
 
     ami_win = OpenWindowTags(
@@ -1153,6 +1181,22 @@ int endwin()
 
     /* Close TTF (calls TT_DoneRastPort on ami_rp) before window closes, then close library. No-op if TTF not active */
     ami_ttf_close();
+
+    /* Close timer.device */
+    if (s_timer_req)
+    {
+        CloseDevice((struct IORequest *)s_timer_req);
+        DeleteIORequest((struct IORequest *)s_timer_req);
+
+        s_timer_req = NULL;
+        TimerBase = NULL;
+    }
+
+    if (s_timer_port)
+    {
+        DeleteMsgPort(s_timer_port);
+        s_timer_port = NULL;
+    }
 
     if (ami_win)
     {
@@ -1521,8 +1565,8 @@ chtype mvwinch(WINDOW *w, int y, int x)
 /* UTF-8 aware string output: decode multibyte -> codepoint -> Latin-1 cell */
 int waddnstr(WINDOW *w, const char *s, int n)
 {
-    const char *p;
-    const char *end;
+    const char *p = NULL;
+    const char *end = NULL;
 
     if (!w || !s)
         return ERR;
@@ -1533,9 +1577,9 @@ int waddnstr(WINDOW *w, const char *s, int n)
     /* When TTF is active, use waddnwstr() which supports full Unicode */
     if (s_use_ttf)
     {
-        wchar_t *wcs;
+        wchar_t *wcs = NULL;
         int wcs_len;
-        char *temp_buf;
+        char *temp_buf = NULL;
 
         if (!w || !s)
             return ERR;
@@ -2075,7 +2119,7 @@ int amiga_set_ttf_encoding(int use_utf8)
 /* Switch font (call after toggling ANSI mode). use_ansi: 1=ANSI font, 0=regular font */
 int amiga_change_font(int use_ansi)
 {
-    struct TextFont *target_font;
+    struct TextFont *target_font = NULL;
 
     /* Track ANSI mode regardless of font backend */
     s_ansi_mode = use_ansi ? 1 : 0;
@@ -2174,7 +2218,7 @@ int amiga_reload_ttf(const char *font_path, int new_size)
     /* Resize the physical window to keep the same COLS x LINES with new font */
     if (ami_win)
     {
-        struct Screen *scr;
+        struct Screen *scr = NULL;
         int bw = ami_win->BorderLeft + ami_win->BorderRight;
         int bh = ami_win->BorderTop + ami_win->BorderBottom;
         int want_w = COLS * fw + bw;
@@ -2240,8 +2284,30 @@ static int xlat_rawkey(UWORD code, UWORD qual, APTR iaddr)
         return ERR;
 
     /* Modified arrows MUST be checked before bare-arrow switch, otherwise modified keys fall through and return bare KEY_LEFT/RIGHT */
+    /* Ctrl+Shift takes priority over Shift or Ctrl alone */
+    if ((qual & (IEQUALIFIER_LSHIFT | IEQUALIFIER_RSHIFT)) && (qual & IEQUALIFIER_CONTROL))
+    {
+        if (code == 0x4C)
+            return KEY_CSUP;
+
+        if (code == 0x4D)
+            return KEY_CSDOWN;
+
+        if (code == 0x4F)
+            return KEY_CSLEFT;
+
+        if (code == 0x4E)
+            return KEY_CSRIGHT;
+    }
+
     if (qual & (IEQUALIFIER_LSHIFT | IEQUALIFIER_RSHIFT))
     {
+        if (code == 0x4C)
+            return KEY_SUP;
+
+        if (code == 0x4D)
+            return KEY_SDOWN;
+
         if (code == 0x4F)
             return KEY_SLEFT;
 
@@ -2251,6 +2317,12 @@ static int xlat_rawkey(UWORD code, UWORD qual, APTR iaddr)
 
     if (qual & IEQUALIFIER_CONTROL)
     {
+        if (code == 0x4C)
+            return KEY_CUP;
+
+        if (code == 0x4D)
+            return KEY_CDOWN;
+
         if (code == 0x4F)
             return KEY_CLEFT;
 
@@ -2260,6 +2332,12 @@ static int xlat_rawkey(UWORD code, UWORD qual, APTR iaddr)
 
     if (qual & (IEQUALIFIER_LALT | IEQUALIFIER_RALT))
     {
+        if (code == 0x4C)
+            return KEY_AUP;
+
+        if (code == 0x4D)
+            return KEY_ADOWN;
+
         if (code == 0x4F)
             return KEY_ALEFT;
 
@@ -2391,7 +2469,7 @@ static int xlat_rawkey(UWORD code, UWORD qual, APTR iaddr)
 
 int wgetch(WINDOW *w)
 {
-    struct IntuiMessage *imsg;
+    struct IntuiMessage *imsg = NULL;
     ULONG cls;
     UWORD code, qual;
     APTR iaddr;
@@ -2420,6 +2498,13 @@ int wgetch(WINDOW *w)
         key = s_ungetch;
         s_ungetch = ERR;
         return key;
+    }
+
+    /* Mouse event pending */
+    if (s_mouse_event_pending)
+    {
+        s_mouse_event_pending = 0;
+        return KEY_MOUSE;
     }
 
     while (key == ERR)
@@ -2505,21 +2590,75 @@ int wgetch(WINDOW *w)
                     LINES = nl;
                     stdscr->_maxx = COLS;
                     stdscr->_maxy = LINES;
-
-                    if (stdscr->_curx >= COLS)
-                        stdscr->_curx = COLS - 1;
-
-                    if (stdscr->_cury >= LINES)
-                        stdscr->_cury = LINES - 1;
                 }
             }
 
-            key = KEY_RESIZE;
+            shadow_invalidate();
+            render_all();
+            break;
+        }
+        case IDCMP_MOUSEBUTTONS:
+        {
+            int mouse_x = (imsg->MouseX - ami_win->BorderLeft) / fw;
+            int mouse_y = (imsg->MouseY - ami_win->BorderTop) / fh;
+
+            if (code == SELECTDOWN)
+            {
+                struct timeval tv;
+                unsigned long ms;
+                s_left_button_held = 1;
+
+                if (TimerBase)
+                {
+                    GetSysTime(&tv);
+                    ms = (unsigned long)tv.tv_secs * 1000UL + (unsigned long)tv.tv_micro / 1000UL;
+                }
+                else
+                {
+                    ms = (unsigned long)imsg->Seconds * 1000UL + (unsigned long)imsg->Micros / 1000UL;
+                }
+
+                ui_mouse_set_event_time_ms(ms);
+
+                s_mouse_event = pack_mouse(UI_MOUSE_PRESS_LEFT, mouse_x, mouse_y);
+                ReportMouse(TRUE, ami_win);
+
+                key = KEY_MOUSE;
+            }
+            else if (code == SELECTUP)
+            {
+                s_left_button_held = 0;
+                ReportMouse(FALSE, ami_win);
+                s_mouse_event = pack_mouse(UI_MOUSE_RELEASE_LEFT, mouse_x, mouse_y);
+
+                key = KEY_MOUSE;
+            }
+
+            break;
+        }
+        case IDCMP_MOUSEMOVE:
+        {
+            if (s_left_button_held)
+            {
+                int mouse_x = (imsg->MouseX - ami_win->BorderLeft) / fw;
+                int mouse_y = (imsg->MouseY - ami_win->BorderTop) / fh;
+
+                s_mouse_event = pack_mouse(UI_MOUSE_DRAG_LEFT, mouse_x, mouse_y);
+
+                key = KEY_MOUSE;
+            }
+
             break;
         }
         case IDCMP_SIZEVERIFY:
             break;
+
+        default:
+            break;
         }
+
+        if (key != ERR)
+            break;
     }
 
     return key;
@@ -2545,6 +2684,11 @@ int ungetch(int ch)
 {
     s_ungetch = ch;
     return OK;
+}
+
+unsigned long getmouse(void)
+{
+    return s_mouse_event;
 }
 
 int flushinp()
@@ -3091,9 +3235,6 @@ int is_wintouched(WINDOW *w)
 void untouchwin(WINDOW *w) {}
 
 /* Mouse (stubs) */
-
-unsigned long getmouse() { return 0; }
-
 int ungetmouse(unsigned long m)
 {
     return ERR;

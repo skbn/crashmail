@@ -69,11 +69,71 @@
 #ifndef KEY_CRIGHT
 #define KEY_CRIGHT 0x7F4 /* Ctrl+Right */
 #endif
+#ifndef KEY_CUP
+#define KEY_CUP 0x7F7 /* Ctrl+Up */
+#endif
+#ifndef KEY_CDOWN
+#define KEY_CDOWN 0x7F8 /* Ctrl+Down */
+#endif
+#ifndef KEY_CHOME
+#define KEY_CHOME 0x7F9 /* Ctrl+Home */
+#endif
+#ifndef KEY_CEND
+#define KEY_CEND 0x7FA /* Ctrl+End */
+#endif
 #ifndef KEY_ALEFT
 #define KEY_ALEFT 0x7F5 /* Alt+Left */
 #endif
 #ifndef KEY_ARIGHT
 #define KEY_ARIGHT 0x7F6 /* Alt+Right */
+#endif
+#ifndef KEY_SLEFT
+#define KEY_SLEFT 0x7FB /* Shift+Left */
+#endif
+#ifndef KEY_SRIGHT
+#define KEY_SRIGHT 0x7FC /* Shift+Right */
+#endif
+#ifndef KEY_SUP
+#define KEY_SUP 0x7FD /* Shift+Up */
+#endif
+#ifndef KEY_SDOWN
+#define KEY_SDOWN 0x7FE /* Shift+Down */
+#endif
+#ifndef KEY_SHOME
+#define KEY_SHOME 0x7FF /* Shift+Home */
+#endif
+#ifndef KEY_SEND
+#define KEY_SEND 0x800 /* Shift+End */
+#endif
+#ifndef KEY_CSLEFT
+#define KEY_CSLEFT 0x801 /* Ctrl+Shift+Left */
+#endif
+#ifndef KEY_CSRIGHT
+#define KEY_CSRIGHT 0x802 /* Ctrl+Shift+Right */
+#endif
+#ifndef KEY_CSUP
+#define KEY_CSUP 0x803 /* Ctrl+Shift+Up */
+#endif
+#ifndef KEY_CSDOWN
+#define KEY_CSDOWN 0x804 /* Ctrl+Shift+Down */
+#endif
+#ifndef KEY_CSHOME
+#define KEY_CSHOME 0x805 /* Ctrl+Shift+Home */
+#endif
+#ifndef KEY_CSEND
+#define KEY_CSEND 0x806 /* Ctrl+Shift+End */
+#endif
+#ifndef KEY_SPPAGE
+#define KEY_SPPAGE 0x807 /* Shift+PageUp */
+#endif
+#ifndef KEY_SNPAGE
+#define KEY_SNPAGE 0x808 /* Shift+PageDown */
+#endif
+#ifndef KEY_CSUPD
+#define KEY_CSUPD 0x809 /* Ctrl+Shift+D */
+#endif
+#ifndef KEY_CSDOWNU
+#define KEY_CSDOWNU 0x80A /* Ctrl+Shift+U */
 #endif
 
 #ifndef PLATFORM_AMIGA

@@ -479,7 +479,7 @@ void draw_edit_body(UiApp *app)
                 {
                     /* Cursor at col 0 or empty line: show one reversed space */
                     attron(A_REVERSE);
-                    mvaddch(start_row + i, 0, ' ');
+                    mvaddch(start_row + i, ln_offset, ' ');
                     attroff(A_REVERSE);
                 }
             }

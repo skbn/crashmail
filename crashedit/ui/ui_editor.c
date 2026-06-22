@@ -49,6 +49,7 @@
 #include "ui_attr.h"
 #include "ui_files.h"
 #include "ui_glyph_picker.h"
+#include "ui_mouse.h"
 #include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -90,7 +91,6 @@ static const char *EDITOR_HELP[] =
         "    Alt+D           Toggle line numbers",
         "",
         "  Block (selection):",
-        "    F6 Alt+B        Mark/unmark block at cursor",
         "    Ctrl-C          Copy block",
         "    Ctrl-X          Cut block",
         "    BS Del          Delete block (no clipboard)",
@@ -107,6 +107,7 @@ static const char *EDITOR_HELP[] =
         "    Ctrl-R          Find & replace",
         "    F3 Alt+P        Prev match (search mode)",
         "    F4 Alt+N        Next match (search mode)",
+        "    F6 Alt+B        Replace all (search mode)",
         "    Alt+G           Goto line",
         "    Ctrl-G          Go to start of document",
         "    Ctrl-K          Go to end of document",
@@ -340,16 +341,11 @@ static int handle_function_keys(UiApp *app, int ch, int is_key)
         return 1;
     }
 
-    /* F6 / Alt+B : toggle block anchor OR Replace All in search mode */
+    /* F6 / Alt+B : Replace All in search mode */
     if ((is_key && ch == KEY_F(6)) || (ch == KEY_ALT('B')))
     {
         if (app->edit_search.is_mode)
             replace_all(app);
-
-        else
-            ed_block_anchor(app->editor);
-
-        return 1;
     }
 
     /* F7 / Alt+O : insert file */
@@ -601,7 +597,7 @@ static int handle_control_keys(UiApp *app, int ch, int is_key)
 
         if (!info.block.active)
         {
-            ui_status(app, "No block marked (F6 to mark)");
+            ui_status(app, "No block marked");
         }
         else
         {
@@ -650,14 +646,27 @@ static int handle_control_keys(UiApp *app, int ch, int is_key)
     /* Ctrl+G : Go to start of document */
     if (!is_key && ch == CTRL('G'))
     {
-        ed_set_pos(app->editor, 0, 0);
-        ed_ensure_visible(app->editor);
+        EdInfo info;
+
+        ed_get_info(app->editor, &info);
+
+        if (info.block.active)
+        {
+            /* Extend selection to start of document */
+            ed_set_pos(app->editor, 0, 0);
+            ed_ensure_visible(app->editor);
+        }
+        else
+        {
+            /* Move to start without selection */
+            ed_set_pos(app->editor, 0, 0);
+            ed_ensure_visible(app->editor);
+        }
 
         /* In soft-wrap mode, reset viewport to cursor to avoid slow walking */
         if (app->cfg && !app->cfg->hard_wrap)
         {
-            EdInfo info;
-            const wchar_t *l;
+            const wchar_t *l = NULL;
             int len;
 
             ed_get_info(app->editor, &info);
@@ -677,6 +686,7 @@ static int handle_control_keys(UiApp *app, int ch, int is_key)
     if (!is_key && ch == CTRL('K'))
     {
         EdInfo info;
+
         ed_get_info(app->editor, &info);
 
         if (info.line_count > 0)
@@ -684,13 +694,23 @@ static int handle_control_keys(UiApp *app, int ch, int is_key)
             int last_line = info.line_count - 1;
             int last_len = ed_line_len(app->editor, last_line);
 
-            ed_set_pos(app->editor, last_line, last_len);
-            ed_ensure_visible(app->editor);
+            if (info.block.active)
+            {
+                /* Extend selection to end of document */
+                ed_set_pos(app->editor, last_line, last_len);
+                ed_ensure_visible(app->editor);
+            }
+            else
+            {
+                /* Move to end without selection */
+                ed_set_pos(app->editor, last_line, last_len);
+                ed_ensure_visible(app->editor);
+            }
 
             /* In soft-wrap mode, reset viewport to cursor to avoid slow walking */
             if (app->cfg && !app->cfg->hard_wrap)
             {
-                const wchar_t *l;
+                const wchar_t *l = NULL;
                 int len;
 
                 l = ed_line_wcs(app->editor, last_line);
@@ -708,6 +728,7 @@ static int handle_control_keys(UiApp *app, int ch, int is_key)
     /* Ctrl+Y : delete line */
     if (!is_key && ch == CTRL('Y'))
     {
+        ed_block_clear(app->editor);
         ed_delete_line(app->editor);
         reset_search(app);
 
@@ -730,6 +751,7 @@ static int handle_control_keys(UiApp *app, int ch, int is_key)
     /* Ctrl+T : delete word right */
     if (!is_key && ch == CTRL('T'))
     {
+        ed_block_clear(app->editor);
         ed_delete_word_right(app->editor);
         reset_search(app);
 
@@ -739,6 +761,7 @@ static int handle_control_keys(UiApp *app, int ch, int is_key)
     /* Ctrl+_ : delete word left */
     if (!is_key && ch == CTRL('_'))
     {
+        ed_block_clear(app->editor);
         ed_delete_word_left(app->editor);
         reset_search(app);
 
@@ -935,6 +958,8 @@ static int handle_navigation_keys(UiApp *app, int ch, int is_key, int soft_activ
     switch (ch)
     {
     case KEY_UP:
+        ed_block_clear(app->editor);
+
         if (soft_active)
         {
             soft_move_up_visual(app, body_width);
@@ -946,6 +971,8 @@ static int handle_navigation_keys(UiApp *app, int ch, int is_key, int soft_activ
         return 1;
 
     case KEY_DOWN:
+        ed_block_clear(app->editor);
+
         if (soft_active)
         {
             soft_move_down_visual(app, body_width);
@@ -957,14 +984,18 @@ static int handle_navigation_keys(UiApp *app, int ch, int is_key, int soft_activ
         return 1;
 
     case KEY_LEFT:
+        ed_block_clear(app->editor);
         ed_move_left(app->editor);
         return 1;
 
     case KEY_RIGHT:
+        ed_block_clear(app->editor);
         ed_move_right(app->editor);
         return 1;
 
     case KEY_HOME:
+        ed_block_clear(app->editor);
+
         if (soft_active)
             soft_move_home_visual(app, body_width);
         else
@@ -973,6 +1004,8 @@ static int handle_navigation_keys(UiApp *app, int ch, int is_key, int soft_activ
         return 1;
 
     case KEY_END:
+        ed_block_clear(app->editor);
+
         if (soft_active)
             soft_move_end_visual(app, body_width);
         else
@@ -981,6 +1014,8 @@ static int handle_navigation_keys(UiApp *app, int ch, int is_key, int soft_activ
         return 1;
 
     case KEY_PPAGE:
+        ed_block_clear(app->editor);
+
         if (soft_active)
         {
             soft_move_pgup_visual(app, body_width, body_rows);
@@ -992,6 +1027,8 @@ static int handle_navigation_keys(UiApp *app, int ch, int is_key, int soft_activ
         return 1;
 
     case KEY_NPAGE:
+        ed_block_clear(app->editor);
+
         if (soft_active)
         {
             soft_move_pgdn_visual(app, body_width, body_rows);
@@ -1003,11 +1040,14 @@ static int handle_navigation_keys(UiApp *app, int ch, int is_key, int soft_activ
         return 1;
 
     case KEY_CLEFT:
+        ed_block_clear(app->editor);
+
         ed_word_left(app->editor);
 
         return 1;
 
     case KEY_CRIGHT:
+        ed_block_clear(app->editor);
         ed_word_right(app->editor);
 
         return 1;
@@ -1113,6 +1153,8 @@ static int handle_body_input(UiApp *app, int ch, int is_key, wint_t wch, int sof
         switch (ch)
         {
         case KEY_UP:
+            ed_block_clear(app->editor);
+
             if (soft_active)
             {
                 soft_move_up_visual(app, body_width);
@@ -1124,6 +1166,8 @@ static int handle_body_input(UiApp *app, int ch, int is_key, wint_t wch, int sof
             return 1;
 
         case KEY_DOWN:
+            ed_block_clear(app->editor);
+
             if (soft_active)
             {
                 soft_move_down_visual(app, body_width);
@@ -1135,14 +1179,18 @@ static int handle_body_input(UiApp *app, int ch, int is_key, wint_t wch, int sof
             return 1;
 
         case KEY_LEFT:
+            ed_block_clear(app->editor);
             ed_move_left(app->editor);
             return 1;
 
         case KEY_RIGHT:
+            ed_block_clear(app->editor);
             ed_move_right(app->editor);
             return 1;
 
         case KEY_HOME:
+            ed_block_clear(app->editor);
+
             if (soft_active)
                 soft_move_home_visual(app, body_width);
             else
@@ -1151,6 +1199,8 @@ static int handle_body_input(UiApp *app, int ch, int is_key, wint_t wch, int sof
             return 1;
 
         case KEY_END:
+            ed_block_clear(app->editor);
+
             if (soft_active)
                 soft_move_end_visual(app, body_width);
             else
@@ -1159,6 +1209,8 @@ static int handle_body_input(UiApp *app, int ch, int is_key, wint_t wch, int sof
             return 1;
 
         case KEY_PPAGE:
+            ed_block_clear(app->editor);
+
             if (soft_active)
             {
                 soft_move_pgup_visual(app, body_width, body_rows);
@@ -1170,6 +1222,8 @@ static int handle_body_input(UiApp *app, int ch, int is_key, wint_t wch, int sof
             return 1;
 
         case KEY_NPAGE:
+            ed_block_clear(app->editor);
+
             if (soft_active)
             {
                 soft_move_pgdn_visual(app, body_width, body_rows);
@@ -1181,6 +1235,7 @@ static int handle_body_input(UiApp *app, int ch, int is_key, wint_t wch, int sof
             return 1;
 
         case KEY_ENTER:
+            ed_block_clear(app->editor);
             ed_enter(app->editor);
             reset_search(app);
 
@@ -1189,6 +1244,7 @@ static int handle_body_input(UiApp *app, int ch, int is_key, wint_t wch, int sof
         case KEY_BACKSPACE:
         {
             EdInfo info;
+
             ed_get_info(app->editor, &info);
 
             if (info.block.active)
@@ -1201,6 +1257,7 @@ static int handle_body_input(UiApp *app, int ch, int is_key, wint_t wch, int sof
             else
             {
                 /* Backspace single character */
+                ed_block_clear(app->editor);
                 ed_backspace(app->editor);
                 reset_search(app);
             }
@@ -1211,6 +1268,7 @@ static int handle_body_input(UiApp *app, int ch, int is_key, wint_t wch, int sof
         case KEY_DC:
         {
             EdInfo info;
+
             ed_get_info(app->editor, &info);
 
             if (info.block.active)
@@ -1223,6 +1281,7 @@ static int handle_body_input(UiApp *app, int ch, int is_key, wint_t wch, int sof
             else
             {
                 /* Delete single character */
+                ed_block_clear(app->editor);
                 ed_delete(app->editor);
                 reset_search(app);
             }
@@ -1236,12 +1295,225 @@ static int handle_body_input(UiApp *app, int ch, int is_key, wint_t wch, int sof
             return 1;
 
         case KEY_CLEFT: /* Control+Left: word left */
+            ed_block_clear(app->editor);
             ed_word_left(app->editor);
             return 1;
 
         case KEY_CRIGHT: /* Control+Right: word right */
+            ed_block_clear(app->editor);
             ed_word_right(app->editor);
             return 1;
+
+        /* Shift+Arrow: extended selection */
+        case KEY_SLEFT: /* Shift+Left: select left */
+        {
+            EdInfo info;
+
+            ed_get_info(app->editor, &info);
+
+            if (!info.block.active)
+                ed_block_anchor(app->editor);
+
+            ed_move_left(app->editor);
+            return 1;
+        }
+
+        case KEY_SRIGHT: /* Shift+Right: select right */
+        {
+            EdInfo info;
+
+            ed_get_info(app->editor, &info);
+
+            if (!info.block.active)
+                ed_block_anchor(app->editor);
+
+            ed_move_right(app->editor);
+            return 1;
+        }
+
+        case KEY_SUP: /* Shift+Up: select up */
+        {
+            EdInfo info;
+
+            ed_get_info(app->editor, &info);
+
+            if (!info.block.active)
+                ed_block_anchor(app->editor);
+
+            ed_move_up(app->editor);
+            return 1;
+        }
+
+        case KEY_SDOWN: /* Shift+Down: select down */
+        {
+            EdInfo info;
+
+            ed_get_info(app->editor, &info);
+
+            if (!info.block.active)
+                ed_block_anchor(app->editor);
+
+            ed_move_down(app->editor);
+            return 1;
+        }
+
+        case KEY_SHOME: /* Shift+Home: select to line start */
+        {
+            EdInfo info;
+
+            ed_get_info(app->editor, &info);
+
+            if (!info.block.active)
+                ed_block_anchor(app->editor);
+
+            ed_move_home(app->editor);
+
+            return 1;
+        }
+
+        case KEY_SEND: /* Shift+End: select to line end */
+        {
+            EdInfo info;
+
+            ed_get_info(app->editor, &info);
+
+            if (!info.block.active)
+                ed_block_anchor(app->editor);
+
+            ed_move_end(app->editor);
+            return 1;
+        }
+
+        /* Ctrl+Shift+Arrow: extended selection by word */
+        case KEY_CSLEFT: /* Ctrl+Shift+Left: select word left */
+        {
+            EdInfo info;
+
+            ed_get_info(app->editor, &info);
+
+            if (!info.block.active)
+                ed_block_anchor(app->editor);
+
+            ed_word_left(app->editor);
+            return 1;
+        }
+
+        case KEY_CSRIGHT: /* Ctrl+Shift+Right: select word right */
+        {
+            EdInfo info;
+
+            ed_get_info(app->editor, &info);
+
+            if (!info.block.active)
+                ed_block_anchor(app->editor);
+
+            ed_word_right(app->editor);
+            return 1;
+        }
+
+        case KEY_CSUP: /* Ctrl+Shift+Up: select up */
+        {
+            EdInfo info;
+
+            ed_get_info(app->editor, &info);
+
+            if (!info.block.active)
+                ed_block_anchor(app->editor);
+
+            ed_move_up(app->editor);
+            return 1;
+        }
+
+        case KEY_CSDOWN: /* Ctrl+Shift+Down: select down */
+        {
+            EdInfo info;
+
+            ed_get_info(app->editor, &info);
+
+            if (!info.block.active)
+                ed_block_anchor(app->editor);
+
+            ed_move_down(app->editor);
+            return 1;
+        }
+
+        case KEY_SPPAGE: /* Shift+PageUp: select page up */
+        {
+            EdInfo info;
+
+            ed_get_info(app->editor, &info);
+
+            if (!info.block.active)
+                ed_block_anchor(app->editor);
+
+            ed_move_pgup(app->editor, 0);
+            return 1;
+        }
+
+        case KEY_SNPAGE: /* Shift+PageDown: select page down */
+        {
+            EdInfo info;
+
+            ed_get_info(app->editor, &info);
+
+            if (!info.block.active)
+                ed_block_anchor(app->editor);
+
+            ed_move_pgdn(app->editor, 0);
+            return 1;
+        }
+
+        case KEY_CSUPD: /* Ctrl+Shift+D: select page down */
+        {
+            EdInfo info;
+
+            ed_get_info(app->editor, &info);
+
+            if (!info.block.active)
+                ed_block_anchor(app->editor);
+
+            ed_move_pgdn(app->editor, 0);
+            return 1;
+        }
+
+        case KEY_CSDOWNU: /* Ctrl+Shift+U: select page up */
+        {
+            EdInfo info;
+
+            ed_get_info(app->editor, &info);
+
+            if (!info.block.active)
+                ed_block_anchor(app->editor);
+
+            ed_move_pgup(app->editor, 0);
+            return 1;
+        }
+
+        case KEY_CSHOME: /* Ctrl+Shift+Home: select to document start */
+        {
+            EdInfo info;
+
+            ed_get_info(app->editor, &info);
+
+            if (!info.block.active)
+                ed_block_anchor(app->editor);
+
+            ed_move_top(app->editor);
+            return 1;
+        }
+
+        case KEY_CSEND: /* Ctrl+Shift+End: select to document end */
+        {
+            EdInfo info;
+
+            ed_get_info(app->editor, &info);
+
+            if (!info.block.active)
+                ed_block_anchor(app->editor);
+
+            ed_move_bottom(app->editor);
+            return 1;
+        }
 
         /* Alt-key chords: KEY_ALT() from shim (Amiga) or wrapper_read_key() fold */
         case KEY_ALT('L'):
@@ -1277,6 +1549,7 @@ static int handle_body_input(UiApp *app, int ch, int is_key, wint_t wch, int sof
         {
         case '\n':
         case '\r':
+            ed_block_clear(app->editor);
             ed_enter(app->editor);
             reset_search(app);
 
@@ -1284,6 +1557,7 @@ static int handle_body_input(UiApp *app, int ch, int is_key, wint_t wch, int sof
 
         case 8:
         case 127:
+            ed_block_clear(app->editor);
             ed_backspace(app->editor);
             reset_search(app);
 
@@ -1328,6 +1602,7 @@ static int handle_body_input(UiApp *app, int ch, int is_key, wint_t wch, int sof
             return 1;
 
         case CTRL('Y'):
+            ed_block_clear(app->editor);
             ed_delete_line(app->editor);
             reset_search(app);
 
@@ -1340,12 +1615,14 @@ static int handle_body_input(UiApp *app, int ch, int is_key, wint_t wch, int sof
             return 1;
 
         case CTRL('T'):
+            ed_block_clear(app->editor);
             ed_delete_word_right(app->editor);
             reset_search(app);
 
             return 1;
 
         case CTRL('_'):
+            ed_block_clear(app->editor);
             ed_delete_word_left(app->editor);
             reset_search(app);
             return 1;
@@ -1473,6 +1750,7 @@ static int handle_body_input(UiApp *app, int ch, int is_key, wint_t wch, int sof
                     }
                 }
 
+                ed_block_clear(app->editor);
                 ed_insert_char(app->editor, (wchar_t)wch);
                 reset_search(app);
 
@@ -1750,6 +2028,78 @@ UiView ui_editor_run(UiApp *app)
                         ch == KEY_HOME || ch == KEY_END || ch == KEY_PPAGE || ch == KEY_NPAGE ||
                         ch == KEY_BACKSPACE || ch == KEY_DC || ch == KEY_ENTER))
             is_key = 1;
+
+        if (is_key && ch == KEY_MOUSE)
+        {
+#ifdef PLATFORM_AMIGA
+            unsigned long m = getmouse();
+            int my;
+            int mx;
+            int mtype;
+
+            /* Decode: low 8 bits = type, next 12 = x, next 12 = y */
+            mtype = m & 0xFF;
+            mx = (m >> 8) & 0xFFF;
+            my = (m >> 20) & 0xFFF;
+#else
+            static int s_mouse_button_down = 0;
+            MEVENT ev;
+            int my;
+            int mx;
+            int mtype;
+
+            if (getmouse(&ev) != OK)
+                continue;
+
+            mx = ev.x;
+            my = ev.y;
+
+            /* Map ncurses bstate to UiMouseEventType */
+            if (ev.bstate & (BUTTON1_PRESSED | BUTTON1_CLICKED))
+            {
+                s_mouse_button_down = 1;
+                mtype = UI_MOUSE_PRESS_LEFT;
+            }
+            else if (ev.bstate & BUTTON1_RELEASED)
+            {
+                s_mouse_button_down = 0;
+                mtype = UI_MOUSE_RELEASE_LEFT;
+            }
+            else if (ev.bstate & BUTTON4_PRESSED)
+                mtype = UI_MOUSE_WHEEL_UP;
+            else if (ev.bstate & BUTTON5_PRESSED)
+                mtype = UI_MOUSE_WHEEL_DOWN;
+            else if (s_mouse_button_down && (ev.bstate & REPORT_MOUSE_POSITION))
+                mtype = UI_MOUSE_DRAG_LEFT;
+            else
+                continue; /* Unknown event */
+#endif
+
+            /* Adjust mouse coordinates for editor frame offset */
+            ae_body = &app->areas->entries[app->sess.area_idx];
+            srow = (ae_body->type == AREATYPE_NETMAIL) ? 8 : 7;
+            my -= srow;
+
+            /* Calculate body_rows for mouse dispatch */
+            body_rows = LINES - srow - 1;
+
+            if (app->show_spell)
+                body_rows -= SPELL_PANEL_H;
+
+            if (body_rows < 1)
+                body_rows = 1;
+
+            /* Clamp mouse Y to visible body area */
+            if (my < 0)
+                my = 0;
+
+            if (my >= body_rows)
+                my = body_rows - 1;
+
+            ui_mouse_dispatch(app, mtype, my, mx, body_rows);
+
+            continue;
+        }
 
         /* Alt+F: freq request popup (not in handle_function_keys) */
         if (is_key && ch == KEY_ALT('F'))

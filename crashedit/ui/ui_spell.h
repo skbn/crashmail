@@ -26,6 +26,7 @@
 #define UI_SPELL_H
 
 #include "ui_internal.h"
+#include "../spellchecker/spell.h"
 
 /* Spell panel height in lines */
 #define SPELL_PANEL_H 4

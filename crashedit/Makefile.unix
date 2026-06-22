@@ -77,7 +77,7 @@ CORE_OBJS = $(OBJDIR)/portable.o $(OBJDIR)/msg_wrap.o $(OBJDIR)/msgbase.o \
             $(OBJDIR)/ftn.o $(OBJDIR)/msghdr.o $(OBJDIR)/wrapper_io.o \
             $(OBJDIR)/clipboard.o $(OBJDIR)/attach.o $(OBJDIR)/keys.o \
             $(OBJDIR)/ansi.o $(OBJDIR)/freq.o $(OBJDIR)/search.o \
-            $(OBJDIR)/nodelist.o
+            $(OBJDIR)/nodelist.o $(OBJDIR)/spell_utils.o
 COMP_OBJS = $(OBJDIR)/editor.o $(OBJDIR)/editor_helper.o $(OBJDIR)/reader.o $(OBJDIR)/areafile.o $(OBJDIR)/config.o
 UI_OBJS   = $(OBJDIR)/ui_app.o \
             $(OBJDIR)/ui_session.o $(OBJDIR)/ui_popup.o $(OBJDIR)/ui_arealist.o \
@@ -89,7 +89,7 @@ UI_OBJS   = $(OBJDIR)/ui_app.o \
             $(OBJDIR)/ui_popup_attach.o $(OBJDIR)/ui_popup_freq.o $(OBJDIR)/ui_setup.o \
             $(OBJDIR)/ui_popup_nodelist.o \
             $(OBJDIR)/ui_search.o $(OBJDIR)/ui_glyph_picker.o \
-            $(OBJDIR)/ui_spell.o
+            $(OBJDIR)/ui_spell.o $(OBJDIR)/ui_mouse.o
 
 # Hunspell spell checker -- opt-in.  Set USE_HUNSPELL=1 on the make command
 # line (or in your environment) to build with Hunspell support.  Otherwise
@@ -345,6 +345,9 @@ $(OBJDIR)/ui_search.o: $(UIDIR)/ui_search.c $(UIDIR)/ui_search.h $(UIDIR)/ui_int
 $(OBJDIR)/nodelist.o: $(COREDIR)/nodelist.c $(COREDIR)/nodelist.h | $(OBJDIR)
 	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
 
+$(OBJDIR)/spell_utils.o: $(HERE)spellchecker/spell_utils.c $(HERE)spellchecker/spell_priv.h | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
 $(OBJDIR)/ui_popup_nodelist.o: $(UIDIR)/ui_popup_nodelist.c $(UIDIR)/ui_internal.h $(COREDIR)/nodelist.h | $(OBJDIR)
 	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
 
@@ -356,6 +359,9 @@ $(OBJDIR)/spell.o: $(COREDIR)/spell.c $(COREDIR)/spell.h | $(OBJDIR)
 	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
 
 $(OBJDIR)/ui_spell.o: $(UIDIR)/ui_spell.c $(UIDIR)/ui_spell.h $(COREDIR)/spell.h | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
+$(OBJDIR)/ui_mouse.o: $(UIDIR)/ui_mouse.c $(UIDIR)/ui_mouse.h | $(OBJDIR)
 	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
 
 # Hyphenation -- compiled only when USE_HYPHEN=1

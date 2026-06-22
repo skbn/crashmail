@@ -58,7 +58,7 @@ UI_OBJS   = $(OBJDIR)/ui_app.o \
             $(OBJDIR)/ui_aka.o $(OBJDIR)/ui_attr.o $(OBJDIR)/ui_files.o \
             $(OBJDIR)/ui_popup_attach.o $(OBJDIR)/ui_popup_freq.o $(OBJDIR)/ui_setup.o \
             $(OBJDIR)/ui_search.o $(OBJDIR)/ui_popup_nodelist.o $(OBJDIR)/ui_glyph_picker.o \
-            $(OBJDIR)/ui_spell.o
+            $(OBJDIR)/ui_spell.o $(OBJDIR)/ui_mouse.o
 
 # Hunspell support
 USE_HUNSPELL ?= 0
@@ -71,7 +71,13 @@ HUNSPELL_VERSION_IN = $(HUNSPELL_SRC)/hunversion.h.in
 
 ifeq ($(USE_HUNSPELL),1)
   CFLAGS += -DHAVE_HUNSPELL -I$(SPELLDIR) -I$(HERE)core
-  SPELL_OBJS = $(OBJDIR)/spellchecker_spell.o
+  SPELL_OBJS = $(OBJDIR)/spellchecker_utils.o \
+               $(OBJDIR)/spellchecker_htab.o \
+               $(OBJDIR)/spellchecker_affix.o \
+               $(OBJDIR)/spellchecker_core.o \
+               $(OBJDIR)/spellchecker_suggest.o \
+               $(OBJDIR)/spellchecker_stem.o \
+               $(OBJDIR)/spellchecker_custom.o
 endif
 
 # Native spell checker (AmigaOS) - set to 1 to use native implementation instead of Hunspell
@@ -82,7 +88,13 @@ ifeq ($(USE_SPELLCHECKER),1)
     $(error USE_SPELLCHECKER=1 conflicts with USE_HUNSPELL=1)
   endif
   CFLAGS += -DHAVE_SPELLCHECKER -I$(SPELLDIR) -I$(HERE)core
-  SPELL_OBJS = $(OBJDIR)/spellchecker_spell.o $(OBJDIR)/spellchecker_hyph.o $(OBJDIR)/spellchecker_thes.o
+  SPELL_OBJS = $(OBJDIR)/spellchecker_utils.o \
+               $(OBJDIR)/spellchecker_htab.o \
+               $(OBJDIR)/spellchecker_affix.o \
+               $(OBJDIR)/spellchecker_core.o \
+               $(OBJDIR)/spellchecker_suggest.o \
+               $(OBJDIR)/spellchecker_stem.o \
+               $(OBJDIR)/spellchecker_custom.o
 endif
 
 # libhyphen support -- requires the hyphen sources to be unpacked under
@@ -148,13 +160,38 @@ $(OBJDIR)/spell.o: $(COREDIR)/spell.c $(COREDIR)/spell.h | $(OBJDIR)
 $(OBJDIR)/ui_spell.o: $(UIDIR)/ui_spell.c $(UIDIR)/ui_spell.h $(COREDIR)/spell.h | $(OBJDIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-# Native spell checker (built only when USE_SPELLCHECKER=1)
-$(OBJDIR)/spellchecker_spell.o: $(SPELLDIR)/spell.c $(SPELLDIR)/spell.h | $(OBJDIR)
+$(OBJDIR)/ui_mouse.o: $(UIDIR)/ui_mouse.c $(UIDIR)/ui_mouse.h | $(OBJDIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
+# Spell checker objects (new multi-file spellchecker)
+SPELL_PRIV = $(SPELLDIR)/spell_priv.h $(SPELLDIR)/spell.h
+
+$(OBJDIR)/spellchecker_utils.o: $(SPELLDIR)/spell_utils.c $(SPELL_PRIV) | $(OBJDIR)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(OBJDIR)/spellchecker_htab.o: $(SPELLDIR)/spell_htab.c $(SPELL_PRIV) | $(OBJDIR)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(OBJDIR)/spellchecker_affix.o: $(SPELLDIR)/spell_affix.c $(SPELL_PRIV) | $(OBJDIR)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(OBJDIR)/spellchecker_core.o: $(SPELLDIR)/spell_core.c $(SPELL_PRIV) | $(OBJDIR)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(OBJDIR)/spellchecker_suggest.o: $(SPELLDIR)/spell_suggest.c $(SPELL_PRIV) | $(OBJDIR)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(OBJDIR)/spellchecker_stem.o: $(SPELLDIR)/spell_stem.c $(SPELL_PRIV) | $(OBJDIR)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(OBJDIR)/spellchecker_custom.o: $(SPELLDIR)/spell_custom.c $(SPELL_PRIV) | $(OBJDIR)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+# Hyphenation object (only if USE_HYPHEN=1)
 $(OBJDIR)/spellchecker_hyph.o: $(SPELLDIR)/hyph.c $(SPELLDIR)/hyph.h | $(OBJDIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
+# Thesaurus object (only if USE_MYTHES=1)
 $(OBJDIR)/spellchecker_thes.o: $(SPELLDIR)/thes.c $(SPELLDIR)/thes.h | $(OBJDIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 

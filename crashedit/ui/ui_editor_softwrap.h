@@ -67,6 +67,12 @@ int soft_count_rows_before(Ed *ed, int upto, int width);
 /* Within one logical line, find logical column corresponding to (vrow_in_line, target_vcol) */
 int soft_seg_at(const wchar_t *l, int len, int width, int vrow_in_line, int target_vcol, int *out_col);
 
+/* Sub-row geometry within a single logical line, return [seg_start, seg_end) wchar range for target_sub sub-row */
+int line_subrow_range(const wchar_t *l, int len, int width, int target_sub, int *seg_start, int *seg_end);
+
+/* Convert screen position to logical buffer position (line, col) for mouse support */
+int ui_editor_screen_to_logical(UiApp *app, int width, int screen_y, int screen_x, int *out_line, int *out_col, int body_rows);
+
 /* Legacy: convert absolute visual position to (row, col), slow path kept for compatibility */
 void soft_visual_to_logical(Ed *ed, int width, int target_vrow, int target_vcol, int *out_row, int *out_col);
 

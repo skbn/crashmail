@@ -137,7 +137,7 @@ int wrap_count(const wchar_t *line, int len, int width)
 }
 
 /* Sub-row geometry within a single logical line, return [seg_start, seg_end) wchar range for target_sub sub-row, if target_sub beyond line's sub-rows returns last sub-row, returns sub-row index actually scanned */
-static int line_subrow_range(const wchar_t *l, int len, int width, int target_sub, int *seg_start, int *seg_end)
+int line_subrow_range(const wchar_t *l, int len, int width, int target_sub, int *seg_start, int *seg_end)
 {
     int pos = 0;
     int sub = 0;
@@ -762,4 +762,156 @@ void soft_visual_to_logical(Ed *ed, int width, int target_vrow, int target_vcol,
 
     *out_row = new_line;
     *out_col = seg_start + v;
+}
+
+/* Convert screen position to logical buffer position (line, col) for mouse support */
+int ui_editor_screen_to_logical(UiApp *app, int width, int screen_y, int screen_x, int *out_line, int *out_col, int body_rows)
+{
+    Ed *ed = NULL;
+    EdInfo info;
+    int line;
+    int sub;
+    int remaining;
+    int last;
+    int ll;
+    int soft;
+    const wchar_t *l = NULL;
+    int len;
+    int j;
+    int acc_w;
+    int n_sub;
+    int sub_left_in_line;
+    int target_sub;
+    int seg_start;
+    int seg_end;
+    int cw;
+
+    if (!app || !out_line || !out_col)
+        return -1;
+
+    ed = app->editor;
+
+    if (!ed)
+        return -1;
+
+    ed_get_info(ed, &info);
+
+    if (info.line_count <= 0)
+    {
+        *out_line = 0;
+        *out_col = 0;
+        return 0;
+    }
+
+    if (width < 1)
+        width = 1;
+
+    if (screen_y < 0)
+        screen_y = 0;
+
+    if (screen_x < 0)
+        screen_x = 0;
+
+    /* In soft-wrap mode, ensure viewport is correct for current body size */
+    soft = !(app->cfg && app->cfg->hard_wrap);
+
+    if (soft && body_rows > 0)
+        soft_ensure_visible_for_draw(app, width, body_rows);
+
+    /* In hard-wrap mode, use info.top directly (1 logical line = 1 screen row) */
+    soft = !(app->cfg && app->cfg->hard_wrap);
+
+    if (!soft)
+    {
+        line = info.top + screen_y;
+        sub = 0;
+        remaining = 0;
+
+        if (line >= info.line_count)
+        {
+            line = info.line_count - 1;
+            ll = ed_line_len(ed, line);
+            *out_line = line;
+            *out_col = ll;
+            return 0;
+        }
+
+        if (line < 0)
+        {
+            line = 0;
+        }
+
+        /* Calculate column from screen_x (walk char by char, summing visual width) */
+        l = ed_line_wcs(ed, line);
+        len = ed_line_len(ed, line);
+        acc_w = 0;
+
+        for (j = 0; j < len; j++)
+        {
+            cw = wcs_vwidth(&l[j], 1);
+
+            if (acc_w + cw > screen_x)
+                break;
+
+            acc_w += cw;
+        }
+
+        *out_line = line;
+        *out_col = j;
+        return 0;
+    }
+
+    /* Soft-wrap: walk forward through logical lines, consuming sub-rows */
+    line = s_soft_top_line;
+    sub = s_soft_top_sub;
+    remaining = screen_y;
+
+    while (line < info.line_count)
+    {
+        l = ed_line_wcs(ed, line);
+        ll = ed_line_len(ed, line);
+        n_sub = wrap_count(l ? l : L"", l ? ll : 0, width);
+        sub_left_in_line = n_sub - sub;
+
+        if (remaining < sub_left_in_line)
+        {
+            /* Target sub-row is in this logical line at sub + remaining */
+            target_sub = sub + remaining;
+            seg_start = 0;
+            seg_end = 0;
+            j = 0;
+            acc_w = 0;
+
+            line_subrow_range(l ? l : L"", l ? ll : 0, width, target_sub, &seg_start, &seg_end);
+
+            /* Walk char by char, summing visual width until we exceed screen_x */
+            for (j = seg_start; j < seg_end; j++)
+            {
+                cw = wcs_vwidth(&l[j], 1);
+
+                if (acc_w + cw > screen_x)
+                    break;
+
+                acc_w += cw;
+            }
+
+            *out_line = line;
+            *out_col = j; /* may equal seg_end (click past end of segment) */
+            return 0;
+        }
+
+        remaining -= sub_left_in_line;
+        line++;
+        sub = 0;
+    }
+
+    /* y is past last line -> clamp to end of document */
+    last = info.line_count - 1;
+
+    ll = ed_line_len(ed, last);
+
+    *out_line = last;
+    *out_col = ll;
+
+    return 0;
 }

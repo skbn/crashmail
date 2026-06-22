@@ -1,7 +1,5 @@
 /*
- * crashedit - Message area editor for AmigaOS
- *
- * This file is part of the crashedit project.
+ * tinyedit - Text editor for AmigaOS
  *
  * Copyright (C) 2026 Tanausú M. 39:190/101@amiganet 2:341/207@fidonet
  *
@@ -9,17 +7,6 @@
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 2 of the License, or
  * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <https://www.gnu.org/licenses/>.
- *
- * This program uses JAMLIB, which is licensed under the GNU Lesser
- * General Public License v2.1. See src/jamlib/LICENSE for details.
  */
 
 /* ncursesw_amiga.h - ncursesw for AmigaOS 3 */
@@ -204,6 +191,12 @@ extern int COLORS;
 #endif
 
 /* Alt+Arrow keycodes (word movement in editor) */
+#ifndef KEY_AUP
+#define KEY_AUP 0x7F1
+#endif
+#ifndef KEY_ADOWN
+#define KEY_ADOWN 0x7F2
+#endif
 #ifndef KEY_ALEFT
 #define KEY_ALEFT 0x7F5
 #endif
@@ -217,6 +210,26 @@ extern int COLORS;
 #endif
 #ifndef KEY_SRIGHT
 #define KEY_SRIGHT 0x7F8
+#endif
+#ifndef KEY_SUP
+#define KEY_SUP 0x7F9
+#endif
+#ifndef KEY_SDOWN
+#define KEY_SDOWN 0x7FA
+#endif
+
+/* Ctrl+Shift+Arrow keycodes (word selection) */
+#ifndef KEY_CSLEFT
+#define KEY_CSLEFT 0x801
+#endif
+#ifndef KEY_CSRIGHT
+#define KEY_CSRIGHT 0x802
+#endif
+#ifndef KEY_CSUP
+#define KEY_CSUP 0x803
+#endif
+#ifndef KEY_CSDOWN
+#define KEY_CSDOWN 0x804
 #endif
 
 /* Attributes */
