@@ -1,5 +1,7 @@
 /*
- * tinyedit - Text editor for AmigaOS
+ * crashedit - Message area editor for AmigaOS
+ *
+ * This file is part of the crashedit project.
  *
  * Copyright (C) 2026 Tanausú M. 39:190/101@amiganet 2:341/207@fidonet
  *
@@ -7,6 +9,17 @@
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 2 of the License, or
  * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ *
+ * This program uses JAMLIB, which is licensed under the GNU Lesser
+ * General Public License v2.1. See src/jamlib/LICENSE for details.
  */
 
 #ifndef HYPH_H
@@ -72,6 +85,12 @@ void hyph_free(HyphDict *h);
 
 /* return break points (byte offsets) in out_pos[], count in *out_count */
 int hyph_breakpoints(HyphDict *h, const char *word, int word_len, int *out_pos, int *out_count);
+
+/* Override LEFTHYPHENMIN/RIGHTHYPHENMIN from .dic 1/1 narrow 3/3 typography 0 restore call before hyphenating */
+void hyph_set_minimums(HyphDict *h, int lhmin, int rhmin);
+
+/* Get currently active LEFTHYPHENMIN/RIGHTHYPHENMIN from .dic or hyph_set_minimums */
+void hyph_get_minimums(HyphDict *h, int *lhmin, int *rhmin);
 
 /* list available dictionaries in directory, returns base names (without .dic) */
 char **hyph_list_dictionaries(const char *dir_path, int *n_dicts);

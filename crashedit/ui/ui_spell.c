@@ -37,8 +37,10 @@
 #ifdef HAVE_HUNSPELL
 #if defined(PLATFORM_AMIGA)
 #include "../spellchecker/spell.h"
+#include "../spellchecker/te_wordchar.h"
 #else
 #include "../core/spell.h"
+#include "../spellchecker/te_wordchar.h"
 #endif
 #ifdef HAVE_MYTHES
 #if defined(PLATFORM_AMIGA)
@@ -252,17 +254,6 @@ int ui_spell_toggle_panel(UiApp *app)
     return 1;
 }
 
-int spell_is_word_char(wchar_t c)
-{
-    if (iswalnum((wint_t)c))
-        return 1;
-
-    if (c == L'\'' || c == L'-')
-        return 1;
-
-    return 0;
-}
-
 int ui_spell_check_word_simple(UiApp *app, const wchar_t *word, int word_len)
 {
     char *word_utf8 = NULL;
@@ -350,12 +341,12 @@ int ui_spell_check_word_at_cursor(UiApp *app)
     /* Find word boundaries */
     ws = info.col;
 
-    while (ws > 0 && spell_is_word_char(line[ws - 1]))
+    while (ws > 0 && te_is_word_char(line[ws - 1]))
         ws--;
 
     we = info.col;
 
-    while (we < line_len && spell_is_word_char(line[we]))
+    while (we < line_len && te_is_word_char(line[we]))
         we++;
 
     if (ws == we)
