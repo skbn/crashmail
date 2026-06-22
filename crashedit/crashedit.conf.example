@@ -218,6 +218,62 @@ CHARSET LATIN-1
 
 
 #===========================================================================
+#  SPELLCHECKER / HYPHENATION / THESAURUS
+#===========================================================================
+
+# SPELL_ENABLED -- Enable spell checking in the editor
+# Default: NO
+#SPELL_ENABLED YES
+
+# SPELL_DICT_PATH -- Path to directory containing Hunspell dictionaries
+#                    (.aff and .dic files). Example: "work:fido/dicts"
+# Default: (empty)
+#SPELL_DICT_PATH work:fido/dicts
+
+# SPELL_DICT_NAME -- Base name of the dictionary to use (without extension)
+#                    Example: "en_US" for en_US.aff and en_US.dic
+# Default: (empty)
+#SPELL_DICT_NAME en_US
+
+# SPELL_CUSTOM_DICT -- Path to a custom dictionary file (optional)
+#                      This allows you to add custom words to the spell checker
+# Default: (empty)
+#SPELL_CUSTOM_DICT work:fido/dicts/custom.dic
+
+# HYPH_ENABLED -- Enable hyphenation in the editor
+# Default: NO
+#HYPH_ENABLED YES
+
+# HYPH_DICT_PATH -- Path to directory containing hyphenation dictionaries
+#                    (hyph_*.dic files). Example: "work:fido/dicts"
+# Default: (empty)
+#HYPH_DICT_PATH work:fido/dicts
+
+# HYPH_DICT_NAME -- Base name of the hyphenation dictionary (without extension)
+#                   Example: "en_US" for hyph_en_US.dic
+# Default: (empty)
+#HYPH_DICT_NAME en_US
+
+# HYPH_WRAP_ENABLED -- Enable hyphenation at hard-wrap column
+# Default: NO
+#HYPH_WRAP_ENABLED YES
+
+# THES_ENABLED -- Enable thesaurus in the editor
+# Default: NO
+#THES_ENABLED YES
+
+# THES_DICT_PATH -- Path to directory containing thesaurus dictionaries
+#                    (th_*.idx and th_*.dat files). Example: "work:fido/dicts"
+# Default: (empty)
+#THES_DICT_PATH work:fido/dicts
+
+# THES_DICT_NAME -- Base name of the thesaurus dictionary (without extension)
+#                   Example: "en_US_v2" for th_en_US_v2.idx and th_en_US_v2.dat
+# Default: (empty)
+#THES_DICT_NAME en_US_v2
+
+
+#===========================================================================
 #  MESSAGE READER / LIST DISPLAY
 #===========================================================================
 
