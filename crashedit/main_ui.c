@@ -23,7 +23,7 @@
  */
 
 #ifdef PLATFORM_AMIGA
-const char __attribute__((used)) binkd_stack_size[] = "$STACK:65536";
+const char __attribute__((used)) binkd_stack_size[] = "$STACK:131072";
 #endif
 
 #include <stdio.h>

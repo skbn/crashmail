@@ -31,7 +31,11 @@
 #include <string.h>
 
 #ifdef HAVE_HYPHEN
+#if defined(PLATFORM_AMIGA)
+#include "../spellchecker/hyph.h"
+#else
 #include "../core/hyph.h"
+#endif
 #include "../core/utf8.h"
 #endif
 
@@ -50,10 +54,16 @@ int ui_hyph_load_from_config(UiApp *app)
     ui_hyph_unload(app);
 
     if (!cfg->hyph_enabled)
+    {
+        app->hyph_wrap_enabled = 0;
         return 0;
+    }
 
     if (!cfg->hyph_dict_path[0] || !cfg->hyph_dict_name[0])
+    {
+        app->hyph_wrap_enabled = 0;
         return 0;
+    }
 
     snprintf(path, sizeof(path), "%.220s/%.40s.dic", cfg->hyph_dict_path, cfg->hyph_dict_name);
 

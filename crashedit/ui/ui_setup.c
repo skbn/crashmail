@@ -36,13 +36,25 @@
 #include "../core/portable.h"
 
 #ifdef HAVE_HUNSPELL
+#if defined(PLATFORM_AMIGA)
+#include "../spellchecker/spell.h"
+#else
 #include "../core/spell.h"
 #endif
+#endif
 #ifdef HAVE_HYPHEN
+#if defined(PLATFORM_AMIGA)
+#include "../spellchecker/hyph.h"
+#else
 #include "../core/hyph.h"
 #endif
+#endif
 #ifdef HAVE_MYTHES
+#if defined(PLATFORM_AMIGA)
+#include "../spellchecker/thes.h"
+#else
 #include "../core/thes.h"
+#endif
 #endif
 
 #ifdef PLATFORM_AMIGA

@@ -46,7 +46,7 @@ extern "C"
 #endif
 #else
 #ifndef THES_CACHE_N
-#define THES_CACHE_N 256
+#define THES_CACHE_N 1024
 #endif
 #ifndef THES_CACHE_KEY_MAX
 #define THES_CACHE_KEY_MAX 96

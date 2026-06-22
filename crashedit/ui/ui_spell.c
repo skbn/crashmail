@@ -35,10 +35,18 @@
 #include "../core/utf8.h"
 
 #ifdef HAVE_HUNSPELL
+#if defined(PLATFORM_AMIGA)
+#include "../spellchecker/spell.h"
+#else
 #include "../core/spell.h"
 #endif
 #ifdef HAVE_MYTHES
+#if defined(PLATFORM_AMIGA)
+#include "../spellchecker/thes.h"
+#else
 #include "../core/thes.h"
+#endif
+#endif
 #endif
 
 #ifndef A_BOLD
@@ -193,10 +201,18 @@ int ui_spell_load_from_config(UiApp *app)
     ui_spell_unload(app);
 
     if (!cfg->spell_enabled)
+    {
+        app->spell_enabled = 0;
+        app->spell_active = 0;
         return 0;
+    }
 
     if (cfg->spell_dict_path[0] == '\0' || cfg->spell_dict_name[0] == '\0')
+    {
+        app->spell_enabled = 0;
+        app->spell_active = 0;
         return 0;
+    }
 
     snprintf(aff_path, sizeof(aff_path), "%.240s/%.240s.aff", cfg->spell_dict_path, cfg->spell_dict_name);
     snprintf(dic_path, sizeof(dic_path), "%.240s/%.240s.dic", cfg->spell_dict_path, cfg->spell_dict_name);

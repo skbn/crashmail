@@ -769,6 +769,43 @@ const wchar_t *wcs_casestr(const wchar_t *hay, const wchar_t *needle)
     return NULL;
 }
 
+int utf8_tolower(char *str)
+{
+    wchar_t *wcs = NULL;
+    int len;
+    int i;
+    char *lower = NULL;
+
+    if (!str)
+        return -1;
+
+    len = (int)strlen(str);
+
+    if (len == 0)
+        return 0;
+
+    wcs = utf8_to_wcs(str, &len);
+
+    if (!wcs)
+        return -1;
+
+    for (i = 0; i < len; i++)
+        wcs[i] = (wchar_t)towlower((wint_t)wcs[i]);
+
+    /* Convert back to UTF-8 in-place */
+    lower = wcs_to_utf8(wcs, len);
+
+    if (lower)
+    {
+        strcpy(str, lower);
+        free(lower);
+    }
+
+    free(wcs);
+
+    return 0;
+}
+
 #if (defined(PLATFORM_AMIGA) || defined(PLATFORM_WIN32)) && !defined(wcswidth)
 
 /* wcswidth implementation based on Markus Kuhn's wcwidth.c
@@ -810,4 +847,5 @@ int wcswidth(const wchar_t *wcs, size_t n)
 
     return width;
 }
+
 #endif

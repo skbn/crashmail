@@ -30,10 +30,11 @@ extern "C"
 {
 #endif
 
-/* Spell checker wrapper for Hunspell C++ library */
+/* Spell checker wrapper */
 #ifdef HAVE_HUNSPELL
-#ifdef PLATFORM_AMIGA
-#include "hunspell.h"
+#if defined(PLATFORM_AMIGA)
+/* On AmigaOS, use native spellchecker implementation */
+#include "../spellchecker/spell.h"
 #elif defined(PLATFORM_BSD)
 #include <hunspell.h>
 #else
@@ -51,7 +52,7 @@ extern "C"
 #endif
 #else
 #ifndef SPELL_CACHE_N
-#define SPELL_CACHE_N 4096
+#define SPELL_CACHE_N 16384
 #endif
 #ifndef SPELL_CACHE_KEY_MAX
 #define SPELL_CACHE_KEY_MAX 256

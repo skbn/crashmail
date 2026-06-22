@@ -37,11 +37,19 @@
 #include "../core/charset.h"
 
 #ifdef HAVE_MYTHES
+#if defined(PLATFORM_AMIGA)
+#include "../spellchecker/thes.h"
+#else
 #include "../core/thes.h"
+#endif
 #endif
 
 #ifdef HAVE_HUNSPELL
+#if defined(PLATFORM_AMIGA)
+#include "../spellchecker/spell.h"
+#else
 #include "../core/spell.h"
+#endif
 #endif
 
 #ifdef HAVE_MYTHES

@@ -69,6 +69,9 @@ uint32_t charset_byte_to_unicode(const char *charset, unsigned char byte);
 /* Case-insensitive substring search for wchar_t (returns pointer or NULL, empty needle returns hay) */
 const wchar_t *wcs_casestr(const wchar_t *hay, const wchar_t *needle);
 
+/* Convert UTF-8 string to lowercase in-place */
+int utf8_tolower(char *str);
+
 /* wcswidth implementation based on Markus Kuhn's wcwidth.c, returns column positions for wide-character string, POSIX.1-2001 compatible */
 #if (defined(PLATFORM_AMIGA) || defined(PLATFORM_WIN32)) && !defined(wcswidth)
 int wcswidth(const wchar_t *wcs, size_t n);
