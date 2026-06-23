@@ -164,6 +164,9 @@ static const SetupField st_fields[] =
         {3, "Hard wrap", FT_BOOL, F_OFF(hard_wrap), 0},
         {3, "Line numbers", FT_BOOL, F_OFF(show_line_numbers), 0},
         {3, "Terminal Mouse", FT_BOOL, F_OFF(mouse_enabled), 0},
+        {3, "Smart quotes", FT_BOOL, F_OFF(assist_smart_quotes), 0},
+        {3, "Auto-cap", FT_BOOL, F_OFF(assist_auto_cap), 0},
+        {3, "Repeated words", FT_BOOL, F_OFF(assist_repeat_check), 0},
 
         /* Messages */
         {4, "Greeting on", FT_BOOL, F_OFF(greeting), 0},
@@ -573,16 +576,14 @@ static void st_edit_field(CrashEditCfg *w, const SetupField *fld)
         char *s = base + fld->off;
 
         /* Special case: Dict Path uses directory picker */
-        if (strcmp(fld->label, "Dict Path") == 0 ||
-            strcmp(fld->label, "Hyphen Path") == 0 ||
-            strcmp(fld->label, "Thesaurus Path") == 0)
+        if (strcmp(fld->label, "Dict Path") == 0 || strcmp(fld->label, "Hyphen Path") == 0 || strcmp(fld->label, "Thesaurus Path") == 0)
         {
             char tmp[CFG_STR_MAX];
 
             strncpy(tmp, s, sizeof(tmp) - 1);
             tmp[sizeof(tmp) - 1] = '\0';
 
-            if (ui_files_pick_dir(fld->label, "", tmp, sizeof(tmp)) == 0)
+            if (ui_files_pick_dir(fld->label, NULL, tmp, sizeof(tmp)) == 0)
             {
                 strncpy(s, tmp, CFG_STR_MAX - 1);
                 s[CFG_STR_MAX - 1] = '\0';
@@ -667,7 +668,7 @@ static void st_edit_field(CrashEditCfg *w, const SetupField *fld)
                     if (use_file_mode)
                     {
                         /* File mode: use file picker */
-                        if (ui_files_pick(fld->label, NULL, tmp, sizeof(tmp)) == 0)
+                        if (ui_files_pick(fld->label, "PROGDIR:", tmp, sizeof(tmp)) == 0)
                         {
                             strncpy(s, tmp, CFG_STR_MAX - 1);
                             s[CFG_STR_MAX - 1] = '\0';

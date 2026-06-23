@@ -449,6 +449,11 @@ void cfg_defaults(CrashEditCfg *cfg)
     cfg->show_line_numbers = 0;
     cfg->mouse_enabled = 1;
 
+    /* Editor assists default OFF -- user opts in via setup */
+    cfg->assist_smart_quotes = 0;
+    cfg->assist_auto_cap = 0;
+    cfg->assist_repeat_check = 0;
+
     /* OFF by default */
     cfg->greeting = 0;
     strncpy(cfg->greeting_text, "Hello %t!", sizeof(cfg->greeting_text) - 1);
@@ -808,6 +813,18 @@ int cfg_load(CrashEditCfg *cfg, const char *path)
         {
             /* YES=show line numbers, NO=hide */
             cfg->show_line_numbers = parse_yesno(rest);
+        }
+        else if (strcasecmp(word, "ASSIST_SMART_QUOTES") == 0)
+        {
+            cfg->assist_smart_quotes = parse_yesno(rest);
+        }
+        else if (strcasecmp(word, "ASSIST_AUTO_CAP") == 0)
+        {
+            cfg->assist_auto_cap = parse_yesno(rest);
+        }
+        else if (strcasecmp(word, "ASSIST_REPEAT_CHECK") == 0)
+        {
+            cfg->assist_repeat_check = parse_yesno(rest);
         }
         /* GoldED+ extended keywords */
         else if (strcasecmp(word, "VIEWHIDDEN") == 0)
@@ -1538,6 +1555,11 @@ int cfg_save(const CrashEditCfg *cfg, const char *path)
 
     /* Mouse support */
     KV_YN("MOUSE_ENABLED", cfg->mouse_enabled);
+
+    /* Editor assists */
+    KV_YN("ASSIST_SMART_QUOTES", cfg->assist_smart_quotes);
+    KV_YN("ASSIST_AUTO_CAP", cfg->assist_auto_cap);
+    KV_YN("ASSIST_REPEAT_CHECK", cfg->assist_repeat_check);
 
     /* Message framing */
     KV_YN("GREETING", cfg->greeting);

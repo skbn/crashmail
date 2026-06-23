@@ -153,6 +153,9 @@ int ui_popup_confirm(const char *title, const char *msg)
     {
         ch = wrapper_getch();
 
+        if (ch == ERR)
+            continue;
+
         if (ch == 'y' || ch == 'Y' || ch == '\n' || ch == '\r' || ch == KEY_RIGHT)
             return 1;
 
@@ -212,6 +215,9 @@ int ui_popup_confirm_all(const char *title, const char *msg)
     for (;;)
     {
         ch = wrapper_getch();
+
+        if (ch == ERR)
+            continue;
 
         if (ch == 'y' || ch == 'Y' || ch == '\n' || ch == '\r')
             return 1;
@@ -1429,6 +1435,9 @@ int ui_popup_replace(const wchar_t *search_in, const wchar_t *replace_in, wchar_
         refresh();
 
         ch = getch();
+
+        if (ch == ERR)
+            continue;
 
         if (ch == 27)
         {

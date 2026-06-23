@@ -339,12 +339,12 @@ int ui_spell_check_word_at_cursor(UiApp *app)
     /* Find word boundaries */
     ws = info.col;
 
-    while (ws > 0 && te_is_word_char(line[ws - 1]))
+    while (ws > 0 && te_is_word_char_ex(app->spell_handle, line[ws - 1]))
         ws--;
 
     we = info.col;
 
-    while (we < line_len && te_is_word_char(line[we]))
+    while (we < line_len && te_is_word_char_ex(app->spell_handle, line[we]))
         we++;
 
     if (ws == we)

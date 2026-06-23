@@ -96,6 +96,11 @@ typedef struct
     /* Mouse support: 0=disabled, 1=enabled */
     int mouse_enabled;
 
+    /* Editor assistance toggles (independent of spell support) */
+    int assist_smart_quotes;
+    int assist_auto_cap;
+    int assist_repeat_check;
+
     /* Default background color for COLOR_PAIR(0). On Amiga: COLOR_RED for black pen */
     int default_bg_color;
 

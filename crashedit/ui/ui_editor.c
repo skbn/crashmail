@@ -50,6 +50,7 @@
 #include "ui_files.h"
 #include "ui_glyph_picker.h"
 #include "ui_mouse.h"
+#include "ui_assist.h"
 #include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -881,6 +882,7 @@ static int handle_alt_keys(UiApp *app, int ch, int is_key)
         if (cp >= 0)
         {
             ed_insert_char(app->editor, (wchar_t)cp);
+            ui_assist_on_char(app, (wchar_t)cp);
             reset_search(app);
         }
 
@@ -1752,6 +1754,7 @@ static int handle_body_input(UiApp *app, int ch, int is_key, wint_t wch, int sof
 
                 ed_block_clear(app->editor);
                 ed_insert_char(app->editor, (wchar_t)wch);
+                ui_assist_on_char(app, (wchar_t)wch);
                 reset_search(app);
 
                 /* HARD-WRAP only: insert CR at wrap col; soft-wrap leaves line intact */

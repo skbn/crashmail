@@ -27,6 +27,7 @@
 #include "ui_editor_helper.h"
 #include "ui_attr.h"
 #include "ui_spell.h"
+#include "ui_assist.h"
 #include "../core/msghdr.h"
 #include "../components/editor.h"
 #include <stdio.h>
@@ -417,11 +418,12 @@ void draw_edit_body(UiApp *app)
             }
 
 #ifdef HAVE_HUNSPELL
-            /* Highlight misspelled words */
-            if (app->spell_active && app->spell_handle)
+            /* Highlight misspelled words AND/OR repeated words */
+            if ((app->spell_active && app->spell_handle) || app->cfg->assist_repeat_check)
             {
                 int word_start = 0;
                 int word_end;
+                int spell_on = (app->spell_active && app->spell_handle);
 
                 standend();
 
@@ -438,13 +440,24 @@ void draw_edit_body(UiApp *app)
                     if (word_end > word_start)
                     {
                         int word_len = word_end - word_start;
+                        int marked = 0;
 
                         /* Ignore single-character words like word processors do */
-                        if (word_len > 1 && ui_spell_check_word_simple(app, &wl[word_start], word_len))
+                        if (spell_on && word_len > 1 && ui_spell_check_word_simple(app, &wl[word_start], word_len))
                         {
                             attron(COLOR_PAIR(COL_SPELL_CURRENT));
                             mvaddnwstr(start_row + i, ln_offset + wcs_vwidth(wl, word_start), &wl[word_start], word_len);
                             attroff(COLOR_PAIR(COL_SPELL_CURRENT));
+
+                            marked = 1;
+                        }
+
+                        /* Repeated-word check (independent of spell) Highlight if previous word on same line is the same */
+                        if (!marked && app->cfg->assist_repeat_check && ui_assist_check_repeat(app, line_idx, word_start, word_len))
+                        {
+                            attron(A_REVERSE);
+                            mvaddnwstr(start_row + i, ln_offset + wcs_vwidth(wl, word_start), &wl[word_start], word_len);
+                            attroff(A_REVERSE);
                         }
                     }
 
@@ -604,11 +617,12 @@ void draw_edit_body(UiApp *app)
                 }
 
 #ifdef HAVE_HUNSPELL
-                /* Highlight misspelled words */
-                if (app->spell_active && app->spell_handle)
+                /* Highlight misspelled words AND/OR repeated words. Enter loop if either feature is active */
+                if ((app->spell_active && app->spell_handle) || app->cfg->assist_repeat_check)
                 {
                     int word_start = seg_start;
                     int word_end;
+                    int spell_on = (app->spell_active && app->spell_handle);
 
                     standend();
 
@@ -625,13 +639,24 @@ void draw_edit_body(UiApp *app)
                         if (word_end > word_start)
                         {
                             int word_len = word_end - word_start;
+                            int marked = 0;
 
-                            /* Ignore single-character words like word processors do */
-                            if (word_len > 1 && ui_spell_check_word_simple(app, &l[word_start], word_len))
+                            /* Ignore single-character words */
+                            if (spell_on && word_len > 1 && ui_spell_check_word_simple(app, &l[word_start], word_len))
                             {
                                 attron(COLOR_PAIR(COL_SPELL_CURRENT));
                                 mvaddnwstr(start_row + sr, ln_offset + wcs_vwidth(&l[seg_start], word_start - seg_start), &l[word_start], word_len);
                                 attroff(COLOR_PAIR(COL_SPELL_CURRENT));
+
+                                marked = 1;
+                            }
+
+                            /* Repeated-word check (independent of spell) Highlight if previous word on same line is the same */
+                            if (!marked && app->cfg->assist_repeat_check && ui_assist_check_repeat(app, li, word_start, word_len))
+                            {
+                                attron(A_REVERSE);
+                                mvaddnwstr(start_row + sr, ln_offset + wcs_vwidth(&l[seg_start], word_start - seg_start), &l[word_start], word_len);
+                                attroff(A_REVERSE);
                             }
                         }
 
