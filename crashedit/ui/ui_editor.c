@@ -2029,6 +2029,41 @@ UiView ui_editor_run(UiApp *app)
                         ch == KEY_BACKSPACE || ch == KEY_DC || ch == KEY_ENTER))
             is_key = 1;
 
+        if (is_key && ch == KEY_MOUSE_SGR)
+        {
+            int mtype;
+            int mx;
+            int my;
+
+            if (parse_sgr_mouse(&mtype, &mx, &my))
+            {
+                /* Adjust mouse coordinates for editor frame offset */
+                ae_body = &app->areas->entries[app->sess.area_idx];
+                srow = (ae_body->type == AREATYPE_NETMAIL) ? 8 : 7;
+                my -= srow;
+
+                /* Calculate body_rows for mouse dispatch */
+                body_rows = LINES - srow - 1;
+
+                if (app->show_spell)
+                    body_rows -= SPELL_PANEL_H;
+
+                if (body_rows < 1)
+                    body_rows = 1;
+
+                /* Clamp mouse Y to visible body area */
+                if (my < 0)
+                    my = 0;
+
+                if (my >= body_rows)
+                    my = body_rows - 1;
+
+                ui_mouse_dispatch(app, mtype, my, mx, body_rows);
+            }
+
+            continue;
+        }
+
         if (is_key && ch == KEY_MOUSE)
         {
 #ifdef PLATFORM_AMIGA

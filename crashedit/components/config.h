@@ -93,6 +93,9 @@ typedef struct
     int cursor_color;          /* -1 = unset; 0..7 = ncurses color */
     char cursor_color_rgb[16]; /* alternative: "#RRGGBB" hex spec */
 
+    /* Mouse support: 0=disabled, 1=enabled */
+    int mouse_enabled;
+
     /* Default background color for COLOR_PAIR(0). On Amiga: COLOR_RED for black pen */
     int default_bg_color;
 

@@ -163,6 +163,7 @@ static const SetupField st_fields[] =
         {3, "Undo levels", FT_INT, F_OFF(undo_levels), 0},
         {3, "Hard wrap", FT_BOOL, F_OFF(hard_wrap), 0},
         {3, "Line numbers", FT_BOOL, F_OFF(show_line_numbers), 0},
+        {3, "Mouse enabled", FT_BOOL, F_OFF(mouse_enabled), 0},
 
         /* Messages */
         {4, "Greeting on", FT_BOOL, F_OFF(greeting), 0},

@@ -37,6 +37,9 @@ typedef int (*PasteHyphFn)(void *user_data, const char *word_utf8, int word_byte
 char *wrap_paste_text(const char *utf8, int col);
 char *wrap_paste_text_ex(const char *utf8, int col, PasteHyphFn hyph, void *hyph_data);
 
+/* Mouse SGR sequence parser for SSH terminals */
+int parse_sgr_mouse(int *out_type, int *out_x, int *out_y);
+
 /* Read characters until KEY_PASTE_END */
 char *collect_bracketed_paste(void);
 

@@ -447,8 +447,9 @@ void cfg_defaults(CrashEditCfg *cfg)
     cfg->quotemargin = 75;
     cfg->hard_wrap = 0;
     cfg->show_line_numbers = 0;
+    cfg->mouse_enabled = 1;
 
-    /* GoldED+ body framing defaults (OFF by default) */
+    /* OFF by default */
     cfg->greeting = 0;
     strncpy(cfg->greeting_text, "Hello %t!", sizeof(cfg->greeting_text) - 1);
     cfg->greeting_text[sizeof(cfg->greeting_text) - 1] = '\0';
@@ -1178,6 +1179,25 @@ int cfg_load(CrashEditCfg *cfg, const char *path)
                 }
             }
         }
+        else if (strcasecmp(word, "MOUSE_ENABLED") == 0)
+        {
+            char val[16];
+            const char *p = rest;
+            int n = 0;
+
+            while (*p == ' ' || *p == '\t')
+                p++;
+
+            while (*p && *p != ' ' && *p != '\t' && *p != '\r' && *p != '\n' && n < 15)
+                val[n++] = *p++;
+
+            val[n] = '\0';
+
+            if (strcasecmp(val, "0") == 0 || strcasecmp(val, "OFF") == 0 || strcasecmp(val, "NO") == 0 || strcasecmp(val, "FALSE") == 0)
+                cfg->mouse_enabled = 0;
+            else
+                cfg->mouse_enabled = 1;
+        }
         else if (strcasecmp(word, "DEFAULT_BG_COLOR") == 0)
         {
             /* Parse DEFAULT_BG_COLOR (name or 0-7) */
@@ -1515,6 +1535,9 @@ int cfg_save(const CrashEditCfg *cfg, const char *path)
         KV_INT("CURSORCOLOR", cfg->cursor_color);
 
     KV_INT("DEFAULT_BG_COLOR", cfg->default_bg_color);
+
+    /* Mouse support */
+    KV_YN("MOUSE_ENABLED", cfg->mouse_enabled);
 
     /* Message framing */
     KV_YN("GREETING", cfg->greeting);

@@ -135,6 +135,9 @@
 #ifndef KEY_CSDOWNU
 #define KEY_CSDOWNU 0x80A /* Ctrl+Shift+U */
 #endif
+#ifndef KEY_MOUSE_SGR
+#define KEY_MOUSE_SGR 0x80B
+#endif
 
 #ifndef PLATFORM_AMIGA
 #define BRACKET_PASTE_ON()            \

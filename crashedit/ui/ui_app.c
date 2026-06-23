@@ -225,6 +225,28 @@ static void setup_colors(const CrashEditCfg *cfg)
     refresh();
 }
 
+#if !defined(PLATFORM_AMIGA) && !defined(PLATFORM_WIN32)
+/* Configure mouse based on setting */
+static void ui_configure_mouse(int enabled)
+{
+    if (enabled)
+    {
+        mousemask(ALL_MOUSE_EVENTS | REPORT_MOUSE_POSITION, NULL);
+        mouseinterval(0);
+        printf("\033[?1002h");
+        printf("\033[?1006h");
+        fflush(stdout);
+    }
+    else
+    {
+        mousemask(0, NULL);
+        printf("\033[?1002l");
+        printf("\033[?1006l");
+        fflush(stdout);
+    }
+}
+#endif
+
 /* Apply config changes without restarting */
 void ui_reapply_config(UiApp *app)
 {
@@ -273,6 +295,11 @@ void ui_reapply_config(UiApp *app)
 #endif
 #ifdef HAVE_MYTHES
     ui_thes_load_from_config(app);
+#endif
+
+#if !defined(PLATFORM_AMIGA) && !defined(PLATFORM_WIN32)
+    /* Reconfigure mouse if setting changed */
+    ui_configure_mouse(app->cfg->mouse_enabled);
 #endif
 
 #ifdef PLATFORM_AMIGA
@@ -726,20 +753,13 @@ UiApp *ui_init(CrashEditCfg *cfg, AreaList *areas)
     setup_colors(cfg);
 
 #if !defined(PLATFORM_AMIGA) && !defined(PLATFORM_WIN32)
-    /* Disable mouse in SSH sessions to avoid escape code issues */
-    if (!getenv("SSH_TTY") && !getenv("SSH_CONNECTION"))
-    {
-        mousemask(ALL_MOUSE_EVENTS | REPORT_MOUSE_POSITION, NULL);
-        mouseinterval(0);
-
-        /* Button event tracking: motion while button held */
-        printf("\033[?1002h");
-        fflush(stdout);
-    }
+    /* Enable mouse if configured */
+    ui_configure_mouse(cfg->mouse_enabled);
 
     set_escdelay(25);
 
     /* Register custom key sequences */
+    define_key("\033[<", KEY_MOUSE_SGR);      /* SGR mouse escape sequence */
     define_key("\033[200~", KEY_PASTE_START); /* bracketed paste start */
     define_key("\033[201~", KEY_PASTE_END);   /* bracketed paste end */
     define_key("\033z", KEY_ALT('Z'));        /* Alt+Z redo */
@@ -876,12 +896,9 @@ UiApp *ui_init(CrashEditCfg *cfg, AreaList *areas)
     if (!app)
     {
 #if !defined(PLATFORM_AMIGA) && !defined(PLATFORM_WIN32)
-        /* Disable button event tracking only if not in SSH */
-        if (!getenv("SSH_TTY") && !getenv("SSH_CONNECTION"))
-        {
-            printf("\033[?1002l");
-            fflush(stdout);
-        }
+        /* Disable mouse if it was enabled */
+        if (cfg->mouse_enabled)
+            ui_configure_mouse(0);
 #endif
 #ifndef PLATFORM_WIN32
         endwin();
@@ -1110,6 +1127,12 @@ void ui_cleanup(UiApp *app)
 
     free(app->area_order);
     free(app);
+
+#if !defined(PLATFORM_AMIGA) && !defined(PLATFORM_WIN32)
+    /* Disable mouse if it was enabled */
+    if (app->cfg->mouse_enabled)
+        ui_configure_mouse(0);
+#endif
 
     endwin();
 }

@@ -28,6 +28,7 @@
 #include "ui_editor_internal.h"
 #include "ui_editor_helper.h"
 #include "ui_editor_search.h"
+#include "ui_mouse.h"
 #ifdef HAVE_HYPHEN
 #include "../core/hyph.h"
 #endif
@@ -396,6 +397,105 @@ void deliver_paste(UiApp *app, const char *utf8)
             ui_status(app, "Pasted %d chars into header", n);
         }
     }
+}
+
+/* Mouse SGR sequence parser for SSH terminals */
+int parse_sgr_mouse(int *out_type, int *out_x, int *out_y)
+{
+    char buf[32];
+    int i;
+    wint_t wch;
+    int wrc;
+    int button;
+    int x;
+    int y;
+    char end_char;
+    int parsed;
+
+    while (i < sizeof(buf) - 1)
+    {
+        wrc = wrapper_read_key(&wch);
+
+        if (wrc == ERR)
+            return 0;
+
+        if (wrc == KEY_CODE_YES)
+            return 0;
+
+        buf[i] = (char)wch;
+        i++;
+
+        if (wch == 'M' || wch == 'm')
+            break;
+    }
+
+    buf[i] = '\0';
+
+    parsed = sscanf(buf, "%d;%d;%d%c", &button, &x, &y, &end_char);
+
+    if (parsed != 4)
+    {
+        parsed = sscanf(buf, "%d%c", &button, &end_char);
+
+        if (parsed == 2)
+        {
+            x = -1;
+            y = -1;
+        }
+        else
+        {
+            return 0;
+        }
+    }
+
+    if (end_char == 'M')
+    {
+        switch (button)
+        {
+        case 0:
+            *out_type = UI_MOUSE_PRESS_LEFT;
+            break;
+        case 1:
+            *out_type = UI_MOUSE_PRESS_LEFT;
+            break;
+        case 2:
+            *out_type = UI_MOUSE_PRESS_LEFT;
+            break;
+        case 32:
+            *out_type = UI_MOUSE_DRAG_LEFT;
+            break;
+        case 33:
+            *out_type = UI_MOUSE_DRAG_LEFT;
+            break;
+        case 34:
+            *out_type = UI_MOUSE_DRAG_LEFT;
+            break;
+        case 64:
+            *out_type = UI_MOUSE_WHEEL_UP;
+            break;
+        case 65:
+            *out_type = UI_MOUSE_WHEEL_DOWN;
+            break;
+        default:
+            return 0;
+        }
+    }
+    else
+    {
+        *out_type = UI_MOUSE_RELEASE_LEFT;
+    }
+
+    if (x > 0)
+        *out_x = x - 1;
+    else
+        *out_x = -1;
+
+    if (y > 0)
+        *out_y = y - 1;
+    else
+        *out_y = -1;
+
+    return 1;
 }
 
 /* Read characters until KEY_PASTE_END */
