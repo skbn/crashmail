@@ -32,8 +32,8 @@ extern "C"
 
 /* Spell checker wrapper */
 #ifdef HAVE_HUNSPELL
-#if defined(PLATFORM_AMIGA)
-/* On AmigaOS, use native spellchecker implementation */
+#if defined(PLATFORM_AMIGA) || defined(PLATFORM_WIN32)
+/* On AmigaOS and Windows, use native spellchecker implementation */
 #include "../spellchecker/spell.h"
 #elif defined(PLATFORM_BSD)
 #include <hunspell.h>

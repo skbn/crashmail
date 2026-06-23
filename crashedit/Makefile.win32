@@ -80,16 +80,60 @@ UI_OBJS   = $(OBJDIR)/ui_app.o \
             $(OBJDIR)/ui_search.o $(OBJDIR)/ui_popup_nodelist.o $(OBJDIR)/ui_glyph_picker.o \
             $(OBJDIR)/ui_spell.o $(OBJDIR)/ui_mouse.o
 
+# Hyphen and Thesaurus UI objects
+ifeq ($(USE_HYPHEN),1)
+UI_OBJS += $(OBJDIR)/ui_hyph.o
+endif
+ifeq ($(USE_MYTHES),1)
+UI_OBJS += $(OBJDIR)/ui_thes.o
+endif
+
 # Hunspell spell checker -- opt-in.  Set USE_HUNSPELL=1 to enable.
+SPELL_DIR = $(HERE)spellchecker
 ifeq ($(USE_HUNSPELL),1)
-CDEFS    += -DHAVE_HUNSPELL
+CDEFS    += -DHAVE_HUNSPELL -I$(SPELL_DIR)
+# On Windows/Amiga, use native spellchecker/ (no core/spell.c wrapper needed)
+# On Linux/BSD, use external Hunspell library (needs core/spell.c wrapper)
+ifneq ($(findstring win,$(ARCH)),)
+# Windows: use native spellchecker only
+SPELL_OBJS = $(OBJDIR)/spellchecker_utils.o \
+             $(OBJDIR)/spellchecker_htab.o \
+             $(OBJDIR)/spellchecker_affix.o \
+             $(OBJDIR)/spellchecker_core.o \
+             $(OBJDIR)/spellchecker_suggest.o \
+             $(OBJDIR)/spellchecker_stem.o \
+             $(OBJDIR)/spellchecker_custom.o \
+             $(OBJDIR)/spellchecker_dict_scan.o
+else ifeq ($(PLATFORM),amiga)
+# Amiga: use native spellchecker only
+SPELL_OBJS = $(OBJDIR)/spellchecker_utils.o \
+             $(OBJDIR)/spellchecker_htab.o \
+             $(OBJDIR)/spellchecker_affix.o \
+             $(OBJDIR)/spellchecker_core.o \
+             $(OBJDIR)/spellchecker_suggest.o \
+             $(OBJDIR)/spellchecker_stem.o \
+             $(OBJDIR)/spellchecker_custom.o \
+             $(OBJDIR)/spellchecker_dict_scan.o
+else
+# Linux/BSD: use external Hunspell library with core/spell.c wrapper
 CORE_OBJS += $(OBJDIR)/spell.o
 SPELL_LIB := -lhunspell
+SPELL_OBJS :=
+endif
+ifeq ($(USE_HYPHEN),1)
+CDEFS    += -DHAVE_HYPHEN
+SPELL_OBJS += $(OBJDIR)/spellchecker_hyph.o
+endif
+ifeq ($(USE_MYTHES),1)
+CDEFS    += -DHAVE_MYTHES
+SPELL_OBJS += $(OBJDIR)/spellchecker_thes.o
+endif
 else
+SPELL_OBJS :=
 SPELL_LIB :=
 endif
 
-ALL_OBJS = $(CORE_OBJS) $(COMP_OBJS)
+ALL_OBJS = $(CORE_OBJS) $(COMP_OBJS) $(SPELL_OBJS)
 
 all: $(TARGET) crashedit
 
@@ -119,6 +163,49 @@ $(OBJDIR)/ui_mouse.o: $(UIDIR)/ui_mouse.c $(UIDIR)/ui_mouse.h | $(OBJDIR)
 
 $(OBJDIR)/ui_assist.o: $(UIDIR)/ui_assist.c $(UIDIR)/ui_assist.h | $(OBJDIR)
 	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
+# Spell checker objects (native spellchecker/ C-only engine)
+SPELL_PRIV = $(SPELL_DIR)/spell_priv.h $(SPELL_DIR)/spell.h
+
+ifeq ($(USE_HUNSPELL),1)
+$(OBJDIR)/spellchecker_utils.o: $(SPELL_DIR)/spell_utils.c $(SPELL_PRIV) | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
+$(OBJDIR)/spellchecker_htab.o: $(SPELL_DIR)/spell_htab.c $(SPELL_PRIV) | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
+$(OBJDIR)/spellchecker_affix.o: $(SPELL_DIR)/spell_affix.c $(SPELL_PRIV) | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
+$(OBJDIR)/spellchecker_core.o: $(SPELL_DIR)/spell_core.c $(SPELL_PRIV) | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
+$(OBJDIR)/spellchecker_suggest.o: $(SPELL_DIR)/spell_suggest.c $(SPELL_PRIV) | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
+$(OBJDIR)/spellchecker_stem.o: $(SPELL_DIR)/spell_stem.c $(SPELL_PRIV) | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
+$(OBJDIR)/spellchecker_custom.o: $(SPELL_DIR)/spell_custom.c $(SPELL_PRIV) | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
+$(OBJDIR)/spellchecker_dict_scan.o: $(SPELL_DIR)/dict_scan.c $(SPELL_DIR)/dict_scan.h | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+ifeq ($(USE_HYPHEN),1)
+$(OBJDIR)/spellchecker_hyph.o: $(SPELL_DIR)/hyph.c $(SPELL_DIR)/hyph.h | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
+$(OBJDIR)/ui_hyph.o: $(UIDIR)/ui_hyph.c $(UIDIR)/ui_hyph.h | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+endif
+ifeq ($(USE_MYTHES),1)
+$(OBJDIR)/spellchecker_thes.o: $(SPELL_DIR)/thes.c $(SPELL_DIR)/thes.h | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
+$(OBJDIR)/ui_thes.o: $(UIDIR)/ui_thes.c $(UIDIR)/ui_thes.h | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+endif
+endif
 
 
 $(OBJDIR)/portable.o: $(COREDIR)/portable.c $(COREDIR)/portable.h | $(OBJDIR)

@@ -2069,7 +2069,7 @@ UiView ui_editor_run(UiApp *app)
 
         if (is_key && ch == KEY_MOUSE)
         {
-#ifdef PLATFORM_AMIGA
+#if defined(PLATFORM_AMIGA) || defined(PLATFORM_WIN32)
             unsigned long m = getmouse();
             int my;
             int mx;
