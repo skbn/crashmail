@@ -1,5 +1,7 @@
 /*
- * tinyedit - Text editor for AmigaOS
+ * crashedit - Message area editor for AmigaOS
+ *
+ * This file is part of the crashedit project.
  *
  * Copyright (C) 2026 Tanausú M. 39:190/101@amiganet 2:341/207@fidonet
  *
@@ -7,6 +9,17 @@
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 2 of the License, or
  * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ *
+ * This program uses JAMLIB, which is licensed under the GNU Lesser
+ * General Public License v2.1. See src/jamlib/LICENSE for details.
  */
 
 /* ncursesw_win32.h - ncursesw for Windows using GDI */
@@ -92,6 +105,49 @@ extern int COLORS;
 #define KEY_EOL 0x14F
 #define KEY_SF 0x150
 #define KEY_SR 0x151
+
+#ifndef KEY_CUP
+#define KEY_CUP 0x7F7
+#endif
+#ifndef KEY_CDOWN
+#define KEY_CDOWN 0x7F8
+#endif
+#ifndef KEY_SUP
+#define KEY_SUP 0x7FD
+#endif
+#ifndef KEY_SDOWN
+#define KEY_SDOWN 0x7FE
+#endif
+#ifndef KEY_CSLEFT
+#define KEY_CSLEFT 0x801
+#endif
+#ifndef KEY_CSRIGHT
+#define KEY_CSRIGHT 0x802
+#endif
+#ifndef KEY_CSUP
+#define KEY_CSUP 0x803
+#endif
+#ifndef KEY_CSDOWN
+#define KEY_CSDOWN 0x804
+#endif
+#ifndef KEY_CSHOME
+#define KEY_CSHOME 0x805
+#endif
+#ifndef KEY_CSEND
+#define KEY_CSEND 0x806
+#endif
+#ifndef KEY_SPPAGE
+#define KEY_SPPAGE 0x807
+#endif
+#ifndef KEY_SNPAGE
+#define KEY_SNPAGE 0x808
+#endif
+#ifndef KEY_CSUPD
+#define KEY_CSUPD 0x809
+#endif
+#ifndef KEY_CSDOWNU
+#define KEY_CSDOWNU 0x80A
+#endif
 #define KEY_NPAGE 0x152
 #define KEY_PPAGE 0x153
 #define KEY_STAB 0x154
@@ -245,6 +301,21 @@ extern int COLORS;
 #define ACS_DIAMOND '+'
 #define ACS_BOARD '#'
 #define ACS_BULLET '*'
+
+/* Mouse support (stub for Windows) */
+#define BUTTON1_PRESSED 0x01
+#define BUTTON1_RELEASED 0x02
+#define BUTTON1_CLICKED 0x04
+#define BUTTON4_PRESSED 0x08
+#define BUTTON5_PRESSED 0x10
+#define REPORT_MOUSE_POSITION 0x20
+
+typedef struct
+{
+    short x;
+    short y;
+    unsigned long bstate;
+} MEVENT;
 
 /* Initialization */
 WINDOW *initscr(void);
@@ -479,6 +550,8 @@ int resize_term(int nlines, int ncols);
 /* Control */
 int beep(void);
 int flash(void);
+
+int getmouse(MEVENT *ev);
 
 #endif /* PLATFORM_WIN32 */
 
