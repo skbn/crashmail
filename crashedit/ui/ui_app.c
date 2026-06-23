@@ -1130,8 +1130,7 @@ void ui_cleanup(UiApp *app)
 
 #if !defined(PLATFORM_AMIGA) && !defined(PLATFORM_WIN32)
     /* Disable mouse if it was enabled */
-    if (app->cfg->mouse_enabled)
-        ui_configure_mouse(0);
+    ui_configure_mouse(0);
 #endif
 
     endwin();
