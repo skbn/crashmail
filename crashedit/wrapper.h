@@ -69,7 +69,7 @@
 #define WRAPPER_OS_NAME "unknown"
 #endif
 
-#define WRAPPER_PID "CrashEdit 0.9 " WRAPPER_OS_NAME
+#define WRAPPER_PID "CrashEdit 1.0b " WRAPPER_OS_NAME
 
 static inline void wrapper_build_pid(char *buf, size_t size)
 {
