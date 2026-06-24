@@ -24,7 +24,7 @@
 # Makefile, so it works from any CWD (e.g. `make -f path/to/Makefile.palette`).
 
 # Directory of this Makefile (with trailing slash)
-HERE := $(dir $(lastword $(MAKEFILE_LIST)))
+HERE := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 
 CC = m68k-amigaos-gcc -noixemul -mcpu=68020 -DPLATFORM_AMIGA
 CFLAGS = -Wall -std=gnu89 -O2
