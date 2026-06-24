@@ -129,6 +129,9 @@
 #ifndef KEY_SNPAGE
 #define KEY_SNPAGE 0x808 /* Shift+PageDown */
 #endif
+#ifndef KEY_SF12
+#define KEY_SF12 0x80C /* Shift+F12 */
+#endif
 #ifndef KEY_CSUPD
 #define KEY_CSUPD 0x809 /* Ctrl+Shift+D */
 #endif
@@ -339,6 +342,13 @@ struct UiApp
 #ifdef HAVE_MYTHES
     void *thes_handle; /* opaque ThesHandle* */
 #endif
+
+#ifdef HAVE_TRANSLATE
+    void *translate_handle;    /* TranslateHandle* (opaque) */
+    int translate_enabled;     /* mirrors cfg.translate_enabled; runtime toggle */
+    int translate_active;      /* translator active (manual toggle) */
+    int translate_http_inited; /* flag: http_client_init was called */
+#endif
 };
 
 /* Status and UI helpers */
@@ -381,6 +391,7 @@ void ui_session_rebuild_order(UiApp *app);
 void ui_arealist_rebuild_order(UiApp *app);
 
 /* Popups (blocking, return value = user choice) */
+void ui_popup_info(const char *title, const char *msg);       /* non-blocking info popup */
 int ui_popup_confirm(const char *title, const char *msg);     /* 1=yes, 0=no, -1=ESC */
 int ui_popup_confirm_all(const char *title, const char *msg); /* 1=yes, 0=no, -1=ESC, 2=all */
 void ui_popup_message(const char *title, const char *msg);    /* simple message, waits for key */

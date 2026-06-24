@@ -158,6 +158,9 @@ int parse_aff_rule(const char *line, ms_cp expected_flag, int flag_type, char **
     else
         *strip = ms_strdup(tok);
 
+    if (!*strip)
+        return -1;
+
     while (*p == ' ')
         p++;
 
@@ -173,6 +176,14 @@ int parse_aff_rule(const char *line, ms_cp expected_flag, int flag_type, char **
         *add = ms_strdup("");
     else
         *add = ms_strdup(tok);
+
+    if (!*add)
+    {
+        free(*strip);
+
+        *strip = NULL;
+        return -1;
+    }
 
     /* Skip /flags part if present */
     while (*p && *p != ' ')
@@ -193,6 +204,15 @@ int parse_aff_rule(const char *line, ms_cp expected_flag, int flag_type, char **
         *cond = ms_strdup(tok);
     else
         *cond = ms_strdup(".");
+
+    if (!*cond)
+    {
+        free(*strip);
+        free(*add);
+
+        *strip = *add = NULL;
+        return -1;
+    }
 
     return 0;
 }

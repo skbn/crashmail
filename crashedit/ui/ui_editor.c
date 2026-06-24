@@ -37,6 +37,9 @@
 #include "ui_editor_paste.h"
 #include "ui_editor_draw.h"
 #include "ui_spell.h"
+#ifdef HAVE_TRANSLATE
+#include "ui_translate.h"
+#endif
 #ifdef HAVE_MYTHES
 #include "ui_thes.h"
 #endif
@@ -79,8 +82,6 @@ static const char *EDITOR_HELP[] =
         "    Ctrl-Y          Delete line",
         "    Ctrl-Z          Undo",
         "    Alt+Z           Redo",
-        "    Ctrl-T          Del word right",
-        "    Ctrl-_          Del word left",
 #ifdef PLATFORM_AMIGA
         "    Alt+I           Toggle insert",
 #else
@@ -136,12 +137,16 @@ static const char *EDITOR_HELP[] =
         "    F2 Ctrl-S       Save",
         "    F3 Alt+H        Charset",
         "    F4 Ctrl-A       AKA (netmail)",
-        "    F9 Alt+R        Attr (Priv/Crash/Hold)",
+        "    F9 Alt+F        Attr (Priv/Crash/Hold)",
         "    F10 Alt+P       Nodelist picker",
 #ifdef PLATFORM_AMIGA
         "    Alt+V           Nodelist browser",
 #else
         "    F11 Alt+V       Nodelist browser",
+#endif
+#ifdef HAVE_TRANSLATE
+        "    Alt+R           Translate selected text",
+        "    Ctrl+T          Toggle translator",
 #endif
         "    Alt+U           Glyph Picker",
         "    ESC             Cancel (confirm)",
@@ -382,8 +387,8 @@ static int handle_function_keys(UiApp *app, int ch, int is_key)
         return 1;
     }
 
-    /* F9 / Alt+R : attribute flags toggle */
-    if ((is_key && ch == KEY_F(9)) || (ch == KEY_ALT('R')))
+    /* F9 / Alt+F : attribute flags toggle */
+    if ((is_key && ch == KEY_F(9)) || (ch == KEY_ALT('F')))
     {
         editor_attr_popup(app);
         return 1;
@@ -749,25 +754,29 @@ static int handle_control_keys(UiApp *app, int ch, int is_key)
         return 1;
     }
 
-    /* Ctrl+T : delete word right */
+#ifdef HAVE_TRANSLATE
+    /* Ctrl+T : toggle translator */
     if (!is_key && ch == CTRL('T'))
     {
-        ed_block_clear(app->editor);
-        ed_delete_word_right(app->editor);
-        reset_search(app);
+        if (!app->translate_handle && app->cfg->translate_enabled)
+            ui_translate_load_from_config(app);
 
+        if (app->translate_handle)
+        {
+            app->translate_active = !app->translate_active;
+            ui_status(app, "Translator %s", app->translate_active ? "enabled" : "disabled");
+        }
+        else if (!app->cfg->translate_enabled)
+        {
+            ui_status(app, "Translator disabled in config (enable in Setup)");
+        }
+        else
+        {
+            ui_status(app, "Cannot load translator");
+        }
         return 1;
     }
-
-    /* Ctrl+_ : delete word left */
-    if (!is_key && ch == CTRL('_'))
-    {
-        ed_block_clear(app->editor);
-        ed_delete_word_left(app->editor);
-        reset_search(app);
-
-        return 1;
-    }
+#endif
 
     return 0;
 }
@@ -829,6 +838,17 @@ static int handle_alt_keys(UiApp *app, int ch, int is_key)
         ui_status(app, "Spell support not built in");
         return 1;
 #endif
+    }
+
+    /* Alt+R : translate selected text */
+    if (ch == KEY_ALT('R'))
+    {
+#ifdef HAVE_TRANSLATE
+        ui_translate_action(app);
+#else
+        ui_status(app, "Translator support not built in");
+#endif
+        return 1;
     }
 
     /* Alt+G : goto line */
@@ -1616,18 +1636,26 @@ static int handle_body_input(UiApp *app, int ch, int is_key, wint_t wch, int sof
 
             return 1;
 
+#ifdef HAVE_TRANSLATE
         case CTRL('T'):
-            ed_block_clear(app->editor);
-            ed_delete_word_right(app->editor);
-            reset_search(app);
+            if (!app->translate_handle && app->cfg->translate_enabled)
+                ui_translate_load_from_config(app);
 
+            if (app->translate_handle)
+            {
+                app->translate_active = !app->translate_active;
+                ui_status(app, "Translator %s", app->translate_active ? "enabled" : "disabled");
+            }
+            else if (!app->cfg->translate_enabled)
+            {
+                ui_status(app, "Translator disabled in config (enable in Setup)");
+            }
+            else
+            {
+                ui_status(app, "Cannot load translator");
+            }
             return 1;
-
-        case CTRL('_'):
-            ed_block_clear(app->editor);
-            ed_delete_word_left(app->editor);
-            reset_search(app);
-            return 1;
+#endif
 
         case CTRL('Q'):
             ui_popup_attach_remove(app);
@@ -2136,13 +2164,6 @@ UiView ui_editor_run(UiApp *app)
 
             ui_mouse_dispatch(app, mtype, my, mx, body_rows);
 
-            continue;
-        }
-
-        /* Alt+F: freq request popup (not in handle_function_keys) */
-        if (is_key && ch == KEY_ALT('F'))
-        {
-            ui_popup_freq(app);
             continue;
         }
 

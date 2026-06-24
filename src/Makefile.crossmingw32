@@ -83,7 +83,7 @@ libs :
 	make -C jamlib -f Makefile.crossmingw32 ARCH=$(ARCH)
 	make -C oslib_win32 -f Makefile.crossmingw32 ARCH=$(ARCH)
 
-files : libs $(BINDIR)/crashmail-$(ARCH_SUFFIX)$(EXESUFFIX) \
+files : libs $(BINDIR) $(BINDIR)/crashmail-$(ARCH_SUFFIX)$(EXESUFFIX) \
          $(BINDIR)/crashstats-$(ARCH_SUFFIX)$(EXESUFFIX) \
 		$(BINDIR)/crashlist-$(ARCH_SUFFIX)$(EXESUFFIX) \
 		$(BINDIR)/crashgetnode-$(ARCH_SUFFIX)$(EXESUFFIX) \
@@ -91,6 +91,9 @@ files : libs $(BINDIR)/crashmail-$(ARCH_SUFFIX)$(EXESUFFIX) \
 		$(BINDIR)/crashwrite-$(ARCH_SUFFIX)$(EXESUFFIX) \
 		$(BINDIR)/crashexport-$(ARCH_SUFFIX)$(EXESUFFIX) \
 		$(BINDIR)/crashlistout-$(ARCH_SUFFIX)$(EXESUFFIX)
+
+$(BINDIR):
+	mkdir -p $(BINDIR)
 
 $(BINDIR)/crashmail-$(ARCH_SUFFIX)$(EXESUFFIX) : $(CMOBJS) $(SHOBJS) $(NLOBJS) $(MBOBJS) $(OSLIB)
 	$(CC_CMD) -o $(BINDIR)/crashmail-$(ARCH_SUFFIX)$(EXESUFFIX) $(CMOBJS) $(SHOBJS) $(NLOBJS) $(MBOBJS) $(OSLIB) -lws2_32
@@ -222,3 +225,9 @@ $(OBJDIR):
 # Clean
 clean :
 	$(RM) $(OBJDIR)/*.o
+	$(RM) cmnllib/*.a
+	$(RM) cmnllib/*.o
+	$(RM) jamlib/*.a
+	$(RM) jamlib/*.o
+	$(RM) oslib_win32/*.a
+	$(RM) oslib_win32/*.o

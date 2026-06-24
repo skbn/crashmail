@@ -52,6 +52,7 @@ crossmingw32-32 :
 crossmingw32-all :
 	mkdir -p bin
 	make -C src -f Makefile.crossmingw32 ARCH=win64 files
+	make -C src -f Makefile.crossmingw32 clean
 	make -C src -f Makefile.crossmingw32 ARCH=win32 files
 
 cleanlinux :

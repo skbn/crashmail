@@ -29,8 +29,8 @@ HERE := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 CC = m68k-amigaos-gcc -noixemul -mcpu=68020 -msoft-float -DPLATFORM_AMIGA
 CXX = m68k-amigaos-g++ -noixemul -mcpu=68020 -msoft-float -DPLATFORM_AMIGA
 #CFLAGS = -I$(HERE).. -I$(HERE) -I$(HERE)core -I$(HERE)components -I$(HERE)ui -Wall -std=gnu89 -O2
-CFLAGS = -Wall -Wextra -Wpedantic -Wmissing-prototypes -Wstrict-prototypes -Wdeclaration-after-statement -Wimplicit-function-declaration -Wno-unused-parameter -std=gnu89 -O2
-CXXFLAGS = -std=c++14 -O2 -Wall -Wextra -Wpedantic -Wno-unused-parameter -Wno-unused-result -fno-strict-aliasing -fwrapv -fno-omit-frame-pointer -DHUNSPELL_STATIC
+CFLAGS = -I$(HERE).. -I$(HERE) -I$(HERE)core -I$(HERE)components -I$(HERE)ui -I$(HERE)cjson -Wall -Wextra -Wpedantic -Wmissing-prototypes -Wstrict-prototypes -Wdeclaration-after-statement -Wimplicit-function-declaration -Wno-unused-parameter -std=gnu89 -O2 -lm
+CXXFLAGS = -I$(HERE).. -I$(HERE) -I$(HERE)core -I$(HERE)components -I$(HERE)ui -I$(HERE)cjson -std=c++14 -O2 -Wall -Wextra -Wpedantic -Wno-unused-parameter -Wno-unused-result -fno-strict-aliasing -fwrapv -fno-omit-frame-pointer -DHUNSPELL_STATIC
 AR = m68k-amigaos-ar
 RANLIB = m68k-amigaos-ranlib
 TARGET = $(HERE)libwrapper-amiga.a
@@ -139,8 +139,38 @@ else
     THES_OBJS =
   endif
 endif
+ifeq ($(USE_TRANSLATE),1)
+  TRANSLATE_UI_OBJS = $(OBJDIR)/ui_translate.o
+else
+  TRANSLATE_UI_OBJS =
+endif
 
-ALL_OBJS = $(CORE_OBJS) $(COMP_OBJS) $(UI_OBJS) $(SPELL_OBJS) $(HYPH_OBJS) $(THES_OBJS)
+# Translator support -- uses HTTP backends (MyMemory, LibreTranslate, Lingva)
+USE_TRANSLATE ?= 0
+
+ifeq ($(USE_TRANSLATE),1)
+  CFLAGS += -DHAVE_TRANSLATE -DHAVE_TRANSLATE_HTTP
+  TRANSLATE_OBJS = $(OBJDIR)/translate.o $(OBJDIR)/translate_http.o $(OBJDIR)/http_client.o $(OBJDIR)/json_utils.o
+  TRANSLATE_LIB = -lm -lgcc
+else
+  TRANSLATE_OBJS =
+  TRANSLATE_LIB =
+endif
+
+# AmiSSL SDK path for TLS support
+AMISSL_SDK ?= AmiSSL
+
+# Set WITH_AMISSL=1 to enable TLS support via AmiSSL (requires USE_TRANSLATE=1)
+WITH_AMISSL ?= 0
+ifeq ($(WITH_AMISSL),1)
+  ifeq ($(USE_TRANSLATE),0)
+    $(error WITH_AMISSL=1 requires USE_TRANSLATE=1)
+  endif
+  CFLAGS += -DWITH_AMISSL -I$(AMISSL_SDK)/Developer/include
+  TRANSLATE_LIBS = -L$(AMISSL_SDK)/Developer/lib/AmigaOS3 -lamisslstubs
+endif
+
+ALL_OBJS = $(CORE_OBJS) $(COMP_OBJS) $(UI_OBJS) $(SPELL_OBJS) $(HYPH_OBJS) $(THES_OBJS) $(TRANSLATE_OBJS) $(TRANSLATE_UI_OBJS)
 
 all: $(TARGET) crashedit
 
@@ -218,6 +248,25 @@ $(OBJDIR)/thes.o: $(COREDIR)/thes.cpp $(COREDIR)/thes.h $(COREDIR)/spell.h | $(O
 
 $(OBJDIR)/ui_thes.o: $(UIDIR)/ui_thes.c $(UIDIR)/ui_thes.h $(COREDIR)/thes.h | $(OBJDIR)
 	$(CC) $(CFLAGS) -c $< -o $@
+
+# Translator UI (built only when USE_TRANSLATE=1)
+ifeq ($(USE_TRANSLATE),1)
+$(OBJDIR)/ui_translate.o: $(UIDIR)/ui_translate.c $(UIDIR)/ui_translate.h | $(OBJDIR)
+	$(CC) $(CFLAGS) -c $< -o $@
+endif
+
+# Translator objects (only if USE_TRANSLATE=1)
+$(OBJDIR)/translate.o: $(COREDIR)/translate.c $(COREDIR)/translate.h | $(OBJDIR)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(OBJDIR)/translate_http.o: $(COREDIR)/translate_http.c $(COREDIR)/translate.h $(COREDIR)/http_client.h $(COREDIR)/json_utils.h | $(OBJDIR)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(OBJDIR)/http_client.o: $(COREDIR)/http_client.c $(COREDIR)/http_client.h | $(OBJDIR)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(OBJDIR)/json_utils.o: $(COREDIR)/json_utils.c $(COREDIR)/json_utils.h | $(OBJDIR)
+	$(CC) $(CFLAGS:-msoft-float=) -c $< -o $@
 
 $(OBJDIR)/portable.o: $(COREDIR)/portable.c $(COREDIR)/portable.h | $(OBJDIR)
 	$(CC) $(CFLAGS) -c $< -o $@
@@ -369,12 +418,15 @@ $(OBJDIR)/main_ui.o: $(HERE)main_ui.c | $(OBJDIR)
 
 # On AmigaOS we use native spellchecker, so no HUNSPELL_LIB, HYPHEN_LIB or MYTHES_LIB needed
 EXTRA_LIBS =
+ifeq ($(USE_TRANSLATE),1)
+EXTRA_LIBS += $(TRANSLATE_LIB)
+endif
 
 $(CRASHEDIT): $(OBJDIR)/main_ui.o $(TARGET) $(ALL_OBJS) $(JAMLIB)
-	$(CXX) $(CFLAGS) $(OBJDIR)/main_ui.o $(ALL_OBJS) $(TARGET) $(EXTRA_LIBS) $(JAMLIB) -o $@
+	$(CXX) $(CFLAGS) $(OBJDIR)/main_ui.o $(ALL_OBJS) $(TARGET) $(EXTRA_LIBS) $(TRANSLATE_LIBS) $(JAMLIB) -o $@ -lm
 else
 $(CRASHEDIT): $(HERE)main_ui.c $(TARGET) $(ALL_OBJS) $(JAMLIB)
-	$(CC) $(CFLAGS) $(HERE)main_ui.c $(ALL_OBJS) $(TARGET) $(JAMLIB) -o $@
+	$(CC) $(CFLAGS) $(HERE)main_ui.c $(ALL_OBJS) $(TARGET) $(EXTRA_LIBS) $(TRANSLATE_LIBS) $(JAMLIB) -o $@ -lm
 endif
 
 clean:

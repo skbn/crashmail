@@ -680,6 +680,21 @@ void cfg_defaults(CrashEditCfg *cfg)
     cfg->thes_dict_path[sizeof(cfg->thes_dict_path) - 1] = '\0';
     cfg->thes_dict_name[0] = '\0';
 #endif /* HAVE_MYTHES */
+
+#ifdef HAVE_TRANSLATE
+    cfg->translate_enabled = 0;
+    cfg->translate_backend = 0;        /* MyMemory */
+    cfg->translate_endpoint[0] = '\0'; /* Use default endpoint */
+    cfg->translate_api_key[0] = '\0';
+    cfg->translate_email[0] = '\0';
+
+    strncpy(cfg->translate_from_lang, "en", sizeof(cfg->translate_from_lang) - 1);
+    strncpy(cfg->translate_to_lang, "es", sizeof(cfg->translate_to_lang) - 1);
+
+    cfg->translate_from_lang[sizeof(cfg->translate_from_lang) - 1] = '\0';
+    cfg->translate_to_lang[sizeof(cfg->translate_to_lang) - 1] = '\0';
+    cfg->translate_timeout = 10; /* 10 seconds */
+#endif                           /* HAVE_TRANSLATE */
 }
 
 int cfg_load(CrashEditCfg *cfg, const char *path)
@@ -978,6 +993,90 @@ int cfg_load(CrashEditCfg *cfg, const char *path)
         }
 #endif /* HAVE_MYTHES */
 #endif /* HAVE_HUNSPELL */
+
+#ifdef HAVE_TRANSLATE
+        else if (strcasecmp(word, "TRANSLATE_ENABLED") == 0)
+        {
+            cfg->translate_enabled = parse_yesno(rest);
+        }
+        else if (strcasecmp(word, "TRANSLATE_BACKEND") == 0)
+        {
+            char val[16];
+            get_token(rest, val, sizeof(val));
+
+            if (strcasecmp(val, "MYMEMORY") == 0)
+                cfg->translate_backend = 0;
+            else if (strcasecmp(val, "LIBRETRANSLATE") == 0)
+                cfg->translate_backend = 1;
+            else if (strcasecmp(val, "LINGVA") == 0)
+                cfg->translate_backend = 2;
+            else
+                cfg->translate_backend = 0; /* Default to MyMemory */
+        }
+        else if (strcasecmp(word, "TRANSLATE_ENDPOINT") == 0)
+        {
+            char tmp[CFG_STR_MAX];
+
+            copy_rest(rest, tmp, sizeof(tmp));
+
+            strip_quotes(tmp);
+            strncpy(cfg->translate_endpoint, tmp, sizeof(cfg->translate_endpoint) - 1);
+
+            cfg->translate_endpoint[sizeof(cfg->translate_endpoint) - 1] = '\0';
+        }
+        else if (strcasecmp(word, "TRANSLATE_API_KEY") == 0)
+        {
+            char tmp[CFG_STR_MAX];
+
+            copy_rest(rest, tmp, sizeof(tmp));
+            strip_quotes(tmp);
+
+            strncpy(cfg->translate_api_key, tmp, sizeof(cfg->translate_api_key) - 1);
+
+            cfg->translate_api_key[sizeof(cfg->translate_api_key) - 1] = '\0';
+        }
+        else if (strcasecmp(word, "TRANSLATE_EMAIL") == 0)
+        {
+            char tmp[CFG_STR_MAX];
+
+            copy_rest(rest, tmp, sizeof(tmp));
+            strip_quotes(tmp);
+
+            strncpy(cfg->translate_email, tmp, sizeof(cfg->translate_email) - 1);
+
+            cfg->translate_email[sizeof(cfg->translate_email) - 1] = '\0';
+        }
+        else if (strcasecmp(word, "TRANSLATE_FROM_LANG") == 0)
+        {
+            char tmp[16];
+
+            get_token(rest, tmp, sizeof(tmp));
+
+            strncpy(cfg->translate_from_lang, tmp, sizeof(cfg->translate_from_lang) - 1);
+
+            cfg->translate_from_lang[sizeof(cfg->translate_from_lang) - 1] = '\0';
+        }
+        else if (strcasecmp(word, "TRANSLATE_TO_LANG") == 0)
+        {
+            char tmp[16];
+
+            get_token(rest, tmp, sizeof(tmp));
+
+            strncpy(cfg->translate_to_lang, tmp, sizeof(cfg->translate_to_lang) - 1);
+
+            cfg->translate_to_lang[sizeof(cfg->translate_to_lang) - 1] = '\0';
+        }
+        else if (strcasecmp(word, "TRANSLATE_TIMEOUT") == 0)
+        {
+            cfg->translate_timeout = atoi(rest);
+
+            if (cfg->translate_timeout < 1)
+                cfg->translate_timeout = 1;
+
+            if (cfg->translate_timeout > 60)
+                cfg->translate_timeout = 60;
+        }
+#endif /* HAVE_TRANSLATE */
 
         else if (strcasecmp(word, "TEMPLATEFILE") == 0)
         {
@@ -1448,7 +1547,11 @@ static void cfg_emit(FILE *f, const char *key, const char *val)
 
 int cfg_save(const CrashEditCfg *cfg, const char *path)
 {
-    CfgKV kv[64];
+    /* IMPORTANT: this array must hold every KV_STR/KV_INT/KV_YN call below
+     * Count with ALL features active (HUNSPELL+HYPHEN+MYTHES+TRANSLATE)
+     * for safety margin if more keys get added. Overflowing
+     * this array used to corrupt the stack and crash on save */
+    CfgKV kv[256];
     int nkv = 0;
     FILE *in = NULL;
     FILE *out = NULL;
@@ -1588,6 +1691,25 @@ int cfg_save(const CrashEditCfg *cfg, const char *path)
     KV_STR("THES_DICT_PATH", cfg->thes_dict_path);
     KV_STR("THES_DICT_NAME", cfg->thes_dict_name);
 #endif
+#endif
+
+#ifdef HAVE_TRANSLATE
+    const char *backend_name = "MYMEMORY";
+
+    KV_YN("TRANSLATE_ENABLED", cfg->translate_enabled);
+
+    if (cfg->translate_backend == 1)
+        backend_name = "LIBRETRANSLATE";
+    else if (cfg->translate_backend == 2)
+        backend_name = "LINGVA";
+
+    KV_STR("TRANSLATE_BACKEND", backend_name);
+    KV_STR("TRANSLATE_ENDPOINT", cfg->translate_endpoint);
+    KV_STR("TRANSLATE_API_KEY", cfg->translate_api_key);
+    KV_STR("TRANSLATE_EMAIL", cfg->translate_email);
+    KV_STR("TRANSLATE_FROM_LANG", cfg->translate_from_lang);
+    KV_STR("TRANSLATE_TO_LANG", cfg->translate_to_lang);
+    KV_INT("TRANSLATE_TIMEOUT", cfg->translate_timeout);
 #endif
 
     snprintf(tmp_path, sizeof(tmp_path), "%s.tmp", path);

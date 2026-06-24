@@ -39,8 +39,8 @@ endif
 CC ?= cc
 CXX ?= c++
 #CFLAGS += -I$(HERE).. -I$(HERE) -I$(HERE)core -I$(HERE)components -I$(HERE)ui -Wall -Wextra -std=gnu89 -O2 -D_XOPEN_SOURCE_EXTENDED
-CFLAGS += -I$(HERE).. -I$(HERE) -I$(HERE)core -I$(HERE)components -I$(HERE)ui -Wall -Wextra -Wpedantic -Wmissing-prototypes -Wstrict-prototypes -Wdeclaration-after-statement -Wimplicit-function-declaration -Wno-unused-parameter -std=gnu89 -O2 -D_XOPEN_SOURCE_EXTENDED
-CXXFLAGS += -I$(HERE).. -I$(HERE) -I$(HERE)core -I$(HERE)components -I$(HERE)ui -Wall -Wextra -Wpedantic -Wno-unused-parameter -O2
+CFLAGS += -I$(HERE).. -I$(HERE) -I$(HERE)core -I$(HERE)components -I$(HERE)ui -I$(HERE)cjson -Wall -Wextra -Wpedantic -Wmissing-prototypes -Wstrict-prototypes -Wdeclaration-after-statement -Wimplicit-function-declaration -Wno-unused-parameter -std=gnu89 -O2 -D_XOPEN_SOURCE_EXTENDED
+CXXFLAGS += -I$(HERE).. -I$(HERE) -I$(HERE)core -I$(HERE)components -I$(HERE)ui -I$(HERE)cjson -Wall -Wextra -Wpedantic -Wno-unused-parameter -O2
 AR = ar
 
 # Platform define
@@ -50,6 +50,7 @@ CDEFS = -DPLATFORM_UNIX
 USE_HUNSPELL ?= 0
 USE_HYPHEN ?= 0
 USE_MYTHES ?= 0
+USE_TRANSLATE ?= 0
 
 # ncurses library detection:
 #   Linux, FreeBSD, NetBSD, OpenBSD  -> -lncursesw   (wide-char variant)
@@ -90,7 +91,7 @@ UI_OBJS   = $(OBJDIR)/ui_app.o \
             $(OBJDIR)/ui_popup_attach.o $(OBJDIR)/ui_popup_freq.o $(OBJDIR)/ui_setup.o \
             $(OBJDIR)/ui_popup_nodelist.o \
             $(OBJDIR)/ui_search.o $(OBJDIR)/ui_glyph_picker.o \
-            $(OBJDIR)/ui_spell.o $(OBJDIR)/ui_mouse.o
+            $(OBJDIR)/ui_spell.o $(OBJDIR)/ui_mouse.o $(OBJDIR)/ui_translate.o
 
 # Hunspell spell checker -- opt-in.  Set USE_HUNSPELL=1 on the make command
 # line (or in your environment) to build with Hunspell support.  Otherwise
@@ -158,6 +159,25 @@ endif
 
 else
 HYPH_LIB  :=
+endif
+
+# Translator -- opt-in. Uses HTTP backends (MyMemory, LibreTranslate, Lingva).
+# Compiles core/translate.o, core/translate_http.o, core/http_client.o, and core/json_utils.o.
+# Uses libcurl on Unix/Windows, external curl on Amiga.
+ifeq ($(USE_TRANSLATE),1)
+CDEFS    += -DHAVE_TRANSLATE -DHAVE_TRANSLATE_HTTP
+CORE_OBJS += $(OBJDIR)/translate.o $(OBJDIR)/translate_http.o $(OBJDIR)/http_client.o $(OBJDIR)/json_utils.o
+# Use pkg-config for libcurl on Unix (multi-platform detection)
+TRANSLATE_CFLAGS := $(shell pkg-config --cflags libcurl 2>/dev/null)
+TRANSLATE_LIBS := $(shell pkg-config --libs libcurl 2>/dev/null)
+# Fallback to -lcurl if pkg-config fails
+ifeq ($(TRANSLATE_LIBS),)
+TRANSLATE_LIBS := -lcurl
+endif
+CDEFS += $(TRANSLATE_CFLAGS)
+TRANSLATE_LIB := -lm $(TRANSLATE_LIBS)
+else
+TRANSLATE_LIB :=
 endif
 
 # Thesaurus (MyThes) -- opt-in. Requires libmythes (Debian/Ubuntu:
@@ -359,8 +379,10 @@ $(OBJDIR)/ui_glyph_picker.o: $(UIDIR)/ui_glyph_picker.c $(UIDIR)/ui_glyph_picker
 	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
 
 # Spell checker (backend + UI).  spell.c is only compiled when USE_HUNSPELL=1.
+ifeq ($(USE_HUNSPELL),1)
 $(OBJDIR)/spell.o: $(COREDIR)/spell.c $(COREDIR)/spell.h | $(OBJDIR)
 	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+endif
 
 $(OBJDIR)/ui_spell.o: $(UIDIR)/ui_spell.c $(UIDIR)/ui_spell.h $(COREDIR)/spell.h | $(OBJDIR)
 	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
@@ -371,18 +393,41 @@ $(OBJDIR)/ui_mouse.o: $(UIDIR)/ui_mouse.c $(UIDIR)/ui_mouse.h | $(OBJDIR)
 $(OBJDIR)/ui_assist.o: $(UIDIR)/ui_assist.c $(UIDIR)/ui_assist.h | $(OBJDIR)
 	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
 
+# Translator -- compiled only when USE_TRANSLATE=1
+ifeq ($(USE_TRANSLATE),1)
+$(OBJDIR)/ui_translate.o: $(UIDIR)/ui_translate.c $(UIDIR)/ui_translate.h | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+endif
+
 # Hyphenation -- compiled only when USE_HYPHEN=1
+ifeq ($(USE_HYPHEN),1)
 $(OBJDIR)/hyph.o: $(COREDIR)/hyph.c $(COREDIR)/hyph.h | $(OBJDIR)
 	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
 
 $(OBJDIR)/ui_hyph.o: $(UIDIR)/ui_hyph.c $(UIDIR)/ui_hyph.h $(COREDIR)/hyph.h | $(OBJDIR)
 	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+endif
 
 # Thesaurus -- compiled only when USE_MYTHES=1. Note the C++ compile rule
+ifeq ($(USE_MYTHES),1)
 $(OBJDIR)/thes.o: $(COREDIR)/thes.cpp $(COREDIR)/thes.h $(COREDIR)/spell.h | $(OBJDIR)
 	$(CXX) $(CXXFLAGS) $(CDEFS) -c $< -o $@
 
 $(OBJDIR)/ui_thes.o: $(UIDIR)/ui_thes.c $(UIDIR)/ui_thes.h $(COREDIR)/thes.h | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+endif
+
+# Translator -- compiled only when USE_TRANSLATE=1
+$(OBJDIR)/translate.o: $(COREDIR)/translate.c $(COREDIR)/translate.h | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
+$(OBJDIR)/translate_http.o: $(COREDIR)/translate_http.c $(COREDIR)/translate.h $(COREDIR)/http_client.h $(COREDIR)/json_utils.h | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
+$(OBJDIR)/http_client.o: $(COREDIR)/http_client.c $(COREDIR)/http_client.h | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
+$(OBJDIR)/json_utils.o: $(COREDIR)/json_utils.c $(COREDIR)/json_utils.h | $(OBJDIR)
 	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
 
 # Application
@@ -394,7 +439,7 @@ crashedit: $(CRASHEDIT)
 ifeq ($(USE_HUNSPELL)$(USE_MYTHES),00)
 $(CRASHEDIT): $(HERE)main_ui.c $(TARGET) $(UI_OBJS) $(JAMLIB)
 	$(CC) $(CFLAGS) $(CDEFS) $(HERE)main_ui.c $(UI_OBJS) $(TARGET) $(JAMLIB) \
-	      -o $@ $(NCURSES_LIB) $(SPELL_LIB) $(HYPH_LIB) $(MYTHES_LIB)
+	      -o $@ $(NCURSES_LIB) $(SPELL_LIB) $(HYPH_LIB) $(MYTHES_LIB) $(TRANSLATE_LIB)
 else
 $(OBJDIR)/main_ui.o: $(HERE)main_ui.c | $(OBJDIR)
 	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
@@ -405,6 +450,9 @@ LINK_LIBS += $(HYPH_LIB)
 endif
 ifeq ($(USE_MYTHES),1)
 LINK_LIBS += $(MYTHES_LIB)
+endif
+ifeq ($(USE_TRANSLATE),1)
+LINK_LIBS += $(TRANSLATE_LIB)
 endif
 
 $(CRASHEDIT): $(OBJDIR)/main_ui.o $(TARGET) $(UI_OBJS) $(JAMLIB)

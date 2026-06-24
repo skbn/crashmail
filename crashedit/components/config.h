@@ -149,6 +149,18 @@ typedef struct
     char thes_dict_path[CFG_STR_MAX]; /* directory containing th_*.idx/.dat */
     char thes_dict_name[CFG_STR_MAX]; /* base name, e.g. "es_v2" */
 #endif
+
+#ifdef HAVE_TRANSLATE
+    int translate_enabled;
+    int translate_backend; /* 0=MyMemory, 1=LibreTranslate, 2=Lingva */
+
+    char translate_endpoint[CFG_STR_MAX];
+    char translate_api_key[CFG_STR_MAX];
+    char translate_email[CFG_STR_MAX];
+    char translate_from_lang[16]; /* ISO language code, e.g. "en" */
+    char translate_to_lang[16];   /* ISO language code, e.g. "es" */
+    int translate_timeout;        /* HTTP timeout in seconds */
+#endif
 } CrashEditCfg;
 
 /* Load config from path (0=ok, -1=error) */

@@ -18,37 +18,46 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
-# Makefile.crossmingw32 -- Build libwrapper.a + crashedit for Windows (cross-compiled from Linux)
+# Makefile.win32 -- Build libwrapper.a + crashedit for Windows (native with MSYS2/MinGW)
 #
-# Usage: make -f Makefile.crossmingw32 [ARCH=win64|win32] [DEBUG=1]
+# Usage: make -f Makefile.win32
 #
 # Position-independent: anchored to the directory containing this Makefile
 
 # Directory of this Makefile (with trailing slash)
 HERE := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 
-# Architecture selection (default: win64)
+# Compiler (cross-compiler for Windows)
+ifeq ($(ARCH),win32)
+CC = i686-w64-mingw32-gcc
+AR = i686-w64-mingw32-ar
+else
+CC = x86_64-w64-mingw32-gcc
+AR = x86_64-w64-mingw32-ar
+endif
+
+# Compiler flags
+CFLAGS = -I$(HERE).. -I$(HERE) -I$(HERE)core -I$(HERE)components -I$(HERE)ui -Wall -Wextra -Wpedantic -Wmissing-prototypes -Wstrict-prototypes -Wdeclaration-after-statement -Wimplicit-function-declaration -Wno-unused-parameter -std=gnu89 -O2
+LFLAGS = 
+
+# Platform-specific defines
+CDEFS = -DPLATFORM_WIN32 -DNO_TYPEDEF_BOOL -D_WINDOWS
+
+# Architecture (default: win64 for 64-bit Windows)
 ARCH?=win64
 
 ifeq ($(ARCH),win32)
-CC=i686-w64-mingw32-gcc
-WINDRES=i686-w64-mingw32-windres
-CFLAGS= -m32 -pipe -Wall -Wextra -std=gnu89 -O2
-LFLAGS= -m32
-LDFLAGS=
+CFLAGS += -m32
+LFLAGS += -m32
 OBJDIR_SUFFIX=objs.win32
 ARCH_SUFFIX=x32
 else
-CC=x86_64-w64-mingw32-gcc
-WINDRES=x86_64-w64-mingw32-windres
-CFLAGS= -m64 -pipe -Wall -Wextra -std=gnu89 -O2
-LFLAGS= -m64
-LDFLAGS=
+CFLAGS += -m64
+LFLAGS += -m64
 OBJDIR_SUFFIX=objs.win64
 ARCH_SUFFIX=x64
 endif
 
-AR = ar
 TARGET = $(HERE)libwrapper-windows-$(ARCH_SUFFIX).a
 
 # Directories
@@ -56,9 +65,6 @@ OBJDIR = $(HERE)$(OBJDIR_SUFFIX)
 COREDIR = $(HERE)core
 COMPDIR = $(HERE)components
 UIDIR = $(HERE)ui
-
-# Platform-specific defines
-CDEFS = -DPLATFORM_WIN32 -D_WINDOWS
 
 # Object files in objs/
 CORE_OBJS = $(OBJDIR)/portable.o $(OBJDIR)/msg_wrap.o $(OBJDIR)/msgbase.o \
@@ -73,21 +79,82 @@ UI_OBJS   = $(OBJDIR)/ui_app.o \
             $(OBJDIR)/ui_msglist.o $(OBJDIR)/ui_reader.o $(OBJDIR)/ui_editor.o \
             $(OBJDIR)/ui_editor_prep.o $(OBJDIR)/ui_editor_popups.o \
             $(OBJDIR)/ui_editor_softwrap.o $(OBJDIR)/ui_editor_search.o $(OBJDIR)/ui_editor_paste.o $(OBJDIR)/ui_editor_draw.o $(OBJDIR)/ui_editor_helper.o \
+            $(OBJDIR)/ui_assist.o \
             $(OBJDIR)/ui_aka.o $(OBJDIR)/ui_attr.o $(OBJDIR)/ui_files.o \
             $(OBJDIR)/ui_popup_attach.o $(OBJDIR)/ui_popup_freq.o $(OBJDIR)/ui_setup.o \
             $(OBJDIR)/ui_search.o $(OBJDIR)/ui_popup_nodelist.o $(OBJDIR)/ui_glyph_picker.o \
-            $(OBJDIR)/ui_spell.o
+            $(OBJDIR)/ui_spell.o $(OBJDIR)/ui_mouse.o
+
+# Hyphen and Thesaurus UI objects
+ifeq ($(USE_HYPHEN),1)
+UI_OBJS += $(OBJDIR)/ui_hyph.o
+endif
+ifeq ($(USE_MYTHES),1)
+UI_OBJS += $(OBJDIR)/ui_thes.o
+endif
+ifeq ($(USE_TRANSLATE),1)
+UI_OBJS += $(OBJDIR)/ui_translate.o
+endif
 
 # Hunspell spell checker -- opt-in.  Set USE_HUNSPELL=1 to enable.
+SPELL_DIR = $(HERE)spellchecker
 ifeq ($(USE_HUNSPELL),1)
-CDEFS    += -DHAVE_HUNSPELL
+CDEFS    += -DHAVE_HUNSPELL -I$(SPELL_DIR)
+# On Windows/Amiga, use native spellchecker/ (no core/spell.c wrapper needed)
+# On Linux/BSD, use external Hunspell library (needs core/spell.c wrapper)
+ifneq ($(findstring win,$(ARCH)),)
+# Windows: use native spellchecker only
+SPELL_OBJS = $(OBJDIR)/spellchecker_utils.o \
+             $(OBJDIR)/spellchecker_htab.o \
+             $(OBJDIR)/spellchecker_affix.o \
+             $(OBJDIR)/spellchecker_core.o \
+             $(OBJDIR)/spellchecker_suggest.o \
+             $(OBJDIR)/spellchecker_stem.o \
+             $(OBJDIR)/spellchecker_custom.o \
+             $(OBJDIR)/spellchecker_dict_scan.o
+else ifeq ($(PLATFORM),amiga)
+# Amiga: use native spellchecker only
+SPELL_OBJS = $(OBJDIR)/spellchecker_utils.o \
+             $(OBJDIR)/spellchecker_htab.o \
+             $(OBJDIR)/spellchecker_affix.o \
+             $(OBJDIR)/spellchecker_core.o \
+             $(OBJDIR)/spellchecker_suggest.o \
+             $(OBJDIR)/spellchecker_stem.o \
+             $(OBJDIR)/spellchecker_custom.o \
+             $(OBJDIR)/spellchecker_dict_scan.o
+else
+# Linux/BSD: use external Hunspell library with core/spell.c wrapper
 CORE_OBJS += $(OBJDIR)/spell.o
 SPELL_LIB := -lhunspell
+SPELL_OBJS :=
+endif
+ifeq ($(USE_HYPHEN),1)
+CDEFS    += -DHAVE_HYPHEN
+SPELL_OBJS += $(OBJDIR)/spellchecker_hyph.o
+endif
+ifeq ($(USE_MYTHES),1)
+CDEFS    += -DHAVE_MYTHES
+SPELL_OBJS += $(OBJDIR)/spellchecker_thes.o
+endif
 else
+SPELL_OBJS :=
 SPELL_LIB :=
 endif
 
-ALL_OBJS = $(CORE_OBJS) $(COMP_OBJS)
+# Translator -- opt-in. Uses HTTP backends (MyMemory, LibreTranslate, Lingva).
+# Uses libcurl on Unix/Windows, external curl on Amiga.
+USE_TRANSLATE ?= 0
+
+ifeq ($(USE_TRANSLATE),1)
+CDEFS    += -DHAVE_TRANSLATE -DHAVE_TRANSLATE_HTTP
+TRANSLATE_OBJS = $(OBJDIR)/translate.o $(OBJDIR)/translate_http.o $(OBJDIR)/http_client.o $(OBJDIR)/json_utils.o
+TRANSLATE_LIB = -lm -lcurl
+else
+TRANSLATE_OBJS =
+TRANSLATE_LIB =
+endif
+
+ALL_OBJS = $(CORE_OBJS) $(COMP_OBJS) $(SPELL_OBJS) $(TRANSLATE_OBJS) $(OBJDIR)/spellchecker_utils.o
 
 all: $(TARGET) crashedit
 
@@ -106,8 +173,80 @@ $(OBJDIR)/jam_wrap.o: $(COREDIR)/jam_wrap.c $(COREDIR)/jam_wrap.h $(HERE)../src/
 $(OBJDIR)/spell.o: $(COREDIR)/spell.c $(COREDIR)/spell.h | $(OBJDIR)
 	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
 
+$(OBJDIR)/dict_scan.o: $(HERE)spellchecker/dict_scan.c $(HERE)spellchecker/dict_scan.h | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
 $(OBJDIR)/ui_spell.o: $(UIDIR)/ui_spell.c $(UIDIR)/ui_spell.h $(COREDIR)/spell.h | $(OBJDIR)
 	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
+$(OBJDIR)/ui_mouse.o: $(UIDIR)/ui_mouse.c $(UIDIR)/ui_mouse.h | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
+$(OBJDIR)/ui_assist.o: $(UIDIR)/ui_assist.c $(UIDIR)/ui_assist.h | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
+# Translator objects (only if USE_TRANSLATE=1)
+ifeq ($(USE_TRANSLATE),1)
+$(OBJDIR)/translate.o: $(COREDIR)/translate.c $(COREDIR)/translate.h | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
+$(OBJDIR)/translate_http.o: $(COREDIR)/translate_http.c $(COREDIR)/translate.h $(COREDIR)/http_client.h $(COREDIR)/json_utils.h | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
+$(OBJDIR)/http_client.o: $(COREDIR)/http_client.c $(COREDIR)/http_client.h | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
+$(OBJDIR)/json_utils.o: $(COREDIR)/json_utils.c $(COREDIR)/json_utils.h | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+endif
+
+# Spell checker objects (native spellchecker/ C-only engine)
+SPELL_PRIV = $(SPELL_DIR)/spell_priv.h $(SPELL_DIR)/spell.h
+
+# spellchecker_utils.o is always needed for te_is_word_char (used by ui_mouse.c)
+$(OBJDIR)/spellchecker_utils.o: $(SPELL_DIR)/spell_utils.c $(SPELL_PRIV) | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
+ifeq ($(USE_HUNSPELL),1)
+$(OBJDIR)/spellchecker_htab.o: $(SPELL_DIR)/spell_htab.c $(SPELL_PRIV) | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
+$(OBJDIR)/spellchecker_affix.o: $(SPELL_DIR)/spell_affix.c $(SPELL_PRIV) | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
+$(OBJDIR)/spellchecker_core.o: $(SPELL_DIR)/spell_core.c $(SPELL_PRIV) | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
+$(OBJDIR)/spellchecker_suggest.o: $(SPELL_DIR)/spell_suggest.c $(SPELL_PRIV) | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
+$(OBJDIR)/spellchecker_stem.o: $(SPELL_DIR)/spell_stem.c $(SPELL_PRIV) | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
+$(OBJDIR)/spellchecker_custom.o: $(SPELL_DIR)/spell_custom.c $(SPELL_PRIV) | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
+$(OBJDIR)/spellchecker_dict_scan.o: $(SPELL_DIR)/dict_scan.c $(SPELL_DIR)/dict_scan.h | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+ifeq ($(USE_HYPHEN),1)
+$(OBJDIR)/spellchecker_hyph.o: $(SPELL_DIR)/hyph.c $(SPELL_DIR)/hyph.h | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
+$(OBJDIR)/ui_hyph.o: $(UIDIR)/ui_hyph.c $(UIDIR)/ui_hyph.h | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+endif
+ifeq ($(USE_MYTHES),1)
+$(OBJDIR)/spellchecker_thes.o: $(SPELL_DIR)/thes.c $(SPELL_DIR)/thes.h | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
+$(OBJDIR)/ui_thes.o: $(UIDIR)/ui_thes.c $(UIDIR)/ui_thes.h | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+endif
+endif
+ifeq ($(USE_TRANSLATE),1)
+$(OBJDIR)/ui_translate.o: $(UIDIR)/ui_translate.c $(UIDIR)/ui_translate.h | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+endif
 
 
 $(OBJDIR)/portable.o: $(COREDIR)/portable.c $(COREDIR)/portable.h | $(OBJDIR)
@@ -240,13 +379,13 @@ $(OBJDIR)/ui_search.o: $(UIDIR)/ui_search.c $(UIDIR)/ui_search.h $(UIDIR)/ui_int
 	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
 
 $(OBJDIR)/nodelist.o: $(COREDIR)/nodelist.c $(COREDIR)/nodelist.h | $(OBJDIR)
-	$(CC) $(CFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
 
 $(OBJDIR)/ui_popup_nodelist.o: $(UIDIR)/ui_popup_nodelist.c $(UIDIR)/ui_internal.h $(COREDIR)/nodelist.h | $(OBJDIR)
-	$(CC) $(CFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
 
 $(OBJDIR)/ui_glyph_picker.o: $(UIDIR)/ui_glyph_picker.c $(UIDIR)/ui_glyph_picker.h | $(OBJDIR)
-	$(CC) $(CFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
 
 # Application
 JAMLIB = $(HERE)../src/jamlib/jamlib.a
@@ -255,8 +394,8 @@ CRASHEDIT = $(HERE)../bin/crashedit-$(ARCH_SUFFIX).exe
 crashedit: $(CRASHEDIT)
 
 $(CRASHEDIT): $(HERE)main_ui.c $(TARGET) $(UI_OBJS) $(JAMLIB)
-	$(CC) $(CFLAGS) $(LFLAGS) $(CDEFS) $(HERE)main_ui.c $(UI_OBJS) $(JAMLIB) \
-	      -o $@ $(LDFLAGS) -lws2_32 -lkernel32 -luser32 -lgdi32
+	$(CC) $(CFLAGS) $(LFLAGS) $(CDEFS) $(HERE)main_ui.c $(UI_OBJS) $(TARGET) $(JAMLIB) \
+	      -o $@ -lws2_32 -lkernel32 -luser32 -lgdi32 $(TRANSLATE_LIB)
 
 clean:
 	rm -rf $(OBJDIR) $(TARGET) $(CRASHEDIT)

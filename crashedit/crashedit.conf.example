@@ -181,6 +181,14 @@ FORCEINTL 0
 # Default: 50
 #UNDOLEVELS 1000
 
+# MOUSE_ENABLED -- Enable mouse support in the terminal
+# Default: YES
+#MOUSE_ENABLED NO
+
+# LINENUMBERS -- Show line numbers in the editor
+# Default: NO
+#LINENUMBERS YES
+
 
 #===========================================================================
 #  PATHS
@@ -215,6 +223,26 @@ AREAFILE work:fido/etc/areas.golded
 #            CP866=Cyrillic, LATIN-1=Western European, UTF-8=Unicode
 # Default: (build default, normally LATIN-1)
 CHARSET LATIN-1
+
+
+#===========================================================================
+#  EDITOR ASSISTANCE
+#===========================================================================
+
+# ASSIST_SMART_QUOTES -- Auto-convert straight quotes to curly quotes
+#                       When typing ' or ", it becomes ' or " based on context
+# Default: NO
+#ASSIST_SMART_QUOTES YES
+
+# ASSIST_AUTO_CAP -- Auto-capitalize after sentence endings
+#                    Capitalizes first letter after . ! ? or new paragraph
+# Default: NO
+#ASSIST_AUTO_CAP YES
+
+# ASSIST_REPEAT_CHECK -- Highlight repeated words in the same line
+#                        Visual highlight for words like "the the"
+# Default: NO
+#ASSIST_REPEAT_CHECK YES
 
 
 #===========================================================================
@@ -476,6 +504,19 @@ AREALISTFORMAT "A E PNU C D G"
 #                 NO = UTF-16 BE
 # Default: YES
 #TTF_USE_UTF8 YES
+
+# TTF_FALLBACK1..8 -- Fallback TTF fonts for missing codepoints (AmigaOS only)
+#                    Each fallback font is loaded after the primary TTF_FONT
+#                    Use for emoji, CJK, or other Unicode ranges not in primary font
+#                    Example: TTF_FALLBACK1 FONTS:_ttf/NotoColorEmoji.ttf
+# Default: (empty - no fallback fonts)
+#TTF_FALLBACK1 FONTS:_ttf/NotoColorEmoji.ttf
+#TTF_FALLBACK2 FONTS:_ttf/NotoSansCJK-Regular.ttc
+
+# TTF_FALLBACK_SIZE1..8 -- Font size for each fallback font (AmigaOS only)
+#                         If not set, inherits TTF_SIZE
+# Default: 0 (inherit TTF_SIZE)
+#TTF_FALLBACK_SIZE1 14
 
 #===========================================================================
 #  TIME

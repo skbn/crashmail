@@ -127,6 +127,36 @@ void ui_popup_center(int want_h, int want_w, int *y, int *x, int *h, int *w)
     *x = (COLS - want_w) / 2;
 }
 
+/* Info popup (non-blocking, just shows message) */
+void ui_popup_info(const char *title, const char *msg)
+{
+    int y;
+    int x;
+    int h;
+    int w;
+    int want_w = msg ? (int)strlen(msg) + 8 : 22;
+
+    if (want_w < 22)
+        want_w = 22;
+
+    if (want_w > COLS)
+        want_w = COLS;
+
+    curs_set(0);
+    ui_popup_center(5, want_w, &y, &x, &h, &w);
+
+    ui_draw_popup_frame(y, x, h, w, title ? title : "Info");
+    attron(COLOR_PAIR(COL_POPUP));
+
+    if (msg)
+        mvaddnstr(y + 2, x + 2, msg, w - 4);
+
+    attroff(COLOR_PAIR(COL_POPUP));
+    move(y + 2, x + 2);
+
+    refresh();
+}
+
 /* Confirm Yes/No/Cancel */
 int ui_popup_confirm(const char *title, const char *msg)
 {

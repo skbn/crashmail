@@ -69,7 +69,7 @@ CMOBJS = $(OBJDIR)/crashmail.o \
 		$(OBJDIR)/filter.o \
 		$(OBJDIR)/areafix.o
 
-files :  $(BINDIR)/crashmail$(EXESUFFIX) \
+files : $(BINDIR) $(BINDIR)/crashmail$(EXESUFFIX) \
          $(BINDIR)/crashstats$(EXESUFFIX) \
 		$(BINDIR)/crashlist$(EXESUFFIX) \
     	$(BINDIR)/crashgetnode$(EXESUFFIX) \
@@ -77,6 +77,9 @@ files :  $(BINDIR)/crashmail$(EXESUFFIX) \
 		$(BINDIR)/crashwrite$(EXESUFFIX) \
 		$(BINDIR)/crashexport$(EXESUFFIX) \
 		$(BINDIR)/crashlistout$(EXESUFFIX)
+
+$(BINDIR):
+	mkdir -p $(BINDIR)
 
 $(BINDIR)/crashmail$(EXESUFFIX) : $(CMOBJS) $(SHOBJS) $(NLOBJS) $(MBOBJS) $(OSLIB)
 	$(CC) -o $(BINDIR)/crashmail$(EXESUFFIX) $(CMOBJS) $(SHOBJS) $(NLOBJS) $(MBOBJS) $(OSLIB)
@@ -210,4 +213,8 @@ $(OBJDIR)/nl_v7p.o : crashmail/nl_v7p.c
 
 clean :
 	$(RM) $(OBJDIR)/*.o
+	$(RM) cmnllib/*.a
+	$(RM) cmnllib/*.o
+	$(RM) jamlib/*.a
+	$(RM) jamlib/*.o
 

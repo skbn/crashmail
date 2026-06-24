@@ -42,8 +42,8 @@ CXX        := $(CROSS)g++ -noixemul -mcpu=68020 -msoft-float -DPLATFORM_AMIGA -D
 AR         := $(CROSS)ar
 RANLIB     := $(CROSS)ranlib
 
-CFLAGS     := -Wall -std=gnu89 -O2 -Wno-pointer-sign -Wno-unused-result -DAMIGA_TTF_TE
-CXXFLAGS   := -std=c++14 -O2 -Wall -Wno-unused-result -fno-strict-aliasing -fwrapv -fno-omit-frame-pointer -DHUNSPELL_STATIC
+CFLAGS     := -I$(HERE).. -I$(HERE) -I$(HERE)core -I$(HERE)components -I$(HERE)ui -I$(HERE)cjson -Wall -std=gnu89 -O2 -Wno-pointer-sign -Wno-unused-result -DAMIGA_TTF_TE
+CXXFLAGS   := -I$(HERE).. -I$(HERE) -I$(HERE)core -I$(HERE)components -I$(HERE)ui -I$(HERE)cjson -std=c++14 -O2 -Wall -Wno-unused-result -fno-strict-aliasing -fwrapv -fno-omit-frame-pointer -DHUNSPELL_STATIC
 
 # External tree locations -- relative to HERE
 FTDIR      := $(HERE)freetype
@@ -136,8 +136,36 @@ endif
 ifeq ($(USE_MYTHES),1)
 UI_OBJS    += $(OBJDIR)/ui_thes.o
 endif
+ifeq ($(USE_TRANSLATE),1)
+UI_OBJS    += $(OBJDIR)/ui_translate.o
+endif
 
-ALL_OBJS   = $(CORE_OBJS) $(COMP_OBJS) $(UI_OBJS) $(SPELL_OBJS) $(HYPHWRAP_OBJS) $(THES_OBJS)
+# Translator support -- uses HTTP backends (MyMemory, LibreTranslate, Lingva)
+USE_TRANSLATE ?= 0
+
+ifeq ($(USE_TRANSLATE),1)
+  CFLAGS += -DHAVE_TRANSLATE -DHAVE_TRANSLATE_HTTP
+  TRANSLATE_OBJS = $(OBJDIR)/translate.o $(OBJDIR)/translate_http.o $(OBJDIR)/http_client.o $(OBJDIR)/json_utils.o
+  TRANSLATE_LIB = -lm
+else
+  TRANSLATE_OBJS =
+  TRANSLATE_LIB =
+endif
+
+# AmiSSL SDK path for TLS support
+AMISSL_SDK ?= AmiSSL
+
+# Set WITH_AMISSL=1 to enable TLS support via AmiSSL (requires USE_TRANSLATE=1)
+WITH_AMISSL ?= 0
+ifeq ($(WITH_AMISSL),1)
+  ifeq ($(USE_TRANSLATE),0)
+    $(error WITH_AMISSL=1 requires USE_TRANSLATE=1)
+  endif
+  CFLAGS += -DWITH_AMISSL -I$(AMISSL_SDK)/Developer/include
+  TRANSLATE_LIBS = -L$(AMISSL_SDK)/Developer/lib/AmigaOS3 -lamisslstubs
+endif
+
+ALL_OBJS   = $(CORE_OBJS) $(COMP_OBJS) $(UI_OBJS) $(SPELL_OBJS) $(HYPHWRAP_OBJS) $(THES_OBJS) $(TRANSLATE_OBJS) $(OBJDIR)/spellchecker_utils.o
 
 # FreeType objects (with gzip + lzw modules) - all in OBJDIR
 FT_OBJS    := \
@@ -211,12 +239,15 @@ $(OBJDIR)/main_ui.o: $(HERE)main_ui.c | $(OBJDIR)
 
 # On AmigaOS we use native spellchecker, so no HUNSPELL_LIB, HYPHEN_LIB or MYTHES_LIB needed
 LINK_LIBS =
+ifeq ($(USE_TRANSLATE),1)
+LINK_LIBS += $(TRANSLATE_LIB)
+endif
 
 $(CRASHEDIT): $(OBJDIR)/main_ui.o $(TARGET) $(LINK_LIBS) $(JAMLIB)
-	$(CXX) $(CFLAGS) $(OBJDIR)/main_ui.o $(TARGET) $(LINK_LIBS) $(JAMLIB) -lm -o $@
+	$(CXX) $(CFLAGS) $(OBJDIR)/main_ui.o $(TARGET) $(LINK_LIBS) $(TRANSLATE_LIBS) $(JAMLIB) -lm -o $@
 else
 $(CRASHEDIT): $(HERE)main_ui.c $(TARGET) $(JAMLIB)
-	$(CC) $(CFLAGS) $(HERE)main_ui.c $(TARGET) $(JAMLIB) -lm -o $@
+	$(CC) $(CFLAGS) $(HERE)main_ui.c $(TARGET) $(TRANSLATE_LIBS) $(JAMLIB) -lm -o $@
 endif
 
 # ====================================================================
@@ -632,7 +663,25 @@ ifeq ($(USE_MYTHES),1)
 $(OBJDIR)/ui_thes.o: $(UIDIR)/ui_thes.c $(UIDIR)/ui_thes.h | $(OBJDIR)
 	$(CC) $(TEFLAGS) -c $< -o $@
 endif
+ifeq ($(USE_TRANSLATE),1)
+$(OBJDIR)/ui_translate.o: $(UIDIR)/ui_translate.c $(UIDIR)/ui_translate.h | $(OBJDIR)
+	$(CC) $(TEFLAGS) -c $< -o $@
+endif
 
+# Translator objects (only if USE_TRANSLATE=1)
+ifeq ($(USE_TRANSLATE),1)
+$(OBJDIR)/translate.o: $(COREDIR)/translate.c $(COREDIR)/translate.h | $(OBJDIR)
+	$(CC) $(TEFLAGS) -c $< -o $@
+
+$(OBJDIR)/translate_http.o: $(COREDIR)/translate_http.c $(COREDIR)/translate.h $(COREDIR)/http_client.h $(COREDIR)/json_utils.h | $(OBJDIR)
+	$(CC) $(TEFLAGS) -c $< -o $@
+
+$(OBJDIR)/http_client.o: $(COREDIR)/http_client.c $(COREDIR)/http_client.h | $(OBJDIR)
+	$(CC) $(TEFLAGS) -c $< -o $@
+
+$(OBJDIR)/json_utils.o: $(COREDIR)/json_utils.c $(COREDIR)/json_utils.h | $(OBJDIR)
+	$(CC) $(TEFLAGS) -c $< -o $@
+endif
 
 clean:
 	rm -rf $(OBJDIR) $(TARGET) $(CRASHEDIT)

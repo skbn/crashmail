@@ -36,6 +36,9 @@
 #ifdef HAVE_MYTHES
 #include "ui_thes.h"
 #endif
+#ifdef HAVE_TRANSLATE
+#include "ui_translate.h"
+#endif
 #include <locale.h>
 
 #if !defined(PLATFORM_WIN32) && !defined(PLATFORM_AMIGA)
@@ -284,17 +287,27 @@ void ui_reapply_config(UiApp *app)
 
     setup_colors(app->cfg);
 
+    /* Load thesaurus FIRST (spell checker needs to attach to it) */
+#ifdef HAVE_MYTHES
+    ui_thes_load_from_config(app);
+#endif
+
 #ifdef HAVE_HUNSPELL
     /* Reload Hunspell dictionary if config changed */
     ui_spell_load_from_config(app);
 #endif
 
-    /* Load hyphenation and thesaurus (thesaurus needs speller) */
 #ifdef HAVE_HYPHEN
     ui_hyph_load_from_config(app);
 #endif
-#ifdef HAVE_MYTHES
-    ui_thes_load_from_config(app);
+
+#ifdef HAVE_TRANSLATE
+    /* Reload translator config */
+    app->translate_enabled = app->cfg->translate_enabled;
+    app->translate_active = 0; /* Disabled by default */
+
+    /* Load translator from config */
+    ui_translate_load_from_config(app);
 #endif
 
 #if !defined(PLATFORM_AMIGA) && !defined(PLATFORM_WIN32)
@@ -355,10 +368,26 @@ static void build_status_right(const UiApp *app, char *out, int outsz)
         EdInfo info;
 
         ed_get_info(app->editor, &info);
-#if defined(HAVE_HUNSPELL) && defined(HAVE_HYPHEN)
+#if defined(HAVE_HUNSPELL) && defined(HAVE_HYPHEN) && defined(HAVE_TRANSLATE)
+        snprintf(out, (size_t)outsz, " %s %s%s%s%s %s ", app->cfg->hard_wrap ? "HARD" : "SOFT",
+                 (app->spell_enabled && app->spell_active && app->spell_handle) ? "SP " : "",
+                 (app->hyph_wrap_enabled && app->hyph_handle) ? "HY " : "",
+                 (app->translate_enabled && app->translate_active && app->translate_handle) ? "TR " : "",
+                 info.insert_mode ? "INS" : "OVR", tbuf);
+#elif defined(HAVE_HUNSPELL) && defined(HAVE_HYPHEN)
         snprintf(out, (size_t)outsz, " %s %s%s%s %s ", app->cfg->hard_wrap ? "HARD" : "SOFT",
                  (app->spell_enabled && app->spell_active && app->spell_handle) ? "SP " : "",
                  (app->hyph_wrap_enabled && app->hyph_handle) ? "HY " : "",
+                 info.insert_mode ? "INS" : "OVR", tbuf);
+#elif defined(HAVE_HUNSPELL) && defined(HAVE_TRANSLATE)
+        snprintf(out, (size_t)outsz, " %s %s%s%s %s ", app->cfg->hard_wrap ? "HARD" : "SOFT",
+                 (app->spell_enabled && app->spell_active && app->spell_handle) ? "SP " : "",
+                 (app->translate_enabled && app->translate_active && app->translate_handle) ? "TR " : "",
+                 info.insert_mode ? "INS" : "OVR", tbuf);
+#elif defined(HAVE_HYPHEN) && defined(HAVE_TRANSLATE)
+        snprintf(out, (size_t)outsz, " %s %s%s%s %s ", app->cfg->hard_wrap ? "HARD" : "SOFT",
+                 (app->hyph_wrap_enabled && app->hyph_handle) ? "HY " : "",
+                 (app->translate_enabled && app->translate_active && app->translate_handle) ? "TR " : "",
                  info.insert_mode ? "INS" : "OVR", tbuf);
 #elif defined(HAVE_HUNSPELL)
         snprintf(out, (size_t)outsz, " %s %s%s %s ", app->cfg->hard_wrap ? "HARD" : "SOFT",
@@ -367,6 +396,10 @@ static void build_status_right(const UiApp *app, char *out, int outsz)
 #elif defined(HAVE_HYPHEN)
         snprintf(out, (size_t)outsz, " %s %s%s %s ", app->cfg->hard_wrap ? "HARD" : "SOFT",
                  (app->hyph_wrap_enabled && app->hyph_handle) ? "HY " : "",
+                 info.insert_mode ? "INS" : "OVR", tbuf);
+#elif defined(HAVE_TRANSLATE)
+        snprintf(out, (size_t)outsz, " %s %s%s %s ", app->cfg->hard_wrap ? "HARD" : "SOFT",
+                 (app->translate_enabled && app->translate_active && app->translate_handle) ? "TR " : "",
                  info.insert_mode ? "INS" : "OVR", tbuf);
 #else
         snprintf(out, (size_t)outsz, " %s %s %s ", app->cfg->hard_wrap ? "HARD" : "SOFT",
@@ -804,6 +837,7 @@ UiApp *ui_init(CrashEditCfg *cfg, AreaList *areas)
     define_key("\033[6;2~", KEY_SNPAGE);  /* Shift+PageDown */
     define_key("\033[1;6d", KEY_CSUPD);   /* Ctrl+Shift+D */
     define_key("\033[1;6u", KEY_CSDOWNU); /* Ctrl+Shift+U */
+    define_key("\033[24;2~", KEY_SF12);   /* Shift+F12 */
 
     /* Alt+Left/Right: word movement */
     s = tigetstr("kLFT3"); /* Alt+Left */
@@ -865,7 +899,7 @@ UiApp *ui_init(CrashEditCfg *cfg, AreaList *areas)
     define_key("\033G", KEY_ALT('G')); /* Alt+Shift+G */
     define_key("\033h", KEY_ALT('H')); /* Alt+H charset */
     define_key("\033H", KEY_ALT('H')); /* Alt+Shift+H */
-    define_key("\033r", KEY_ALT('R')); /* Alt+R attr */
+    define_key("\033r", KEY_ALT('R')); /* Alt+R translate */
     define_key("\033R", KEY_ALT('R')); /* Alt+Shift+R */
     define_key("\033p", KEY_ALT('P')); /* Alt+P nodelist picker */
     define_key("\033P", KEY_ALT('P')); /* Alt+Shift+P */
@@ -929,6 +963,12 @@ UiApp *ui_init(CrashEditCfg *cfg, AreaList *areas)
 #ifdef HAVE_HUNSPELL
     /* Initialize spell checker state */
     app->spell_active = 0; /* Disabled by default */
+#endif
+
+#ifdef HAVE_TRANSLATE
+    /* Initialize translator state */
+    app->translate_enabled = app->cfg->translate_enabled;
+    app->translate_active = 0; /* Disabled by default */
 #endif
 
     app->reader = rd_new(cfg->viewkludge, cfg->viewhidden);
@@ -1098,6 +1138,10 @@ void ui_cleanup(UiApp *app)
 
 #ifdef HAVE_HUNSPELL
     ui_spell_unload(app);
+#endif
+
+#ifdef HAVE_TRANSLATE
+    ui_translate_unload(app);
 #endif
 
     ui_session_close(app);

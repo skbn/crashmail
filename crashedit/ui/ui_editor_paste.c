@@ -403,7 +403,7 @@ void deliver_paste(UiApp *app, const char *utf8)
 int parse_sgr_mouse(int *out_type, int *out_x, int *out_y)
 {
     char buf[32];
-    int i;
+    int i = 0;
     wint_t wch;
     int wrc;
     int button;
