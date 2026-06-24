@@ -42,8 +42,8 @@ CXX        := $(CROSS)g++ -noixemul -mcpu=68020 -msoft-float -DPLATFORM_AMIGA -D
 AR         := $(CROSS)ar
 RANLIB     := $(CROSS)ranlib
 
-CFLAGS     := -I$(HERE).. -I$(HERE) -I$(HERE)core -I$(HERE)components -I$(HERE)ui -I$(HERE)cjson -Wall -std=gnu89 -O2 -Wno-pointer-sign -Wno-unused-result -DAMIGA_TTF_TE
-CXXFLAGS   := -I$(HERE).. -I$(HERE) -I$(HERE)core -I$(HERE)components -I$(HERE)ui -I$(HERE)cjson -std=c++14 -O2 -Wall -Wno-unused-result -fno-strict-aliasing -fwrapv -fno-omit-frame-pointer -DHUNSPELL_STATIC
+CFLAGS     := -I$(HERE).. -I$(HERE) -I$(HERE)core -I$(HERE)components -I$(HERE)ui -Wall -std=gnu89 -O2 -Wno-pointer-sign -Wno-unused-result -DAMIGA_TTF_TE
+CXXFLAGS   := -I$(HERE).. -I$(HERE) -I$(HERE)core -I$(HERE)components -I$(HERE)ui -std=c++14 -O2 -Wall -Wno-unused-result -fno-strict-aliasing -fwrapv -fno-omit-frame-pointer -DHUNSPELL_STATIC
 
 # External tree locations -- relative to HERE
 FTDIR      := $(HERE)freetype
