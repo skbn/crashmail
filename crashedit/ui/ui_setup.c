@@ -35,57 +35,89 @@
 #include "../core/freq.h"
 #include "../core/portable.h"
 
-#ifdef HAVE_HUNSPELL
-#if defined(PLATFORM_AMIGA)
+#ifdef HAVE_HUNSPELL        /* HAVE_HUNSPELL begin (includes) */
+#if defined(PLATFORM_AMIGA) /* PLATFORM_AMIGA begin (includes) */
 #include "../spellchecker/spell.h"
-#else
+#else /* PLATFORM_AMIGA else (includes) */
 #include "../core/spell.h"
-#endif
-#endif
-#ifdef HAVE_HYPHEN
-#if defined(PLATFORM_AMIGA)
+#endif                      /* PLATFORM_AMIGA end (includes) */
+#endif                      /* HAVE_HUNSPELL end (includes) */
+#ifdef HAVE_HYPHEN          /* HAVE_HYPHEN begin (includes) */
+#if defined(PLATFORM_AMIGA) /* PLATFORM_AMIGA begin (includes) */
 #include "../spellchecker/hyph.h"
-#else
+#else /* PLATFORM_AMIGA else (includes) */
 #include "../core/hyph.h"
-#endif
-#endif
-#ifdef HAVE_MYTHES
-#if defined(PLATFORM_AMIGA)
+#endif                      /* PLATFORM_AMIGA end (includes) */
+#endif                      /* HAVE_HYPHEN end (includes) */
+#ifdef HAVE_MYTHES          /* HAVE_MYTHES begin (includes) */
+#if defined(PLATFORM_AMIGA) /* PLATFORM_AMIGA begin (includes) */
 #include "../spellchecker/thes.h"
-#else
+#else /* PLATFORM_AMIGA else (includes) */
 #include "../core/thes.h"
-#endif
-#endif
+#endif /* PLATFORM_AMIGA end (includes) */
+#endif /* HAVE_MYTHES end (includes) */
 
-#ifdef PLATFORM_AMIGA
-#ifdef HAVE_HUNSPELL
+#ifdef PLATFORM_AMIGA /* PLATFORM_AMIGA begin (tabs) */
+#ifdef HAVE_HUNSPELL  /* HAVE_HUNSPELL begin (Amiga tabs) */
+#ifdef HAVE_TRANSLATE /* HAVE_TRANSLATE begin (Amiga+Hunspell tabs) */
+#define ST_TAB_COUNT 9
+
+static const char *st_tab_names[ST_TAB_COUNT] =
+    {
+        "Identity", "Paths", "Display", "Editor", "Messages", "Colour/Font", "TTF", "Spell", "X-late"};
+#else /* HAVE_TRANSLATE else (Amiga+Hunspell without Translate tabs) */
 #define ST_TAB_COUNT 8
 
 static const char *st_tab_names[ST_TAB_COUNT] =
     {
         "Identity", "Paths", "Display", "Editor", "Messages", "Colour/Font", "TTF", "Spell"};
-#else
+#endif                /* HAVE_TRANSLATE end (Amiga+Hunspell tabs) */
+#else                 /* HAVE_HUNSPELL else (Amiga without Hunspell tabs) */
+#ifdef HAVE_TRANSLATE /* HAVE_TRANSLATE begin (Amiga without Hunspell tabs) */
+#define ST_TAB_COUNT 8
+
+static const char *st_tab_names[ST_TAB_COUNT] =
+    {
+        "Identity", "Paths", "Display", "Editor", "Messages", "Colour/Font", "TTF", "X-late"};
+#else /* HAVE_TRANSLATE else (Amiga without Hunspell without Translate tabs) */
 #define ST_TAB_COUNT 7
 
 static const char *st_tab_names[ST_TAB_COUNT] =
     {
         "Identity", "Paths", "Display", "Editor", "Messages", "Colour/Font", "TTF"};
-#endif
-#else
-#ifdef HAVE_HUNSPELL
+#endif                /* HAVE_TRANSLATE end (Amiga without Hunspell tabs) */
+#endif                /* HAVE_HUNSPELL end (Amiga tabs) */
+#else                 /* PLATFORM_AMIGA else (non-Amiga tabs) */
+#ifdef HAVE_HUNSPELL  /* HAVE_HUNSPELL begin (non-Amiga tabs) */
+#ifdef HAVE_TRANSLATE /* HAVE_TRANSLATE begin (non-Amiga+Hunspell tabs) */
+#define ST_TAB_COUNT 8
+
+static const char *st_tab_names[ST_TAB_COUNT] =
+    {
+        "Identity", "Paths", "Display", "Editor", "Messages", "Colour/Font", "Spell", "X-late"};
+#else /* HAVE_TRANSLATE else (non-Amiga+Hunspell without Translate tabs) */
 #define ST_TAB_COUNT 7
 
 static const char *st_tab_names[ST_TAB_COUNT] =
     {
         "Identity", "Paths", "Display", "Editor", "Messages", "Colour/Font", "Spell"};
-#else
+#endif                /* HAVE_TRANSLATE end (non-Amiga+Hunspell tabs) */
+#else                 /* HAVE_HUNSPELL else (non-Amiga without Hunspell tabs) */
+#ifdef HAVE_TRANSLATE /* HAVE_TRANSLATE begin (non-Amiga without Hunspell tabs) */
+#define ST_TAB_COUNT 7
+
+static const char *st_tab_names[ST_TAB_COUNT] =
+    {
+        "Identity", "Paths", "Display", "Editor", "Messages", "Colour/Font", "X-late"};
+#else /* HAVE_TRANSLATE else (non-Amiga without Hunspell without Translate tabs) */
 #define ST_TAB_COUNT 6
 
 static const char *st_tab_names[ST_TAB_COUNT] =
     {
         "Identity", "Paths", "Display", "Editor", "Messages", "Colour/Font"};
-#endif
-#endif
+#endif /* HAVE_TRANSLATE end (non-Amiga without Hunspell tabs) */
+#endif /* HAVE_HUNSPELL end (non-Amiga tabs) */
+#endif /* PLATFORM_AMIGA end (tabs) */
 
 typedef enum
 {
@@ -112,6 +144,10 @@ typedef enum
     ,
     FT_THESLIST /* cycle through available MyThes dictionaries */
 #endif
+#endif
+#ifdef HAVE_TRANSLATE
+    ,
+    FT_TRANSLATE_BACKEND /* cycle through MyMemory/LibreTranslate/Lingva */
 #endif
 } FieldType;
 
@@ -258,41 +294,86 @@ static const SetupField st_fields[] =
 #endif
 
 /* Dictionary */
-#ifdef HAVE_HUNSPELL
-#if defined(PLATFORM_AMIGA)
+#ifdef HAVE_HUNSPELL        /* HAVE_HUNSPELL begin (fields) */
+#if defined(PLATFORM_AMIGA) /* PLATFORM_AMIGA begin (fields) */
         {7, "Spell Enabled", FT_BOOL, offsetof(CrashEditCfg, spell_enabled), 0},
         {7, "Dict Path", FT_STR, offsetof(CrashEditCfg, spell_dict_path), CFG_STR_MAX},
         {7, "Dictionary", FT_DICTLIST, offsetof(CrashEditCfg, spell_dict_name), 0},
         {7, "Custom Dict", FT_CUSTOMDICT, offsetof(CrashEditCfg, spell_custom_dict), 0},
-#ifdef HAVE_HYPHEN
+#ifdef HAVE_HYPHEN /* HAVE_HYPHEN begin (Amiga fields) */
         {7, "Hyphen Enabled", FT_BOOL, offsetof(CrashEditCfg, hyph_enabled), 0},
         {7, "Hyphen Path", FT_STR, offsetof(CrashEditCfg, hyph_dict_path), CFG_STR_MAX},
         {7, "Hyphen Dictionary", FT_HYPHLIST, offsetof(CrashEditCfg, hyph_dict_name), 0},
         {7, "Hyphen Wrap", FT_BOOL, offsetof(CrashEditCfg, hyph_wrap_enabled), 0},
-#endif
-#ifdef HAVE_MYTHES
+#endif             /* HAVE_HYPHEN end (Amiga fields) */
+#ifdef HAVE_MYTHES /* HAVE_MYTHES begin (Amiga fields) */
         {7, "Thesaurus Enabled", FT_BOOL, offsetof(CrashEditCfg, thes_enabled), 0},
         {7, "Thesaurus Path", FT_STR, offsetof(CrashEditCfg, thes_dict_path), CFG_STR_MAX},
         {7, "Thesaurus Dictionary", FT_THESLIST, offsetof(CrashEditCfg, thes_dict_name), 0},
-#endif
-#else
+#endif             /* HAVE_MYTHES end (Amiga fields) */
+#else              /* PLATFORM_AMIGA else (non-Amiga fields) */
         {6, "Spell Enabled", FT_BOOL, offsetof(CrashEditCfg, spell_enabled), 0},
         {6, "Dict Path", FT_STR, offsetof(CrashEditCfg, spell_dict_path), CFG_STR_MAX},
         {6, "Dictionary", FT_DICTLIST, offsetof(CrashEditCfg, spell_dict_name), 0},
         {6, "Custom Dict", FT_CUSTOMDICT, offsetof(CrashEditCfg, spell_custom_dict), 0},
-#ifdef HAVE_HYPHEN
+#ifdef HAVE_HYPHEN /* HAVE_HYPHEN begin (non-Amiga fields) */
         {6, "Hyphen Enabled", FT_BOOL, offsetof(CrashEditCfg, hyph_enabled), 0},
         {6, "Hyphen Path", FT_STR, offsetof(CrashEditCfg, hyph_dict_path), CFG_STR_MAX},
         {6, "Hyphen Dictionary", FT_HYPHLIST, offsetof(CrashEditCfg, hyph_dict_name), 0},
         {6, "Hyphen Wrap", FT_BOOL, offsetof(CrashEditCfg, hyph_wrap_enabled), 0},
-#endif
-#ifdef HAVE_MYTHES
+#endif             /* HAVE_HYPHEN end (non-Amiga fields) */
+#ifdef HAVE_MYTHES /* HAVE_MYTHES begin (non-Amiga fields) */
         {6, "Thesaurus Enabled", FT_BOOL, offsetof(CrashEditCfg, thes_enabled), 0},
         {6, "Thesaurus Path", FT_STR, offsetof(CrashEditCfg, thes_dict_path), CFG_STR_MAX},
         {6, "Thesaurus Dictionary", FT_THESLIST, offsetof(CrashEditCfg, thes_dict_name), 0},
-#endif
-#endif
-#endif
+#endif             /* HAVE_MYTHES end (non-Amiga fields) */
+#endif             /* PLATFORM_AMIGA end (fields) */
+#endif             /* HAVE_HUNSPELL end (fields) */
+
+/* Translate */
+#ifdef HAVE_TRANSLATE       /* HAVE_TRANSLATE begin */
+#if defined(PLATFORM_AMIGA) /* PLATFORM_AMIGA begin */
+#ifdef HAVE_HUNSPELL        /* HAVE_HUNSPELL begin (Amiga) */
+        {8, "Translate Enabled", FT_BOOL, offsetof(CrashEditCfg, translate_enabled), 0},
+        {8, "Backend", FT_TRANSLATE_BACKEND, offsetof(CrashEditCfg, translate_backend), 0},
+        {8, "Endpoint", FT_STR, offsetof(CrashEditCfg, translate_endpoint), CFG_STR_MAX},
+        {8, "API Key", FT_STR, offsetof(CrashEditCfg, translate_api_key), CFG_STR_MAX},
+        {8, "Email", FT_STR, offsetof(CrashEditCfg, translate_email), CFG_STR_MAX},
+        {8, "From Lang", FT_STR, offsetof(CrashEditCfg, translate_from_lang), 16},
+        {8, "To Lang", FT_STR, offsetof(CrashEditCfg, translate_to_lang), 16},
+        {8, "Timeout (sec)", FT_INT, offsetof(CrashEditCfg, translate_timeout), 0},
+#else                /* HAVE_HUNSPELL else (Amiga without Hunspell) */
+        {7, "Translate Enabled", FT_BOOL, offsetof(CrashEditCfg, translate_enabled), 0},
+        {7, "Backend", FT_TRANSLATE_BACKEND, offsetof(CrashEditCfg, translate_backend), 0},
+        {7, "Endpoint", FT_STR, offsetof(CrashEditCfg, translate_endpoint), CFG_STR_MAX},
+        {7, "API Key", FT_STR, offsetof(CrashEditCfg, translate_api_key), CFG_STR_MAX},
+        {7, "Email", FT_STR, offsetof(CrashEditCfg, translate_email), CFG_STR_MAX},
+        {7, "From Lang", FT_STR, offsetof(CrashEditCfg, translate_from_lang), 16},
+        {7, "To Lang", FT_STR, offsetof(CrashEditCfg, translate_to_lang), 16},
+        {7, "Timeout (sec)", FT_INT, offsetof(CrashEditCfg, translate_timeout), 0},
+#endif               /* HAVE_HUNSPELL end (Amiga) */
+#else                /* PLATFORM_AMIGA else (non-Amiga) */
+#ifdef HAVE_HUNSPELL /* HAVE_HUNSPELL begin (non-Amiga with Hunspell) */
+        {7, "Translate Enabled", FT_BOOL, offsetof(CrashEditCfg, translate_enabled), 0},
+        {7, "Backend", FT_TRANSLATE_BACKEND, offsetof(CrashEditCfg, translate_backend), 0},
+        {7, "Endpoint", FT_STR, offsetof(CrashEditCfg, translate_endpoint), CFG_STR_MAX},
+        {7, "API Key", FT_STR, offsetof(CrashEditCfg, translate_api_key), CFG_STR_MAX},
+        {7, "Email", FT_STR, offsetof(CrashEditCfg, translate_email), CFG_STR_MAX},
+        {7, "From Lang", FT_STR, offsetof(CrashEditCfg, translate_from_lang), 16},
+        {7, "To Lang", FT_STR, offsetof(CrashEditCfg, translate_to_lang), 16},
+        {7, "Timeout (sec)", FT_INT, offsetof(CrashEditCfg, translate_timeout), 0},
+#else                /* HAVE_HUNSPELL else (non-Amiga without Hunspell) */
+        {6, "Translate Enabled", FT_BOOL, offsetof(CrashEditCfg, translate_enabled), 0},
+        {6, "Backend", FT_TRANSLATE_BACKEND, offsetof(CrashEditCfg, translate_backend), 0},
+        {6, "Endpoint", FT_STR, offsetof(CrashEditCfg, translate_endpoint), CFG_STR_MAX},
+        {6, "API Key", FT_STR, offsetof(CrashEditCfg, translate_api_key), CFG_STR_MAX},
+        {6, "Email", FT_STR, offsetof(CrashEditCfg, translate_email), CFG_STR_MAX},
+        {6, "From Lang", FT_STR, offsetof(CrashEditCfg, translate_from_lang), 16},
+        {6, "To Lang", FT_STR, offsetof(CrashEditCfg, translate_to_lang), 16},
+        {6, "Timeout (sec)", FT_INT, offsetof(CrashEditCfg, translate_timeout), 0},
+#endif               /* HAVE_HUNSPELL end (non-Amiga) */
+#endif               /* PLATFORM_AMIGA end */
+#endif               /* HAVE_TRANSLATE end */
 };
 
 #define ST_FIELD_COUNT ((int)(sizeof(st_fields) / sizeof(st_fields[0])))
@@ -561,6 +642,25 @@ static void st_format_value(const CrashEditCfg *w, const SetupField *fld, char *
     }
 #endif
 #endif
+#ifdef HAVE_TRANSLATE
+    case FT_TRANSLATE_BACKEND:
+    {
+        int v = *(const int *)(base + fld->off);
+        const char *label = "";
+
+        if (v == 0)
+            label = "MyMemory";
+        else if (v == 1)
+            label = "LibreTranslate";
+        else if (v == 2)
+            label = "Lingva";
+        else
+            label = "MyMemory";
+
+        snprintf(buf, bufsz, "%s", label);
+        break;
+    }
+#endif
     }
 }
 
@@ -764,12 +864,16 @@ static void st_edit_field(CrashEditCfg *w, const SetupField *fld)
             if (ui_popup_input(fld->label, "New value:", wtmp, cap) == 0)
             {
                 char *u = wcs_to_utf8(wtmp, (int)wcslen(wtmp));
+
                 if (u)
                 {
                     size_t n = strlen(u);
 
-                    if (n >= (size_t)cap)
-                        n = cap - 1;
+                    /* Use field maxlen as byte limit for UTF-8 strings */
+                    size_t byte_limit = (fld->maxlen > 0) ? (size_t)fld->maxlen : CFG_STR_MAX;
+
+                    if (n >= byte_limit)
+                        n = byte_limit - 1;
 
                     memcpy(s, u, n);
 
@@ -1159,6 +1263,16 @@ static void st_edit_field(CrashEditCfg *w, const SetupField *fld)
         break;
     }
 #endif /* HAVE_MYTHES */
+
+#ifdef HAVE_TRANSLATE
+    case FT_TRANSLATE_BACKEND:
+    {
+        /* Cycle through MyMemory, LibreTranslate, Lingva */
+        int *v = (int *)(base + fld->off);
+        *v = (*v + 1) % 3;
+        break;
+    }
+#endif
 
     case FT_CUSTOMDICT:
     {
