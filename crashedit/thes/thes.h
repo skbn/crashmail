@@ -62,7 +62,7 @@ extern "C"
     typedef struct ThesHandle ThesHandle;
 
 /* Forward-declared from spell.h for stemming */
-#include "spell.h"
+#include "../spell/spell.h"
 
     /* Each meaning has a definition and synonym list */
     typedef struct

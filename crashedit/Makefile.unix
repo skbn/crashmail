@@ -27,6 +27,13 @@
 # Directory of this Makefile (with trailing slash)
 HERE := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 
+# Feature selection options (set to 1 to enable)
+USE_HUNSPELL ?= 0
+USE_HYPHEN ?= 0
+USE_MYTHES ?= 0
+USE_TRANSLATE ?= 0
+USE_STARDICT ?= 0
+
 # Detect OS and warn if BSD make is used instead of gmake
 OS := $(shell uname -s)
 BSD_OS := $(filter FreeBSD NetBSD OpenBSD,$(OS))
@@ -45,12 +52,6 @@ AR = ar
 
 # Platform define
 CDEFS = -DPLATFORM_UNIX
-
-# Optional features
-USE_HUNSPELL ?= 0
-USE_HYPHEN ?= 0
-USE_MYTHES ?= 0
-USE_TRANSLATE ?= 0
 
 # ncurses library detection:
 #   Linux, FreeBSD, NetBSD, OpenBSD  -> -lncursesw   (wide-char variant)
@@ -127,7 +128,7 @@ endif
 
 # Hyphenation -- opt-in. Requires libhyphen (Debian/Ubuntu: libhyphen-dev;
 # BSD: from ports/pkg or built from source under hyphen/). Compiles
-# core/hyph.o and ui_hyph.o. REQUIRES Hunspell.
+# hyph/hyph.o and ui_hyph.o. REQUIRES Hunspell.
 ifeq ($(USE_HYPHEN),1)
   ifeq ($(USE_HUNSPELL),0)
     $(error USE_HYPHEN=1 requires USE_HUNSPELL=1)
@@ -162,10 +163,10 @@ HYPH_LIB  :=
 endif
 
 # Translator -- opt-in. Uses HTTP backends (MyMemory, LibreTranslate, Lingva).
-# Compiles core/translate.o, core/translate_http.o, core/http_client.o, and core/json_utils.o.
+# Compiles translate/translate.o, translate/translate_http.o, translate/http_client.o, and translate/json_utils.o.
 # Uses libcurl on Unix/Windows, external curl on Amiga.
 ifeq ($(USE_TRANSLATE),1)
-CDEFS    += -DHAVE_TRANSLATE -DHAVE_TRANSLATE_HTTP
+CDEFS    += -DHAVE_TRANSLATE -DHAVE_TRANSLATE_HTTP -I$(HERE)translate
 CORE_OBJS += $(OBJDIR)/translate.o $(OBJDIR)/translate_http.o $(OBJDIR)/http_client.o $(OBJDIR)/json_utils.o
 # Use pkg-config for libcurl on Unix (multi-platform detection)
 TRANSLATE_CFLAGS := $(shell pkg-config --cflags libcurl 2>/dev/null)
@@ -176,13 +177,19 @@ TRANSLATE_LIBS := -lcurl
 endif
 CDEFS += $(TRANSLATE_CFLAGS)
 TRANSLATE_LIB := -lm $(TRANSLATE_LIBS)
+
+# StarDict offline backend (pure C, no extra library)
+ifeq ($(USE_STARDICT),1)
+CDEFS += -DHAVE_TRANSLATE_STARDICT
+CORE_OBJS += $(OBJDIR)/translate_stardict.o
+endif
 else
 TRANSLATE_LIB :=
 endif
 
 # Thesaurus (MyThes) -- opt-in. Requires libmythes (Debian/Ubuntu:
 # libmythes-dev). C++ source, so we link the C++ stdlib too. Compiles
-# core/thes.o and ui_thes.o. REQUIRES Hunspell.
+# thes/thes.o and ui_thes.o. REQUIRES Hunspell.
 ifeq ($(USE_MYTHES),1)
   ifeq ($(USE_HUNSPELL),0)
     $(error USE_MYTHES=1 requires USE_HUNSPELL=1)
@@ -380,11 +387,11 @@ $(OBJDIR)/ui_glyph_picker.o: $(UIDIR)/ui_glyph_picker.c $(UIDIR)/ui_glyph_picker
 
 # Spell checker (backend + UI).  spell.c is only compiled when USE_HUNSPELL=1.
 ifeq ($(USE_HUNSPELL),1)
-$(OBJDIR)/spell.o: $(COREDIR)/spell.c $(COREDIR)/spell.h | $(OBJDIR)
+$(OBJDIR)/spell.o: $(HERE)spell/spell.c $(HERE)spell/spell.h | $(OBJDIR)
 	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
 endif
 
-$(OBJDIR)/ui_spell.o: $(UIDIR)/ui_spell.c $(UIDIR)/ui_spell.h $(COREDIR)/spell.h | $(OBJDIR)
+$(OBJDIR)/ui_spell.o: $(UIDIR)/ui_spell.c $(UIDIR)/ui_spell.h $(HERE)spell/spell.h | $(OBJDIR)
 	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
 
 $(OBJDIR)/ui_mouse.o: $(UIDIR)/ui_mouse.c $(UIDIR)/ui_mouse.h | $(OBJDIR)
@@ -401,33 +408,36 @@ endif
 
 # Hyphenation -- compiled only when USE_HYPHEN=1
 ifeq ($(USE_HYPHEN),1)
-$(OBJDIR)/hyph.o: $(COREDIR)/hyph.c $(COREDIR)/hyph.h | $(OBJDIR)
+$(OBJDIR)/hyph.o: $(HERE)hyph/hyph.c $(HERE)hyph/hyph.h | $(OBJDIR)
 	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
 
-$(OBJDIR)/ui_hyph.o: $(UIDIR)/ui_hyph.c $(UIDIR)/ui_hyph.h $(COREDIR)/hyph.h | $(OBJDIR)
+$(OBJDIR)/ui_hyph.o: $(UIDIR)/ui_hyph.c $(UIDIR)/ui_hyph.h $(HERE)hyph/hyph.h | $(OBJDIR)
 	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
 endif
 
 # Thesaurus -- compiled only when USE_MYTHES=1. Note the C++ compile rule
 ifeq ($(USE_MYTHES),1)
-$(OBJDIR)/thes.o: $(COREDIR)/thes.cpp $(COREDIR)/thes.h $(COREDIR)/spell.h | $(OBJDIR)
+$(OBJDIR)/thes.o: $(HERE)thes/thes.cpp $(HERE)thes/thes.h $(HERE)spell/spell.h | $(OBJDIR)
 	$(CXX) $(CXXFLAGS) $(CDEFS) -c $< -o $@
 
-$(OBJDIR)/ui_thes.o: $(UIDIR)/ui_thes.c $(UIDIR)/ui_thes.h $(COREDIR)/thes.h | $(OBJDIR)
+$(OBJDIR)/ui_thes.o: $(UIDIR)/ui_thes.c $(UIDIR)/ui_thes.h $(HERE)thes/thes.h | $(OBJDIR)
 	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
 endif
 
 # Translator -- compiled only when USE_TRANSLATE=1
-$(OBJDIR)/translate.o: $(COREDIR)/translate.c $(COREDIR)/translate.h | $(OBJDIR)
+$(OBJDIR)/translate.o: $(HERE)translate/translate.c $(HERE)translate/translate.h | $(OBJDIR)
 	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
 
-$(OBJDIR)/translate_http.o: $(COREDIR)/translate_http.c $(COREDIR)/translate.h $(COREDIR)/http_client.h $(COREDIR)/json_utils.h | $(OBJDIR)
+$(OBJDIR)/translate_http.o: $(HERE)translate/translate_http.c $(HERE)translate/translate.h $(HERE)translate/http_client.h $(HERE)translate/json_utils.h | $(OBJDIR)
 	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
 
-$(OBJDIR)/http_client.o: $(COREDIR)/http_client.c $(COREDIR)/http_client.h | $(OBJDIR)
+$(OBJDIR)/http_client.o: $(HERE)translate/http_client.c $(HERE)translate/http_client.h | $(OBJDIR)
 	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
 
-$(OBJDIR)/json_utils.o: $(COREDIR)/json_utils.c $(COREDIR)/json_utils.h | $(OBJDIR)
+$(OBJDIR)/json_utils.o: $(HERE)translate/json_utils.c $(HERE)translate/json_utils.h | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
+$(OBJDIR)/translate_stardict.o: $(HERE)translate/translate_stardict.c $(HERE)translate/translate_stardict.h | $(OBJDIR)
 	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
 
 # Application

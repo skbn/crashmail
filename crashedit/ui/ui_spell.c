@@ -38,13 +38,13 @@
 #if defined(PLATFORM_AMIGA)
 #include "../spellchecker/spell.h"
 #else
-#include "../core/spell.h"
+#include "../spell/spell.h"
 #endif
 #ifdef HAVE_MYTHES
 #if defined(PLATFORM_AMIGA)
 #include "../spellchecker/thes.h"
 #else
-#include "../core/thes.h"
+#include "../thes/thes.h"
 #endif
 #endif
 #endif

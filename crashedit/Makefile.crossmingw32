@@ -100,8 +100,8 @@ endif
 SPELL_DIR = $(HERE)spellchecker
 ifeq ($(USE_HUNSPELL),1)
 CDEFS    += -DHAVE_HUNSPELL -I$(SPELL_DIR)
-# On Windows/Amiga, use native spellchecker/ (no core/spell.c wrapper needed)
-# On Linux/BSD, use external Hunspell library (needs core/spell.c wrapper)
+# On Windows/Amiga, use native spellchecker/ (no spell/spell.c wrapper needed)
+# On Linux/BSD, use external Hunspell library (needs spell/spell.c wrapper)
 ifneq ($(findstring win,$(ARCH)),)
 # Windows: use native spellchecker only
 SPELL_OBJS = $(OBJDIR)/spellchecker_utils.o \
@@ -170,13 +170,13 @@ $(OBJDIR)/jam_wrap.o: $(COREDIR)/jam_wrap.c $(COREDIR)/jam_wrap.h $(HERE)../src/
 	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
 
 # Spell checker (backend + UI).  spell.c is only compiled when USE_HUNSPELL=1.
-$(OBJDIR)/spell.o: $(COREDIR)/spell.c $(COREDIR)/spell.h | $(OBJDIR)
+$(OBJDIR)/spell.o: $(HERE)spell/spell.c $(HERE)spell/spell.h | $(OBJDIR)
 	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
 
 $(OBJDIR)/dict_scan.o: $(HERE)spellchecker/dict_scan.c $(HERE)spellchecker/dict_scan.h | $(OBJDIR)
 	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
 
-$(OBJDIR)/ui_spell.o: $(UIDIR)/ui_spell.c $(UIDIR)/ui_spell.h $(COREDIR)/spell.h | $(OBJDIR)
+$(OBJDIR)/ui_spell.o: $(UIDIR)/ui_spell.c $(UIDIR)/ui_spell.h $(HERE)spell/spell.h | $(OBJDIR)
 	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
 
 $(OBJDIR)/ui_mouse.o: $(UIDIR)/ui_mouse.c $(UIDIR)/ui_mouse.h | $(OBJDIR)

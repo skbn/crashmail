@@ -287,6 +287,11 @@ void ui_reapply_config(UiApp *app)
 
     setup_colors(app->cfg);
 
+#ifdef HAVE_TRANSLATE
+    /* Reload translator when translate settings changed */
+    ui_translate_load_from_config(app);
+#endif
+
     /* Load thesaurus FIRST (spell checker needs to attach to it) */
 #ifdef HAVE_MYTHES
     ui_thes_load_from_config(app);
@@ -304,7 +309,7 @@ void ui_reapply_config(UiApp *app)
 #ifdef HAVE_TRANSLATE
     /* Reload translator config */
     app->translate_enabled = app->cfg->translate_enabled;
-    app->translate_active = 0; /* Disabled by default */
+    app->translate_active = app->cfg->translate_enabled;
 
     /* Load translator from config */
     ui_translate_load_from_config(app);
@@ -968,7 +973,7 @@ UiApp *ui_init(CrashEditCfg *cfg, AreaList *areas)
 #ifdef HAVE_TRANSLATE
     /* Initialize translator state */
     app->translate_enabled = app->cfg->translate_enabled;
-    app->translate_active = 0; /* Disabled by default */
+    app->translate_active = app->cfg->translate_enabled;
 #endif
 
     app->reader = rd_new(cfg->viewkludge, cfg->viewhidden);

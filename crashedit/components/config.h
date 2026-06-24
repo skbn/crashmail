@@ -152,14 +152,15 @@ typedef struct
 
 #ifdef HAVE_TRANSLATE
     int translate_enabled;
-    int translate_backend; /* 0=MyMemory, 1=LibreTranslate, 2=Lingva */
+    int translate_backend; /* 0=MyMemory, 1=LibreTranslate, 2=Lingva, 4=DeepL, 10=StarDict */
 
     char translate_endpoint[CFG_STR_MAX];
     char translate_api_key[CFG_STR_MAX];
     char translate_email[CFG_STR_MAX];
-    char translate_from_lang[16]; /* ISO language code, e.g. "en" */
-    char translate_to_lang[16];   /* ISO language code, e.g. "es" */
-    int translate_timeout;        /* HTTP timeout in seconds */
+    char translate_from_lang[16];    /* ISO language code, e.g. "en" */
+    char translate_to_lang[16];      /* ISO language code, e.g. "es" */
+    int translate_timeout;           /* HTTP timeout in seconds */
+    char stardict_path[CFG_STR_MAX]; /* Directory or .ifo file for StarDict */
 #endif
 } CrashEditCfg;
 

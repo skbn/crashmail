@@ -23,7 +23,7 @@
  */
 
 #include "thes.h"
-#include "spell.h" /* SpellChecker, spell_stem/generate/free_list */
+#include "../spell/spell.h" /* SpellChecker, spell_stem/generate/free_list */
 
 #include <stdlib.h>
 #include <string.h>

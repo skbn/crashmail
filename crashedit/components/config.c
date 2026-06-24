@@ -693,8 +693,9 @@ void cfg_defaults(CrashEditCfg *cfg)
 
     cfg->translate_from_lang[sizeof(cfg->translate_from_lang) - 1] = '\0';
     cfg->translate_to_lang[sizeof(cfg->translate_to_lang) - 1] = '\0';
-    cfg->translate_timeout = 10; /* 10 seconds */
-#endif                           /* HAVE_TRANSLATE */
+    cfg->translate_timeout = 10;  /* 10 seconds */
+    cfg->stardict_path[0] = '\0'; /* Empty by default */
+#endif                            /* HAVE_TRANSLATE */
 }
 
 int cfg_load(CrashEditCfg *cfg, const char *path)
@@ -1010,6 +1011,10 @@ int cfg_load(CrashEditCfg *cfg, const char *path)
                 cfg->translate_backend = 1;
             else if (strcasecmp(val, "LINGVA") == 0)
                 cfg->translate_backend = 2;
+            else if (strcasecmp(val, "DEEPL") == 0)
+                cfg->translate_backend = 4;
+            else if (strcasecmp(val, "STARDICT") == 0)
+                cfg->translate_backend = 10;
             else
                 cfg->translate_backend = 0; /* Default to MyMemory */
         }
@@ -1075,6 +1080,11 @@ int cfg_load(CrashEditCfg *cfg, const char *path)
 
             if (cfg->translate_timeout > 60)
                 cfg->translate_timeout = 60;
+        }
+        else if (strcasecmp(word, "STARDICT_PATH") == 0)
+        {
+            strncpy(cfg->stardict_path, rest, sizeof(cfg->stardict_path) - 1);
+            cfg->stardict_path[sizeof(cfg->stardict_path) - 1] = '\0';
         }
 #endif /* HAVE_TRANSLATE */
 
@@ -1702,6 +1712,12 @@ int cfg_save(const CrashEditCfg *cfg, const char *path)
         backend_name = "LIBRETRANSLATE";
     else if (cfg->translate_backend == 2)
         backend_name = "LINGVA";
+    else if (cfg->translate_backend == 4)
+        backend_name = "DEEPL";
+    else if (cfg->translate_backend == 10)
+        backend_name = "STARDICT";
+    else
+        backend_name = "MYMEMORY";
 
     KV_STR("TRANSLATE_BACKEND", backend_name);
     KV_STR("TRANSLATE_ENDPOINT", cfg->translate_endpoint);
@@ -1710,6 +1726,7 @@ int cfg_save(const CrashEditCfg *cfg, const char *path)
     KV_STR("TRANSLATE_FROM_LANG", cfg->translate_from_lang);
     KV_STR("TRANSLATE_TO_LANG", cfg->translate_to_lang);
     KV_INT("TRANSLATE_TIMEOUT", cfg->translate_timeout);
+    KV_STR("STARDICT_PATH", cfg->stardict_path);
 #endif
 
     snprintf(tmp_path, sizeof(tmp_path), "%s.tmp", path);

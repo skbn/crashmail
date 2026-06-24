@@ -34,7 +34,7 @@
 #include "../core/utf8.h"
 
 #ifdef HAVE_HYPHEN
-#include "../core/hyph.h"
+#include "../hyph/hyph.h"
 #endif
 
 /* Convert entire line to wchar_t string (caller frees) */

@@ -39,21 +39,21 @@
 #if defined(PLATFORM_AMIGA) /* PLATFORM_AMIGA begin (includes) */
 #include "../spellchecker/spell.h"
 #else /* PLATFORM_AMIGA else (includes) */
-#include "../core/spell.h"
+#include "../spell/spell.h"
 #endif                      /* PLATFORM_AMIGA end (includes) */
 #endif                      /* HAVE_HUNSPELL end (includes) */
 #ifdef HAVE_HYPHEN          /* HAVE_HYPHEN begin (includes) */
 #if defined(PLATFORM_AMIGA) /* PLATFORM_AMIGA begin (includes) */
 #include "../spellchecker/hyph.h"
 #else /* PLATFORM_AMIGA else (includes) */
-#include "../core/hyph.h"
+#include "../hyph/hyph.h"
 #endif                      /* PLATFORM_AMIGA end (includes) */
 #endif                      /* HAVE_HYPHEN end (includes) */
 #ifdef HAVE_MYTHES          /* HAVE_MYTHES begin (includes) */
 #if defined(PLATFORM_AMIGA) /* PLATFORM_AMIGA begin (includes) */
 #include "../spellchecker/thes.h"
 #else /* PLATFORM_AMIGA else (includes) */
-#include "../core/thes.h"
+#include "../thes/thes.h"
 #endif /* PLATFORM_AMIGA end (includes) */
 #endif /* HAVE_MYTHES end (includes) */
 
@@ -147,7 +147,7 @@ typedef enum
 #endif
 #ifdef HAVE_TRANSLATE
     ,
-    FT_TRANSLATE_BACKEND /* cycle through MyMemory/LibreTranslate/Lingva */
+    FT_TRANSLATE_BACKEND /* cycle through MyMemory/LibreTranslate/Lingva/DeepL/StarDict */
 #endif
 } FieldType;
 
@@ -342,6 +342,7 @@ static const SetupField st_fields[] =
         {8, "From Lang", FT_STR, offsetof(CrashEditCfg, translate_from_lang), 16},
         {8, "To Lang", FT_STR, offsetof(CrashEditCfg, translate_to_lang), 16},
         {8, "Timeout (sec)", FT_INT, offsetof(CrashEditCfg, translate_timeout), 0},
+        {8, "StarDict Path", FT_STR, offsetof(CrashEditCfg, stardict_path), CFG_STR_MAX},
 #else                /* HAVE_HUNSPELL else (Amiga without Hunspell) */
         {7, "Translate Enabled", FT_BOOL, offsetof(CrashEditCfg, translate_enabled), 0},
         {7, "Backend", FT_TRANSLATE_BACKEND, offsetof(CrashEditCfg, translate_backend), 0},
@@ -351,6 +352,7 @@ static const SetupField st_fields[] =
         {7, "From Lang", FT_STR, offsetof(CrashEditCfg, translate_from_lang), 16},
         {7, "To Lang", FT_STR, offsetof(CrashEditCfg, translate_to_lang), 16},
         {7, "Timeout (sec)", FT_INT, offsetof(CrashEditCfg, translate_timeout), 0},
+        {7, "StarDict Path", FT_STR, offsetof(CrashEditCfg, stardict_path), CFG_STR_MAX},
 #endif               /* HAVE_HUNSPELL end (Amiga) */
 #else                /* PLATFORM_AMIGA else (non-Amiga) */
 #ifdef HAVE_HUNSPELL /* HAVE_HUNSPELL begin (non-Amiga with Hunspell) */
@@ -362,6 +364,7 @@ static const SetupField st_fields[] =
         {7, "From Lang", FT_STR, offsetof(CrashEditCfg, translate_from_lang), 16},
         {7, "To Lang", FT_STR, offsetof(CrashEditCfg, translate_to_lang), 16},
         {7, "Timeout (sec)", FT_INT, offsetof(CrashEditCfg, translate_timeout), 0},
+        {7, "StarDict Path", FT_STR, offsetof(CrashEditCfg, stardict_path), CFG_STR_MAX},
 #else                /* HAVE_HUNSPELL else (non-Amiga without Hunspell) */
         {6, "Translate Enabled", FT_BOOL, offsetof(CrashEditCfg, translate_enabled), 0},
         {6, "Backend", FT_TRANSLATE_BACKEND, offsetof(CrashEditCfg, translate_backend), 0},
@@ -371,6 +374,7 @@ static const SetupField st_fields[] =
         {6, "From Lang", FT_STR, offsetof(CrashEditCfg, translate_from_lang), 16},
         {6, "To Lang", FT_STR, offsetof(CrashEditCfg, translate_to_lang), 16},
         {6, "Timeout (sec)", FT_INT, offsetof(CrashEditCfg, translate_timeout), 0},
+        {6, "StarDict Path", FT_STR, offsetof(CrashEditCfg, stardict_path), CFG_STR_MAX},
 #endif               /* HAVE_HUNSPELL end (non-Amiga) */
 #endif               /* PLATFORM_AMIGA end */
 #endif               /* HAVE_TRANSLATE end */
@@ -654,6 +658,10 @@ static void st_format_value(const CrashEditCfg *w, const SetupField *fld, char *
             label = "LibreTranslate";
         else if (v == 2)
             label = "Lingva";
+        else if (v == 4)
+            label = "DeepL";
+        else if (v == 10)
+            label = "StarDict";
         else
             label = "MyMemory";
 
@@ -676,14 +684,14 @@ static void st_edit_field(CrashEditCfg *w, const SetupField *fld)
         char *s = base + fld->off;
 
         /* Special case: Dict Path uses directory picker */
-        if (strcmp(fld->label, "Dict Path") == 0 || strcmp(fld->label, "Hyphen Path") == 0 || strcmp(fld->label, "Thesaurus Path") == 0)
+        if (strcmp(fld->label, "Dict Path") == 0 || strcmp(fld->label, "Hyphen Path") == 0 || strcmp(fld->label, "Thesaurus Path") == 0 || strcmp(fld->label, "StarDict Path") == 0)
         {
             char tmp[CFG_STR_MAX];
 
             strncpy(tmp, s, sizeof(tmp) - 1);
             tmp[sizeof(tmp) - 1] = '\0';
 
-            if (ui_files_pick_dir(fld->label, NULL, tmp, sizeof(tmp)) == 0)
+            if (ui_files_pick_dir(fld->label, tmp[0] ? tmp : NULL, tmp, sizeof(tmp)) == 0)
             {
                 strncpy(s, tmp, CFG_STR_MAX - 1);
                 s[CFG_STR_MAX - 1] = '\0';
@@ -1267,9 +1275,24 @@ static void st_edit_field(CrashEditCfg *w, const SetupField *fld)
 #ifdef HAVE_TRANSLATE
     case FT_TRANSLATE_BACKEND:
     {
-        /* Cycle through MyMemory, LibreTranslate, Lingva */
+        /* Cycle through MyMemory, LibreTranslate, Lingva, DeepL, StarDict */
         int *v = (int *)(base + fld->off);
-        *v = (*v + 1) % 3;
+        const int backends[] = {0, 1, 2, 4, 10}; /* MyMemory, LibreTranslate, Lingva, DeepL, StarDict */
+        int n_backends = 5;
+        int i;
+
+        for (i = 0; i < n_backends; i++)
+        {
+            if (backends[i] == *v)
+            {
+                *v = backends[(i + 1) % n_backends];
+                break;
+            }
+        }
+
+        if (i == n_backends)
+            *v = backends[0]; /* Default to MyMemory */
+
         break;
     }
 #endif

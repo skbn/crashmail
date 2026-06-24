@@ -44,7 +44,7 @@
 #include "ui_thes.h"
 #endif
 #ifdef HAVE_HYPHEN
-#include "../core/hyph.h"
+#include "../hyph/hyph.h"
 #include "ui_hyph.h"
 #endif
 #include "ui_editor_helper.h"

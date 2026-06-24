@@ -36,6 +36,17 @@
 # Directory of this Makefile (with trailing slash)
 HERE := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 
+# Feature selection options (set to 1 to enable)
+USE_HUNSPELL ?= 0
+USE_HYPHEN ?= 0
+USE_MYTHES ?= 0
+USE_TRANSLATE ?= 0
+USE_STARDICT ?= 0
+WITH_AMISSL ?= 0
+
+# AmiSSL SDK path for TLS support
+AMISSL_SDK ?= AmiSSL
+
 CROSS      ?= m68k-amigaos-
 CC         := $(CROSS)gcc -noixemul -mcpu=68020 -msoft-float -DPLATFORM_AMIGA -DUSE_FREETYPE -DAMIGA_TTF_TE
 CXX        := $(CROSS)g++ -noixemul -mcpu=68020 -msoft-float -DPLATFORM_AMIGA -DUSE_FREETYPE -DAMIGA_TTF_TE
@@ -87,7 +98,6 @@ UI_OBJS    = $(OBJDIR)/ui_app.o \
             $(OBJDIR)/ui_spell.o $(OBJDIR)/ui_mouse.o
 
 # Hunspell support
-USE_HUNSPELL ?= 0
 HUNSPELL_DIR = $(HERE)hunspell
 HUNSPELL_SRC = $(HUNSPELL_DIR)/src/hunspell
 HUNSPELL_OBJDIR = $(HUNSPELL_DIR)/objs.amiga
@@ -108,7 +118,6 @@ ifeq ($(USE_HUNSPELL),1)
 endif
 
 # Hyphen support
-USE_HYPHEN ?= 0
 HYPHEN_DIR = $(HERE)hyphen
 HYPHEN_OBJDIR = $(HYPHEN_DIR)/objs.amiga
 HYPHEN_LIB = $(HYPHEN_DIR)/libhyphen.a
@@ -119,7 +128,6 @@ ifeq ($(USE_HYPHEN),1)
 endif
 
 # MyThes support
-USE_MYTHES ?= 0
 MYTHES_DIR = $(HERE)mythes
 MYTHES_OBJDIR = $(MYTHES_DIR)/objs.amiga
 MYTHES_LIB = $(MYTHES_DIR)/libmythes.a
@@ -141,22 +149,23 @@ UI_OBJS    += $(OBJDIR)/ui_translate.o
 endif
 
 # Translator support -- uses HTTP backends (MyMemory, LibreTranslate, Lingva)
-USE_TRANSLATE ?= 0
-
 ifeq ($(USE_TRANSLATE),1)
-  CFLAGS += -DHAVE_TRANSLATE -DHAVE_TRANSLATE_HTTP
+  CFLAGS += -DHAVE_TRANSLATE -DHAVE_TRANSLATE_HTTP -I$(HERE)translate
   TRANSLATE_OBJS = $(OBJDIR)/translate.o $(OBJDIR)/translate_http.o $(OBJDIR)/http_client.o $(OBJDIR)/json_utils.o
   TRANSLATE_LIB = -lm
+
+  # StarDict offline backend (pure C, no extra library). Works fine on
+  # classic Amiga because it reads RAM:/Work:/etc directly with stdio
+  ifeq ($(USE_STARDICT),1)
+    CFLAGS += -DHAVE_TRANSLATE_STARDICT
+    TRANSLATE_OBJS += $(OBJDIR)/translate_stardict.o
+  endif
 else
   TRANSLATE_OBJS =
   TRANSLATE_LIB =
 endif
 
-# AmiSSL SDK path for TLS support
-AMISSL_SDK ?= AmiSSL
-
 # Set WITH_AMISSL=1 to enable TLS support via AmiSSL (requires USE_TRANSLATE=1)
-WITH_AMISSL ?= 0
 ifeq ($(WITH_AMISSL),1)
   ifeq ($(USE_TRANSLATE),0)
     $(error WITH_AMISSL=1 requires USE_TRANSLATE=1)
@@ -670,16 +679,19 @@ endif
 
 # Translator objects (only if USE_TRANSLATE=1)
 ifeq ($(USE_TRANSLATE),1)
-$(OBJDIR)/translate.o: $(COREDIR)/translate.c $(COREDIR)/translate.h | $(OBJDIR)
+$(OBJDIR)/translate.o: $(HERE)translate/translate.c $(HERE)translate/translate.h | $(OBJDIR)
 	$(CC) $(TEFLAGS) -c $< -o $@
 
-$(OBJDIR)/translate_http.o: $(COREDIR)/translate_http.c $(COREDIR)/translate.h $(COREDIR)/http_client.h $(COREDIR)/json_utils.h | $(OBJDIR)
+$(OBJDIR)/translate_http.o: $(HERE)translate/translate_http.c $(HERE)translate/translate.h $(HERE)translate/http_client.h $(HERE)translate/json_utils.h | $(OBJDIR)
 	$(CC) $(TEFLAGS) -c $< -o $@
 
-$(OBJDIR)/http_client.o: $(COREDIR)/http_client.c $(COREDIR)/http_client.h | $(OBJDIR)
+$(OBJDIR)/http_client.o: $(HERE)translate/http_client.c $(HERE)translate/http_client.h | $(OBJDIR)
 	$(CC) $(TEFLAGS) -c $< -o $@
 
-$(OBJDIR)/json_utils.o: $(COREDIR)/json_utils.c $(COREDIR)/json_utils.h | $(OBJDIR)
+$(OBJDIR)/json_utils.o: $(HERE)translate/json_utils.c $(HERE)translate/json_utils.h | $(OBJDIR)
+	$(CC) $(TEFLAGS) -c $< -o $@
+
+$(OBJDIR)/translate_stardict.o: $(HERE)translate/translate_stardict.c $(HERE)translate/translate_stardict.h | $(OBJDIR)
 	$(CC) $(TEFLAGS) -c $< -o $@
 endif
 

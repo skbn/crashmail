@@ -30,7 +30,7 @@
 #include "ui_editor_search.h"
 #include "ui_mouse.h"
 #ifdef HAVE_HYPHEN
-#include "../core/hyph.h"
+#include "../hyph/hyph.h"
 #endif
 #include "../core/charset.h"
 #include "../core/msghdr.h"
@@ -309,7 +309,7 @@ char *wrap_paste_text_ex(const char *utf8, int col, PasteHyphFn hyph, void *hyph
 
 /* Adapter: HyphDict callback for PasteHyphFn */
 #ifdef HAVE_HYPHEN
-#include "../core/hyph.h"
+#include "../hyph/hyph.h"
 
 static int paste_hyph_thunk(void *user_data, const char *word, int word_len, int *out_pos, int *out_count)
 {

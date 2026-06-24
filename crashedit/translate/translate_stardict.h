@@ -21,16 +21,34 @@
  * This program uses JAMLIB, which is licensed under the GNU Lesser
  * General Public License v2.1. See src/jamlib/LICENSE for details.
  */
-#ifndef JSON_UTILS_H
-#define JSON_UTILS_H
 
-/* Extract a string field from JSON response by key */
-char *json_extract_string(const char *json, const char *key);
+#ifndef TRANSLATE_STARDICT_H
+#define TRANSLATE_STARDICT_H
 
-/* Unescape JSON string (handles \n, \r, \t, \\, \", \uXXXX) */
-void json_unescape_string(char *str);
+#ifdef __cplusplus
+extern "C"
+{
+#endif
 
-/* Build simple JSON request body for POST */
-char *json_build_simple_request(const char **keys, const char **values, int count);
+    typedef struct StarDictHandle StarDictHandle;
 
-#endif /* JSON_UTILS_H */
+    /* Open dictionary from .ifo file, returns handle or error */
+    int translate_stardict_open(const char *ifo_path, const char *from, const char *to, StarDictHandle **out, char *err, int err_size);
+
+    /* Look up word, returns malloc'd definition or NULL */
+    char *translate_stardict_lookup(StarDictHandle *h, const char *word, char *err, int err_size);
+
+    /* Clear LRU cache, keep files open */
+    void translate_stardict_cache_clear(StarDictHandle *h);
+
+    /* Close and free all resources */
+    void translate_stardict_close(StarDictHandle *h);
+
+    /* Get dictionary name from .ifo */
+    const char *translate_stardict_bookname(StarDictHandle *h);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif /* TRANSLATE_STARDICT_H */

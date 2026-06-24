@@ -40,7 +40,7 @@
 #if defined(PLATFORM_AMIGA)
 #include "../spellchecker/thes.h"
 #else
-#include "../core/thes.h"
+#include "../thes/thes.h"
 #endif
 #endif
 
@@ -48,7 +48,7 @@
 #if defined(PLATFORM_AMIGA)
 #include "../spellchecker/spell.h"
 #else
-#include "../core/spell.h"
+#include "../spell/spell.h"
 #endif
 #endif
 

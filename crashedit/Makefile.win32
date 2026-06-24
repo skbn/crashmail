@@ -27,6 +27,13 @@
 # Directory of this Makefile (with trailing slash)
 HERE := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 
+# Feature selection options (set to 1 to enable)
+USE_HUNSPELL ?= 0
+USE_HYPHEN ?= 0
+USE_MYTHES ?= 0
+USE_TRANSLATE ?= 0
+USE_STARDICT ?= 0
+
 # Compiler (native MSYS2 MinGW)
 CC = gcc
 AR = ar
@@ -95,8 +102,8 @@ endif
 SPELL_DIR = $(HERE)spellchecker
 ifeq ($(USE_HUNSPELL),1)
 CDEFS    += -DHAVE_HUNSPELL -I$(SPELL_DIR)
-# On Windows/Amiga, use native spellchecker/ (no core/spell.c wrapper needed)
-# On Linux/BSD, use external Hunspell library (needs core/spell.c wrapper)
+# On Windows/Amiga, use native spellchecker/ (no spell/spell.c wrapper needed)
+# On Linux/BSD, use external Hunspell library (needs spell/spell.c wrapper)
 ifneq ($(findstring win,$(ARCH)),)
 # Windows: use native spellchecker only
 SPELL_OBJS = $(OBJDIR)/spellchecker_utils.o \
@@ -138,12 +145,17 @@ endif
 
 # Translator -- opt-in. Uses HTTP backends (MyMemory, LibreTranslate, Lingva).
 # Uses libcurl on Unix/Windows, external curl on Amiga.
-USE_TRANSLATE ?= 0
-
 ifeq ($(USE_TRANSLATE),1)
-CDEFS    += -DHAVE_TRANSLATE -DHAVE_TRANSLATE_HTTP
+CDEFS    += -DHAVE_TRANSLATE -DHAVE_TRANSLATE_HTTP -I$(HERE)translate
 TRANSLATE_OBJS = $(OBJDIR)/translate.o $(OBJDIR)/translate_http.o $(OBJDIR)/http_client.o $(OBJDIR)/json_utils.o
 TRANSLATE_LIB = -lm -lcurl
+
+# StarDict offline backend (pure C, no extra library)
+USE_STARDICT ?= 0
+ifeq ($(USE_STARDICT),1)
+CDEFS += -DHAVE_TRANSLATE_STARDICT
+TRANSLATE_OBJS += $(OBJDIR)/translate_stardict.o
+endif
 else
 TRANSLATE_OBJS =
 TRANSLATE_LIB =
@@ -165,13 +177,13 @@ $(OBJDIR)/jam_wrap.o: $(COREDIR)/jam_wrap.c $(COREDIR)/jam_wrap.h $(HERE)../src/
 	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
 
 # Spell checker (backend + UI).  spell.c is only compiled when USE_HUNSPELL=1.
-$(OBJDIR)/spell.o: $(COREDIR)/spell.c $(COREDIR)/spell.h | $(OBJDIR)
+$(OBJDIR)/spell.o: $(HERE)spell/spell.c $(HERE)spell/spell.h | $(OBJDIR)
 	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
 
 $(OBJDIR)/dict_scan.o: $(HERE)spellchecker/dict_scan.c $(HERE)spellchecker/dict_scan.h | $(OBJDIR)
 	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
 
-$(OBJDIR)/ui_spell.o: $(UIDIR)/ui_spell.c $(UIDIR)/ui_spell.h $(COREDIR)/spell.h | $(OBJDIR)
+$(OBJDIR)/ui_spell.o: $(UIDIR)/ui_spell.c $(UIDIR)/ui_spell.h $(HERE)spell/spell.h | $(OBJDIR)
 	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
 
 $(OBJDIR)/ui_mouse.o: $(UIDIR)/ui_mouse.c $(UIDIR)/ui_mouse.h | $(OBJDIR)
@@ -182,16 +194,19 @@ $(OBJDIR)/ui_assist.o: $(UIDIR)/ui_assist.c $(UIDIR)/ui_assist.h | $(OBJDIR)
 
 # Translator objects (only if USE_TRANSLATE=1)
 ifeq ($(USE_TRANSLATE),1)
-$(OBJDIR)/translate.o: $(COREDIR)/translate.c $(COREDIR)/translate.h | $(OBJDIR)
+$(OBJDIR)/translate.o: $(HERE)translate/translate.c $(HERE)translate/translate.h | $(OBJDIR)
 	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
 
-$(OBJDIR)/translate_http.o: $(COREDIR)/translate_http.c $(COREDIR)/translate.h $(COREDIR)/http_client.h $(COREDIR)/json_utils.h | $(OBJDIR)
+$(OBJDIR)/translate_http.o: $(HERE)translate/translate_http.c $(HERE)translate/translate.h $(HERE)translate/http_client.h $(HERE)translate/json_utils.h | $(OBJDIR)
 	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
 
-$(OBJDIR)/http_client.o: $(COREDIR)/http_client.c $(COREDIR)/http_client.h | $(OBJDIR)
+$(OBJDIR)/http_client.o: $(HERE)translate/http_client.c $(HERE)translate/http_client.h | $(OBJDIR)
 	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
 
-$(OBJDIR)/json_utils.o: $(COREDIR)/json_utils.c $(COREDIR)/json_utils.h | $(OBJDIR)
+$(OBJDIR)/json_utils.o: $(HERE)translate/json_utils.c $(HERE)translate/json_utils.h | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
+$(OBJDIR)/translate_stardict.o: $(HERE)translate/translate_stardict.c $(HERE)translate/translate_stardict.h | $(OBJDIR)
 	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
 endif
 

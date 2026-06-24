@@ -34,7 +34,7 @@
 #if defined(PLATFORM_AMIGA)
 #include "../spellchecker/hyph.h"
 #else
-#include "../core/hyph.h"
+#include "../hyph/hyph.h"
 #endif
 #include "../core/utf8.h"
 #endif
