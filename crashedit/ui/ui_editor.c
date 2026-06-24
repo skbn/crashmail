@@ -147,6 +147,7 @@ static const char *EDITOR_HELP[] =
 #ifdef HAVE_TRANSLATE
         "    Alt+R           Translate selected text",
         "    Ctrl+T          Toggle translator",
+        "    Alt+B           Exchange languages",
 #endif
         "    Alt+U           Glyph Picker",
         "    ESC             Cancel (confirm)",
@@ -347,11 +348,29 @@ static int handle_function_keys(UiApp *app, int ch, int is_key)
         return 1;
     }
 
-    /* F6 / Alt+B : Replace All in search mode */
+    /* F6 / Alt+B : Replace All in search mode, or swap translate from/to */
     if ((is_key && ch == KEY_F(6)) || (ch == KEY_ALT('B')))
     {
         if (app->edit_search.is_mode)
             replace_all(app);
+#ifdef HAVE_TRANSLATE
+        else
+        {
+            char tmp[16];
+
+            strncpy(tmp, app->cfg->translate_from_lang, sizeof(tmp) - 1);
+            tmp[sizeof(tmp) - 1] = '\0';
+
+            strncpy(app->cfg->translate_from_lang, app->cfg->translate_to_lang, sizeof(app->cfg->translate_from_lang) - 1);
+            app->cfg->translate_from_lang[sizeof(app->cfg->translate_from_lang) - 1] = '\0';
+
+            strncpy(app->cfg->translate_to_lang, tmp, sizeof(app->cfg->translate_to_lang) - 1);
+            app->cfg->translate_to_lang[sizeof(app->cfg->translate_to_lang) - 1] = '\0';
+
+            ui_status(app, "Swapped: %s <-> %s", app->cfg->translate_from_lang, app->cfg->translate_to_lang);
+            return 1;
+        }
+#endif
     }
 
     /* F7 / Alt+O : insert file */

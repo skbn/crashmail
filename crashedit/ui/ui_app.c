@@ -371,45 +371,29 @@ static void build_status_right(const UiApp *app, char *out, int outsz)
     if (app->view == VIEW_EDITOR && app->editor)
     {
         EdInfo info;
+        char sp_buf[32];
+        char hy_buf[32];
+        char tr_buf[32];
+
+        sp_buf[0] = '\0';
+        hy_buf[0] = '\0';
+        tr_buf[0] = '\0';
 
         ed_get_info(app->editor, &info);
-#if defined(HAVE_HUNSPELL) && defined(HAVE_HYPHEN) && defined(HAVE_TRANSLATE)
-        snprintf(out, (size_t)outsz, " %s %s%s%s%s %s ", app->cfg->hard_wrap ? "HARD" : "SOFT",
-                 (app->spell_enabled && app->spell_active && app->spell_handle) ? "SP " : "",
-                 (app->hyph_wrap_enabled && app->hyph_handle) ? "HY " : "",
-                 (app->translate_enabled && app->translate_active && app->translate_handle) ? "TR " : "",
-                 info.insert_mode ? "INS" : "OVR", tbuf);
-#elif defined(HAVE_HUNSPELL) && defined(HAVE_HYPHEN)
-        snprintf(out, (size_t)outsz, " %s %s%s%s %s ", app->cfg->hard_wrap ? "HARD" : "SOFT",
-                 (app->spell_enabled && app->spell_active && app->spell_handle) ? "SP " : "",
-                 (app->hyph_wrap_enabled && app->hyph_handle) ? "HY " : "",
-                 info.insert_mode ? "INS" : "OVR", tbuf);
-#elif defined(HAVE_HUNSPELL) && defined(HAVE_TRANSLATE)
-        snprintf(out, (size_t)outsz, " %s %s%s%s %s ", app->cfg->hard_wrap ? "HARD" : "SOFT",
-                 (app->spell_enabled && app->spell_active && app->spell_handle) ? "SP " : "",
-                 (app->translate_enabled && app->translate_active && app->translate_handle) ? "TR " : "",
-                 info.insert_mode ? "INS" : "OVR", tbuf);
-#elif defined(HAVE_HYPHEN) && defined(HAVE_TRANSLATE)
-        snprintf(out, (size_t)outsz, " %s %s%s%s %s ", app->cfg->hard_wrap ? "HARD" : "SOFT",
-                 (app->hyph_wrap_enabled && app->hyph_handle) ? "HY " : "",
-                 (app->translate_enabled && app->translate_active && app->translate_handle) ? "TR " : "",
-                 info.insert_mode ? "INS" : "OVR", tbuf);
-#elif defined(HAVE_HUNSPELL)
-        snprintf(out, (size_t)outsz, " %s %s%s %s ", app->cfg->hard_wrap ? "HARD" : "SOFT",
-                 (app->spell_enabled && app->spell_active && app->spell_handle) ? "SP " : "",
-                 info.insert_mode ? "INS" : "OVR", tbuf);
-#elif defined(HAVE_HYPHEN)
-        snprintf(out, (size_t)outsz, " %s %s%s %s ", app->cfg->hard_wrap ? "HARD" : "SOFT",
-                 (app->hyph_wrap_enabled && app->hyph_handle) ? "HY " : "",
-                 info.insert_mode ? "INS" : "OVR", tbuf);
-#elif defined(HAVE_TRANSLATE)
-        snprintf(out, (size_t)outsz, " %s %s%s %s ", app->cfg->hard_wrap ? "HARD" : "SOFT",
-                 (app->translate_enabled && app->translate_active && app->translate_handle) ? "TR " : "",
-                 info.insert_mode ? "INS" : "OVR", tbuf);
-#else
-        snprintf(out, (size_t)outsz, " %s %s %s ", app->cfg->hard_wrap ? "HARD" : "SOFT",
-                 info.insert_mode ? "INS" : "OVR", tbuf);
+
+#ifdef HAVE_HUNSPELL
+        if (app->spell_enabled && app->spell_active && app->spell_handle)
+            snprintf(sp_buf, sizeof(sp_buf), "SP ");
 #endif
+#ifdef HAVE_HYPHEN
+        if (app->hyph_wrap_enabled && app->hyph_handle)
+            snprintf(hy_buf, sizeof(hy_buf), "HY ");
+#endif
+#ifdef HAVE_TRANSLATE
+        if (app->translate_active && app->translate_handle)
+            snprintf(tr_buf, sizeof(tr_buf), "TR [%s]->[%s] ", app->cfg->translate_from_lang, app->cfg->translate_to_lang);
+#endif
+        snprintf(out, (size_t)outsz, " %s %s%s%s%s %s ", app->cfg->hard_wrap ? "HARD" : "SOFT", sp_buf, hy_buf, tr_buf, info.insert_mode ? "INS" : "OVR", tbuf);
     }
     else
     {
