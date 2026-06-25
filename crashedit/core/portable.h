@@ -26,6 +26,7 @@
 #define CE_PORTABLE_H
 
 #include <stddef.h>
+#include <time.h>
 
 typedef struct PfDir PfDir;
 typedef struct PfLockFile PfLockFile;
@@ -39,12 +40,30 @@ void pf_lock_release(PfLockFile *lk);
 
 int pf_atomic_rename(const char *from, const char *to);
 int pf_remove_file(const char *path);
-int pf_is_directory(const char *path);
-void pf_sleep_ms(unsigned ms);
 
 int port_mkdir_one(const char *path);
+int pf_mkdir_path(const char *path);
+int pf_ensure_dir(const char *path);
+
 int port_file_create_empty(const char *path);
 void port_get_config_dir(char *buf, size_t bufsz);
+
+int pf_path_exists(const char *path);
+int pf_is_directory(const char *path);
+int pf_is_regular_file(const char *path);
+
+int pf_copy_file(const char *src, const char *dst);
+int pf_move_file(const char *src, const char *dst);
+long pf_get_file_size(const char *path);
+long pf_get_file_mtime(const char *path);
+
+void pf_path_join(char *out, size_t outsize, const char *base, const char *sub);
+void pf_safe_strncpy(char *dst, const char *src, size_t dstsize);
+
+int pf_wildmatch(const char *pat, const char *str);
+int pf_is_wildcard(const char *s);
+
+void pf_sleep_ms(unsigned ms);
 
 #ifdef PLATFORM_AMIGA
 /* Sanitize UTF-8 filename to ASCII for AmigaOS filesystem */

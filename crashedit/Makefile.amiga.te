@@ -148,6 +148,7 @@ ifeq ($(USE_TRANSLATE),1)
 UI_OBJS    += $(OBJDIR)/ui_translate.o
 ifeq ($(USE_STARDICT),1)
 UI_OBJS    += $(OBJDIR)/ui_dict.o
+UI_OBJS    += $(OBJDIR)/ui_dict_picker.o
 endif
 endif
 
@@ -474,7 +475,7 @@ $(OBJDIR)/pngwutil.o: $(PNGDIR)/pngwutil.c | $(OBJDIR)
 TEFLAGS = $(CFLAGS) -I$(HERE) -I$(HERE).. -I$(COREDIR) -I$(COMPDIR) -I$(UIDIR) $(FTINC)
 
 # Core library objects
-$(OBJDIR)/jam_wrap.o: $(COREDIR)/jam_wrap.c $(COREDIR)/jam_wrap.h $(HERE)../src/jamlib/jam.h | $(OBJDIR)
+$(OBJDIR)/jam_wrap.o: $(COREDIR)/jam_wrap.c $(COREDIR)/jam_wrap.h $(HERE)../src/jamlib/jam.h $(COREDIR)/portable.h | $(OBJDIR)
 	$(CC) $(TEFLAGS) -c $< -o $@
 
 # Spell checker objects (new multi-file spellchecker)
@@ -549,13 +550,13 @@ $(OBJDIR)/msghdr.o: $(COREDIR)/msghdr.c $(COREDIR)/msghdr.h $(COREDIR)/jam_wrap.
 $(OBJDIR)/wrapper_io.o: $(COREDIR)/wrapper_io.c $(COREDIR)/wrapper_io.h $(COREDIR)/jam_wrap.h $(COREDIR)/utf8.h $(COREDIR)/charset.h $(COREDIR)/ftn.h | $(OBJDIR)
 	$(CC) $(TEFLAGS) -c $< -o $@
 
-$(OBJDIR)/clipboard.o: $(COREDIR)/clipboard.c $(COREDIR)/clipboard.h | $(OBJDIR)
+$(OBJDIR)/clipboard.o: $(COREDIR)/clipboard.c $(COREDIR)/clipboard.h $(COREDIR)/portable.h | $(OBJDIR)
 	$(CC) $(TEFLAGS) -c $< -o $@
 
 $(OBJDIR)/attach.o: $(COREDIR)/attach.c $(COREDIR)/attach.h | $(OBJDIR)
 	$(CC) $(TEFLAGS) -c $< -o $@
 
-$(OBJDIR)/freq.o: $(COREDIR)/freq.c $(COREDIR)/freq.h | $(OBJDIR)
+$(OBJDIR)/freq.o: $(COREDIR)/freq.c $(COREDIR)/freq.h $(COREDIR)/portable.h | $(OBJDIR)
 	$(CC) $(TEFLAGS) -c $< -o $@
 
 $(OBJDIR)/ansi.o: $(COREDIR)/ansi.c $(COREDIR)/ansi.h $(COREDIR)/utf8.h | $(OBJDIR)
@@ -590,7 +591,7 @@ $(OBJDIR)/editor_helper.o: $(COMPDIR)/editor_helper.c $(COMPDIR)/editor.h | $(OB
 $(OBJDIR)/reader.o: $(COMPDIR)/reader.c $(COMPDIR)/reader.h $(COREDIR)/ftn.h | $(OBJDIR)
 	$(CC) $(TEFLAGS) -c $< -o $@
 
-$(OBJDIR)/config.o: $(COMPDIR)/config.c $(COMPDIR)/config.h $(COREDIR)/charset.h | $(OBJDIR)
+$(OBJDIR)/config.o: $(COMPDIR)/config.c $(COMPDIR)/config.h $(COREDIR)/charset.h $(COREDIR)/portable.h | $(OBJDIR)
 	$(CC) $(TEFLAGS) -c $< -o $@
 
 # UI objects (ui/)
@@ -645,7 +646,7 @@ $(OBJDIR)/ui_aka.o: $(UIDIR)/ui_aka.c $(UIDIR)/ui_aka.h | $(OBJDIR)
 $(OBJDIR)/ui_attr.o: $(UIDIR)/ui_attr.c $(UIDIR)/ui_attr.h | $(OBJDIR)
 	$(CC) $(TEFLAGS) -c $< -o $@
 
-$(OBJDIR)/ui_files.o: $(UIDIR)/ui_files.c $(UIDIR)/ui_files.h $(UIDIR)/ui_internal.h | $(OBJDIR)
+$(OBJDIR)/ui_files.o: $(UIDIR)/ui_files.c $(UIDIR)/ui_files.h $(UIDIR)/ui_internal.h $(COREDIR)/portable.h | $(OBJDIR)
 	$(CC) $(TEFLAGS) -c $< -o $@
 
 $(OBJDIR)/ui_popup_attach.o: $(UIDIR)/ui_popup_attach.c $(UIDIR)/ui_internal.h $(UIDIR)/ui_files.h | $(OBJDIR)
@@ -680,6 +681,8 @@ $(OBJDIR)/ui_translate.o: $(UIDIR)/ui_translate.c $(UIDIR)/ui_translate.h | $(OB
 	$(CC) $(TEFLAGS) -c $< -o $@
 ifeq ($(USE_STARDICT),1)
 $(OBJDIR)/ui_dict.o: $(UIDIR)/ui_dict.c $(UIDIR)/ui_dict.h | $(OBJDIR)
+	$(CC) $(TEFLAGS) -c $< -o $@
+$(OBJDIR)/ui_dict_picker.o: $(UIDIR)/ui_dict_picker.c $(UIDIR)/ui_dict_picker.h | $(OBJDIR)
 	$(CC) $(TEFLAGS) -c $< -o $@
 endif
 endif

@@ -1314,16 +1314,8 @@ static void st_edit_field(CrashEditCfg *w, const SetupField *fld)
 
             /* Get custom dicts directory */
             port_get_config_dir(parent_dir, sizeof(parent_dir));
-
-#if defined(PLATFORM_WIN32)
-            snprintf(dicts_dir, sizeof(dicts_dir), "%s\\dicts", parent_dir);
-#else
-            snprintf(dicts_dir, sizeof(dicts_dir), "%s/dicts", parent_dir);
-#endif
-
-            /* Create parent directory if it doesn't exist */
-            port_mkdir_one(parent_dir);
-            port_mkdir_one(dicts_dir);
+            pf_path_join(dicts_dir, sizeof(dicts_dir), parent_dir, "dicts");
+            pf_ensure_dir(dicts_dir);
 
             /* Select file */
             selected_file[0] = '\0';
@@ -1350,16 +1342,8 @@ static void st_edit_field(CrashEditCfg *w, const SetupField *fld)
 
             /* Get custom dicts directory */
             port_get_config_dir(parent_dir, sizeof(parent_dir));
-
-#if defined(PLATFORM_WIN32)
-            snprintf(dicts_dir, sizeof(dicts_dir), "%s\\dicts", parent_dir);
-#else
-            snprintf(dicts_dir, sizeof(dicts_dir), "%s/dicts", parent_dir);
-#endif
-
-            /* Create parent directory if it doesn't exist */
-            port_mkdir_one(parent_dir);
-            port_mkdir_one(dicts_dir);
+            pf_path_join(dicts_dir, sizeof(dicts_dir), parent_dir, "dicts");
+            pf_ensure_dir(dicts_dir);
 
             /* Ask for dictionary name */
             dict_name[0] = L'\0';
@@ -1492,6 +1476,7 @@ int ui_setup_run(UiApp *app)
         int visible_fields;
 
         erase();
+        standend();
 
         /* Title bar */
         attron(COLOR_PAIR(COL_HEADER));

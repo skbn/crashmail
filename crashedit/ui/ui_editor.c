@@ -38,6 +38,7 @@
 #include "ui_editor_draw.h"
 #include "ui_spell.h"
 #include "ui_dict.h"
+#include "ui_dict_picker.h"
 #ifdef HAVE_TRANSLATE
 #include "ui_translate.h"
 #endif
@@ -147,6 +148,7 @@ static const char *EDITOR_HELP[] =
 #endif
 #ifdef HAVE_TRANSLATE
         "    Alt+R           Translate selected text",
+        "    Alt+M           Dictionary popup (pick translation)",
         "    Ctrl+T          Toggle translator",
         "    Alt+B           Exchange languages",
 #endif
@@ -666,9 +668,12 @@ static int handle_control_keys(UiApp *app, int ch, int is_key)
         return 1;
     }
 
-    /* Alt+M : List attachments */
     if (ch == KEY_ALT('M'))
     {
+#if defined(HAVE_TRANSLATE) && defined(HAVE_TRANSLATE_STARDICT)
+        if (app->show_dict)
+            return 0;
+#endif
         ui_popup_attach_list(app);
         return 1;
     }
@@ -890,6 +895,14 @@ static int handle_alt_keys(UiApp *app, int ch, int is_key)
 #endif
         return 1;
     }
+
+#if defined(HAVE_TRANSLATE) && defined(HAVE_TRANSLATE_STARDICT)
+    if (ch == KEY_ALT('M'))
+    {
+        ui_dict_picker(app);
+        return 1;
+    }
+#endif
 
     /* Alt+G : goto line */
     if (ch == KEY_ALT('G'))
@@ -1650,6 +1663,20 @@ static int handle_body_input(UiApp *app, int ch, int is_key, wint_t wch, int sof
             return 1;
 
         case CTRL('U'):
+#ifdef HAVE_TRANSLATE_STARDICT
+            if (app->show_dict && app->dict_result && app->dict_result[0])
+            {
+                int i;
+
+                for (i = 0; i < 4; i++)
+                {
+                    if (!ui_dict_scroll_up(app))
+                        break;
+                }
+
+                return 1;
+            }
+#endif
             if (soft_active)
             {
                 soft_move_pgup_visual(app, body_width, body_rows);
@@ -1661,6 +1688,20 @@ static int handle_body_input(UiApp *app, int ch, int is_key, wint_t wch, int sof
             return 1;
 
         case CTRL('D'):
+#ifdef HAVE_TRANSLATE_STARDICT
+            if (app->show_dict && app->dict_result && app->dict_result[0])
+            {
+                int i;
+
+                for (i = 0; i < 4; i++)
+                {
+                    if (!ui_dict_scroll_down(app))
+                        break;
+                }
+
+                return 1;
+            }
+#endif
             if (soft_active)
             {
                 soft_move_pgdn_visual(app, body_width, body_rows);

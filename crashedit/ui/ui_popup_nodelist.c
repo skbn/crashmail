@@ -157,6 +157,8 @@ int ui_popup_nodelist(UiApp *app, int allow_pick, char *out_name, int name_sz, c
         if (row_top < 0)
             row_top = 0;
 
+        standend();
+
         /* Clear the popup area */
         attron(COLOR_PAIR(COL_POPUP));
 

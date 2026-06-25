@@ -90,6 +90,7 @@ static int poll_esc(void)
 static void wipe_background(void)
 {
     erase();
+    standend();
 }
 
 /* Center popup and return geometry */
@@ -114,6 +115,8 @@ static void draw_progress(int y, int x, int w, const SearchSession *s, AreaList 
     }
 
     snprintf(buf, sizeof(buf), "Searching %-24s [%d/%d]   msgs:%lu  hits:%d  (ESC cancels)", areatag, s->scanned_areas + 1, s->total_areas, (unsigned long)s->scanned_msgs_current, s->n_hits);
+
+    standend();
     attron(COLOR_PAIR(COL_STATUS));
 
     /* Clear the status row and paint our line */

@@ -74,6 +74,8 @@ void draw_edit_header(UiApp *app)
     int cl;
     const char *attach_mode = "";
 
+    standend();
+
     ae = &app->areas->entries[app->sess.area_idx];
 
     /* Build attribute string */

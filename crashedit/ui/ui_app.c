@@ -449,6 +449,8 @@ void ui_draw_statusbar(UiApp *app)
     if (!app)
         return;
 
+    standend();
+
     attr_get(&saved_attr, &saved_pair, NULL);
 
     build_status_center(app, center, sizeof(center));
@@ -500,6 +502,7 @@ void ui_draw_menubar(UiApp *app, const char *title)
     int left_offset = 0;
     char hint[64] = "";
 
+    standend();
     attron(COLOR_PAIR(COL_MENU));
     move(0, 0);
 

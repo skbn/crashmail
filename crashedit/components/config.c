@@ -28,6 +28,7 @@
 #include <ctype.h>
 #include "config.h"
 #include "../core/utf8.h"
+#include "../core/portable.h"
 #include "../core/charset.h"
 #include "../core/ftn.h"
 #include "../core/freq.h"
@@ -1920,15 +1921,12 @@ int cfg_save(const CrashEditCfg *cfg, const char *path)
 
     if (fclose(out) != 0)
     {
-        remove(tmp_path);
+        pf_remove_file(tmp_path);
         return -1;
     }
 
-    /* Atomic replace: remove() first for Windows rename semantics */
-    remove(path);
-
-    /* Last resort: report failure, .tmp left for inspection */
-    if (rename(tmp_path, path) != 0)
+    /* Atomic replace */
+    if (pf_atomic_rename(tmp_path, path) != 0)
         return -1;
 
     return 0;

@@ -161,6 +161,7 @@ int ui_popup_freq(UiApp *app)
 
         /* Clear screen each iteration to remove sub-popup artefacts, arealist redraws on return */
         /*erase();*/
+        standend();
 
         attron(COLOR_PAIR(COL_POPUP));
 
