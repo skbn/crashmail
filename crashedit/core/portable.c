@@ -43,11 +43,11 @@
 #include <direct.h>
 #include <windows.h>
 #elif defined(PLATFORM_AMIGA)
-#include <exec/types.h>
 #include <dos/dos.h>
-#include <proto/exec.h>
-#include <proto/dos.h>
 #include <exec/memory.h>
+#include <exec/types.h>
+#include <proto/dos.h>
+#include <proto/exec.h>
 #else
 #include <dirent.h>
 #include <fcntl.h>
@@ -629,6 +629,7 @@ int pf_is_directory(const char *path)
         return 0;
 
     attr = GetFileAttributesA(path);
+
     if (attr == INVALID_FILE_ATTRIBUTES)
         return 0;
 
@@ -639,7 +640,7 @@ int pf_is_directory(const char *path)
 int pf_is_directory(const char *path)
 {
     BPTR lock;
-    struct FileInfoBlock *fib;
+    struct FileInfoBlock *fib = NULL;
     int is_dir;
 
     if (!path || !path[0])
@@ -684,10 +685,7 @@ int pf_is_directory(const char *path)
 #endif
 
 #if defined(PLATFORM_WIN32)
-void pf_sleep_ms(unsigned ms)
-{
-    Sleep((DWORD)ms);
-}
+void pf_sleep_ms(unsigned ms) { Sleep((DWORD)ms); }
 
 #elif defined(PLATFORM_AMIGA)
 void pf_sleep_ms(unsigned ms)
@@ -709,5 +707,156 @@ void pf_sleep_ms(unsigned ms)
     ts.tv_nsec = (long)(ms % 1000U) * 1000000L;
 
     nanosleep(&ts, NULL);
+}
+#endif
+
+#ifdef PLATFORM_AMIGA
+char *port_sanitize_filename(const char *utf8_name)
+{
+    static char ascii_buf[512];
+    const unsigned char *p = (const unsigned char *)utf8_name;
+    char *out = ascii_buf;
+    int i = 0;
+
+    if (!utf8_name)
+        return NULL;
+
+    while (*p && i < (int)(sizeof(ascii_buf) - 1))
+    {
+        unsigned char c = *p;
+
+        /* ASCII characters (0-127) pass through */
+        if (c < 0x80)
+        {
+            /* Replace problematic characters with underscore */
+            if (c == '/' || c == ':' || c == '\\' || c == '?' || c == '*' ||
+                c == '"' || c == '<' || c == '>' || c == '|')
+                c = '_';
+
+            *out++ = (char)c;
+            i++;
+            p++;
+        }
+        /* UTF-8 sequences - convert common Spanish characters to ASCII */
+        else if ((c & 0xE0) == 0xC0 && (p[1] & 0xC0) == 0x80)
+        {
+            /* 2-byte UTF-8 */
+            unsigned char c2 = p[1];
+
+            switch ((c << 8) | c2)
+            {
+            case 0xC3A1:
+                *out++ = 'a';
+                i++;
+                p += 2;
+                continue; /* á */
+            case 0xC381:
+                *out++ = 'A';
+                i++;
+                p += 2;
+                continue; /* Á */
+            case 0xC3A9:
+                *out++ = 'e';
+                i++;
+                p += 2;
+                continue; /* é */
+            case 0xC389:
+                *out++ = 'E';
+                i++;
+                p += 2;
+                continue; /* É */
+            case 0xC3AD:
+                *out++ = 'i';
+                i++;
+                p += 2;
+                continue; /* í */
+            case 0xC38D:
+                *out++ = 'I';
+                i++;
+                p += 2;
+                continue; /* Í */
+            case 0xC3B3:
+                *out++ = 'o';
+                i++;
+                p += 2;
+                continue; /* ó */
+            case 0xC393:
+                *out++ = 'O';
+                i++;
+                p += 2;
+                continue; /* Ó */
+            case 0xC3BA:
+                *out++ = 'u';
+                i++;
+                p += 2;
+                continue; /* ú */
+            case 0xC39A:
+                *out++ = 'U';
+                i++;
+                p += 2;
+                continue; /* Ú */
+            case 0xC3B1:
+                *out++ = 'n';
+                i++;
+                p += 2;
+                continue; /* ñ */
+            case 0xC391:
+                *out++ = 'N';
+                i++;
+                p += 2;
+                continue; /* Ñ */
+            case 0xC3BC:
+                *out++ = 'u';
+                i++;
+                p += 2;
+                continue; /* ü */
+            case 0xC39C:
+                *out++ = 'U';
+                i++;
+                p += 2;
+                continue; /* Ü */
+            case 0xC2BF:
+                *out++ = '?';
+                i++;
+                p += 2;
+                continue; /* ¿ */
+            case 0xC2A1:
+                *out++ = '!';
+                i++;
+                p += 2;
+                continue; /* ¡ */
+            default:
+                *out++ = '_';
+                i++;
+                p += 2;
+                break;
+            }
+        }
+        else if ((c & 0xF0) == 0xE0 && (p[1] & 0xC0) == 0x80 && (p[2] & 0xC0) == 0x80)
+        {
+            /* 3-byte UTF-8 - replace with underscore */
+            *out++ = '_';
+            i++;
+            p += 3;
+        }
+        else if ((c & 0xF8) == 0xF0 && (p[1] & 0xC0) == 0x80 && (p[2] & 0xC0) == 0x80 && (p[3] & 0xC0) == 0x80)
+        {
+            /* 4-byte UTF-8 - replace with underscore */
+            *out++ = '_';
+            i++;
+            p += 4;
+        }
+        else
+        {
+            /* Invalid UTF-8 - replace with underscore */
+            *out++ = '_';
+            i++;
+            p++;
+        }
+    }
+
+    *out = '\0';
+
+    return ascii_buf;
 }
 #endif

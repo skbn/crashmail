@@ -286,7 +286,7 @@ $(OBJDIR)/http_client.o: $(HERE)translate/http_client.c $(HERE)translate/http_cl
 $(OBJDIR)/json_utils.o: $(HERE)translate/json_utils.c $(HERE)translate/json_utils.h | $(OBJDIR)
 	$(CC) $(CFLAGS:-msoft-float=) -c $< -o $@
 
-$(OBJDIR)/translate_stardict.o: $(HERE)translate/translate_stardict.c $(HERE)translate/translate_stardict.h | $(OBJDIR)
+$(OBJDIR)/translate_stardict.o: $(HERE)translate/translate_stardict.c $(HERE)translate/translate_stardict.h $(COREDIR)/portable.h | $(OBJDIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(OBJDIR)/portable.o: $(COREDIR)/portable.c $(COREDIR)/portable.h | $(OBJDIR)
