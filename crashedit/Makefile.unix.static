@@ -10,65 +10,105 @@
 # the Free Software Foundation, either version 2 of the License, or
 # (at your option) any later version.
 #
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
+# Makefile.unix.static -- Build crashedit for Linux/BSD/macOS with internal spellchecker
 #
-# You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <https://www.gnu.org/licenses/>.
-#
-# Makefile.unix -- Build libwrapper.a + crashedit for Linux/BSD/macOS
-#
-# Position-independent: anchored to the directory containing this Makefile,
-# so it works regardless of the CWD it is invoked from
-# (e.g. `make -f path/to/Makefile.unix` or `make -C path/to ...`).
+# Position-independent: paths anchored to the directory containing this
+# Makefile, so it works from any CWD (e.g. `make -f path/to/Makefile.unix.static`).
 
 # Directory of this Makefile (with trailing slash)
 HERE := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 
 # Feature selection options (set to 1 to enable)
-USE_HUNSPELL ?= 0
-USE_HYPHEN ?= 0
-USE_MYTHES ?= 0
-USE_TRANSLATE ?= 0
-USE_STARDICT ?= 0
+USE_HUNSPELL ?= 1
+USE_HYPHEN ?= 1
+USE_MYTHES ?= 1
+USE_TRANSLATE ?= 1
+USE_STARDICT ?= 1
 
-# Detect OS and warn if BSD make is used instead of gmake
+# Detect OS
 OS := $(shell uname -s)
 BSD_OS := $(filter FreeBSD NetBSD OpenBSD,$(OS))
-ifneq ($(BSD_OS),)
-    ifeq ($(MAKE),make)
-        $(warning On BSD systems, use 'gmake' instead of 'make' for this Makefile)
-    endif
-endif
 
 CC ?= cc
 CXX ?= c++
-#CFLAGS += -I$(HERE).. -I$(HERE) -I$(HERE)core -I$(HERE)components -I$(HERE)ui -Wall -Wextra -std=gnu89 -O2 -D_XOPEN_SOURCE_EXTENDED
-CFLAGS += -I$(HERE).. -I$(HERE) -I$(HERE)core -I$(HERE)components -I$(HERE)ui -Wall -Wextra -Wpedantic -Wmissing-prototypes -Wstrict-prototypes -Wdeclaration-after-statement -Wimplicit-function-declaration -Wno-unused-parameter -std=gnu89 -O2 -D_XOPEN_SOURCE_EXTENDED
-CXXFLAGS += -I$(HERE).. -I$(HERE) -I$(HERE)core -I$(HERE)components -I$(HERE)ui -Wall -Wextra -Wpedantic -Wno-unused-parameter -O2
+CFLAGS = -I$(HERE).. -I$(HERE) -I$(HERE)core -I$(HERE)components -I$(HERE)ui -Wall -Wextra -Wpedantic -Wmissing-prototypes -Wstrict-prototypes -Wdeclaration-after-statement -Wimplicit-function-declaration -Wno-unused-parameter -std=gnu89 -O2 -D_XOPEN_SOURCE_EXTENDED
+CXXFLAGS = -I$(HERE).. -I$(HERE) -I$(HERE)core -I$(HERE)components -I$(HERE)ui -std=c++14 -O2 -Wall -Wextra -Wpedantic -Wno-unused-parameter
 AR = ar
+TARGET = $(HERE)libcrashedit-unix-static.a
 
 # Platform define
 CDEFS = -DPLATFORM_UNIX
+ifneq ($(BSD_OS),)
+  CDEFS += -DPLATFORM_BSD
+endif
 
-# ncurses library detection:
-#   Linux, FreeBSD, NetBSD, OpenBSD  -> -lncursesw   (wide-char variant)
-#   macOS (Darwin)                   -> -lncurses     (system curses is wide-capable)
-# Override by passing NCURSES_LIB=... on the command line if needed.
+# Spellchecker support (new C-only engine in spellchecker/)
+SPELL_DIR = $(HERE)spellchecker
+
+ifeq ($(USE_HUNSPELL),1)
+  CFLAGS += -DHAVE_HUNSPELL -I$(SPELL_DIR)
+  CDEFS += -DHAVE_HUNSPELL
+  SPELL_OBJS = $(OBJDIR)/spellchecker_htab.o \
+               $(OBJDIR)/spellchecker_affix.o \
+               $(OBJDIR)/spellchecker_core.o \
+               $(OBJDIR)/spellchecker_suggest.o \
+               $(OBJDIR)/spellchecker_stem.o \
+               $(OBJDIR)/spellchecker_custom.o \
+               $(OBJDIR)/spellchecker_dict_scan.o
+endif
+
+# Hyphen support (new C-only engine in spellchecker/)
+ifeq ($(USE_HYPHEN),1)
+  ifeq ($(USE_HUNSPELL),0)
+    $(error USE_HYPHEN=1 requires USE_HUNSPELL=1)
+  endif
+  CFLAGS += -DHAVE_HYPHEN -I$(SPELL_DIR)
+  CDEFS += -DHAVE_HYPHEN
+  HYPHWRAP_OBJS = $(OBJDIR)/spellchecker_hyph.o
+endif
+
+# Thesaurus support (new C-only engine in spellchecker/)
+ifeq ($(USE_MYTHES),1)
+  ifeq ($(USE_HUNSPELL),0)
+    $(error USE_MYTHES=1 requires USE_HUNSPELL=1)
+  endif
+  CFLAGS += -DHAVE_MYTHES -I$(SPELL_DIR)
+  CDEFS += -DHAVE_MYTHES
+  THES_OBJS = $(OBJDIR)/spellchecker_thes.o
+endif
+
+# Translator support (HTTP backends via libcurl)
+ifeq ($(USE_TRANSLATE),1)
+  CFLAGS += -DHAVE_TRANSLATE -DHAVE_TRANSLATE_HTTP -I$(HERE)translate
+  CDEFS += -DHAVE_TRANSLATE -DHAVE_TRANSLATE_HTTP
+  TRANSLATE_OBJS = $(OBJDIR)/translate.o $(OBJDIR)/translate_http.o $(OBJDIR)/http_client.o $(OBJDIR)/json_utils.o
+  # Use pkg-config for libcurl on Unix
+  TRANSLATE_CFLAGS = $(shell pkg-config --cflags libcurl 2>/dev/null)
+  TRANSLATE_LIB = $(shell pkg-config --libs libcurl 2>/dev/null)
+  ifeq ($(TRANSLATE_LIB),)
+    TRANSLATE_LIB = -lcurl
+  endif
+  CFLAGS += $(TRANSLATE_CFLAGS)
+
+  # StarDict offline backend (pure C, no extra library)
+  ifeq ($(USE_STARDICT),1)
+    CFLAGS += -DHAVE_TRANSLATE_STARDICT
+    CDEFS += -DHAVE_TRANSLATE_STARDICT
+    TRANSLATE_OBJS += $(OBJDIR)/translate_stardict.o
+  endif
+endif
+
+# ncurses library detection
 ifeq ($(OS),Darwin)
     NCURSES_LIB ?= -lncurses
 else ifeq ($(BSD_OS),)
     NCURSES_LIB ?= -lncursesw
 else
-    # BSD: default to ncursesw, but can be overridden
     NCURSES_LIB ?= -lncursesw
 endif
-TARGET = $(HERE)libwrapper-unix.a
 
 # Directories -- separate obj dir from Amiga build so .o files don't collide
-OBJDIR = $(HERE)objs.unix
+OBJDIR = $(HERE)objs.unix.static
 COREDIR = $(HERE)core
 COMPDIR = $(HERE)components
 UIDIR = $(HERE)ui
@@ -79,7 +119,7 @@ CORE_OBJS = $(OBJDIR)/portable.o $(OBJDIR)/msg_wrap.o $(OBJDIR)/msgbase.o \
             $(OBJDIR)/ftn.o $(OBJDIR)/msghdr.o $(OBJDIR)/wrapper_io.o \
             $(OBJDIR)/clipboard.o $(OBJDIR)/attach.o $(OBJDIR)/keys.o \
             $(OBJDIR)/ansi.o $(OBJDIR)/freq.o $(OBJDIR)/search.o \
-            $(OBJDIR)/nodelist.o $(OBJDIR)/spell_utils.o
+            $(OBJDIR)/nodelist.o
 COMP_OBJS = $(OBJDIR)/editor.o $(OBJDIR)/editor_helper.o $(OBJDIR)/reader.o $(OBJDIR)/areafile.o $(OBJDIR)/config.o
 UI_OBJS   = $(OBJDIR)/ui_app.o \
             $(OBJDIR)/ui_session.o $(OBJDIR)/ui_popup.o $(OBJDIR)/ui_arealist.o \
@@ -92,145 +132,30 @@ UI_OBJS   = $(OBJDIR)/ui_app.o \
             $(OBJDIR)/ui_popup_attach.o $(OBJDIR)/ui_popup_freq.o $(OBJDIR)/ui_setup.o \
             $(OBJDIR)/ui_popup_nodelist.o \
             $(OBJDIR)/ui_search.o $(OBJDIR)/ui_glyph_picker.o \
-            $(OBJDIR)/ui_spell.o $(OBJDIR)/ui_mouse.o $(OBJDIR)/ui_translate.o
+            $(OBJDIR)/ui_mouse.o
 
-# Hunspell spell checker -- opt-in.  Set USE_HUNSPELL=1 on the make command
-# line (or in your environment) to build with Hunspell support.  Otherwise
-# ui_spell.o is still compiled but with stub behaviour (no .o for spell.c).
 ifeq ($(USE_HUNSPELL),1)
-CDEFS    += -DHAVE_HUNSPELL
-CORE_OBJS += $(OBJDIR)/spell.o
-
-HUNSPELL_PKG_CONFIG_CFLAGS := $(shell pkg-config --cflags hunspell 2>/dev/null)
-HUNSPELL_PKG_CONFIG_LIBS   := $(shell pkg-config --libs   hunspell 2>/dev/null)
-
-ifneq ($(HUNSPELL_PKG_CONFIG_LIBS),)
-CFLAGS    += $(HUNSPELL_PKG_CONFIG_CFLAGS)
-SPELL_LIB := $(HUNSPELL_PKG_CONFIG_LIBS)
-else
-ifeq ($(OS),NetBSD)
-CFLAGS    += -I/usr/pkg/include
-SPELL_LIB := -L/usr/pkg/lib -Wl,-rpath,/usr/pkg/lib -lhunspell-1.7
-else ifeq ($(OS),FreeBSD)
-CFLAGS    += -I/usr/local/include
-SPELL_LIB := -L/usr/local/lib -Wl,-rpath,/usr/local/lib -lhunspell-1.7
-else ifeq ($(OS),OpenBSD)
-CFLAGS    += -I/usr/local/include
-SPELL_LIB := -L/usr/local/lib -Wl,-rpath,/usr/local/lib -lhunspell-1.7
-else
-SPELL_LIB := -lhunspell
-endif
+UI_OBJS   += $(OBJDIR)/ui_spell.o
 endif
 
-else
-SPELL_LIB :=
-endif
-
-# Hyphenation -- opt-in. Requires libhyphen (Debian/Ubuntu: libhyphen-dev;
-# BSD: from ports/pkg or built from source under hyphen/). Compiles
-# hyph/hyph.o and ui_hyph.o. REQUIRES Hunspell.
 ifeq ($(USE_HYPHEN),1)
-  ifeq ($(USE_HUNSPELL),0)
-    $(error USE_HYPHEN=1 requires USE_HUNSPELL=1)
-  endif
-CDEFS    += -DHAVE_HYPHEN
-CORE_OBJS += $(OBJDIR)/hyph.o
 UI_OBJS   += $(OBJDIR)/ui_hyph.o
-
-HYPHEN_PKG_CONFIG_CFLAGS := $(shell pkg-config --cflags hyphen 2>/dev/null)
-HYPHEN_PKG_CONFIG_LIBS   := $(shell pkg-config --libs   hyphen 2>/dev/null)
-
-ifneq ($(HYPHEN_PKG_CONFIG_LIBS),)
-CFLAGS    += $(HYPHEN_PKG_CONFIG_CFLAGS)
-HYPH_LIB  := $(HYPHEN_PKG_CONFIG_LIBS)
-else
-ifeq ($(OS),NetBSD)
-CFLAGS    += -I/usr/pkg/include
-HYPH_LIB  := -L/usr/pkg/lib -Wl,-rpath,/usr/pkg/lib -lhyphen
-else ifeq ($(OS),FreeBSD)
-CFLAGS    += -I/usr/local/include
-HYPH_LIB  := -L/usr/local/lib -Wl,-rpath,/usr/local/lib -lhyphen
-else ifeq ($(OS),OpenBSD)
-CFLAGS    += -I/usr/local/include
-HYPH_LIB  := -L/usr/local/lib -Wl,-rpath,/usr/local/lib -lhyphen
-else
-HYPH_LIB  := -lhyphen
-endif
 endif
 
-else
-HYPH_LIB  :=
+ifeq ($(USE_MYTHES),1)
+UI_OBJS   += $(OBJDIR)/ui_thes.o
 endif
-
-# Translator -- opt-in. Uses HTTP backends (MyMemory, LibreTranslate, Lingva).
-# Compiles translate/translate.o, translate/translate_http.o, translate/http_client.o, and translate/json_utils.o.
-# Uses libcurl on Unix/Windows, external curl on Amiga.
 ifeq ($(USE_TRANSLATE),1)
-CDEFS    += -DHAVE_TRANSLATE -DHAVE_TRANSLATE_HTTP -I$(HERE)translate
-CORE_OBJS += $(OBJDIR)/translate.o $(OBJDIR)/translate_http.o $(OBJDIR)/http_client.o $(OBJDIR)/json_utils.o
-# Use pkg-config for libcurl on Unix (multi-platform detection)
-TRANSLATE_CFLAGS := $(shell pkg-config --cflags libcurl 2>/dev/null)
-TRANSLATE_LIBS := $(shell pkg-config --libs libcurl 2>/dev/null)
-# Fallback to -lcurl if pkg-config fails
-ifeq ($(TRANSLATE_LIBS),)
-TRANSLATE_LIBS := -lcurl
-endif
-CDEFS += $(TRANSLATE_CFLAGS)
-TRANSLATE_LIB := -lm $(TRANSLATE_LIBS)
-
-# StarDict offline backend (pure C, no extra library)
+UI_OBJS   += $(OBJDIR)/ui_translate.o
 ifeq ($(USE_STARDICT),1)
-CDEFS += -DHAVE_TRANSLATE_STARDICT
-CORE_OBJS += $(OBJDIR)/translate_stardict.o
 UI_OBJS   += $(OBJDIR)/ui_dict.o
 endif
-else
-TRANSLATE_LIB :=
 endif
 
-# Thesaurus (MyThes) -- opt-in. Requires libmythes (Debian/Ubuntu:
-# libmythes-dev). C++ source, so we link the C++ stdlib too. Compiles
-# thes/thes.o and ui_thes.o. REQUIRES Hunspell.
-ifeq ($(USE_MYTHES),1)
-  ifeq ($(USE_HUNSPELL),0)
-    $(error USE_MYTHES=1 requires USE_HUNSPELL=1)
-  endif
-CDEFS    += -DHAVE_MYTHES
-CORE_OBJS += $(OBJDIR)/thes.o
-UI_OBJS   += $(OBJDIR)/ui_thes.o
-CXX       ?= c++
-CXXFLAGS  += -Wall -Wextra -Wpedantic -Wno-unused-parameter -O2
+# spell_utils.o is always needed (te_is_word_char used by ui_mouse.c)
+SPELL_UTILS_OBJS = $(OBJDIR)/spell_utils.o
 
-MYTHES_PKG_CONFIG_CFLAGS := $(shell pkg-config --cflags mythes 2>/dev/null)
-MYTHES_PKG_CONFIG_LIBS   := $(shell pkg-config --libs   mythes 2>/dev/null)
-
-ifneq ($(MYTHES_PKG_CONFIG_LIBS),)
-CFLAGS    += $(MYTHES_PKG_CONFIG_CFLAGS)
-CXXFLAGS  += $(MYTHES_PKG_CONFIG_CFLAGS)
-MYTHES_LIB := $(MYTHES_PKG_CONFIG_LIBS)
-else
-ifeq ($(OS),NetBSD)
-CFLAGS    += -I/usr/pkg/include
-CXXFLAGS  += -I/usr/pkg/include
-MYTHES_LIB := -L/usr/pkg/lib -Wl,-rpath,/usr/pkg/lib -lmythes-1.2 -lstdc++
-else ifeq ($(OS),FreeBSD)
-CFLAGS    += -I/usr/local/include
-CXXFLAGS  += -I/usr/local/include
-MYTHES_LIB := -L/usr/local/lib -Wl,-rpath,/usr/local/lib -lmythes-1.2 -lstdc++
-else ifeq ($(OS),OpenBSD)
-CFLAGS    += -I/usr/local/include
-CXXFLAGS  += -I/usr/local/include
-MYTHES_LIB := -L/usr/local/lib -Wl,-rpath,/usr/local/lib -lmythes-1.2 -lstdc++
-else
-MYTHES_LIB := -lmythes-1.2 -lstdc++
-endif
-endif
-
-else
-MYTHES_LIB :=
-endif
-
-ALL_OBJS = $(CORE_OBJS) $(COMP_OBJS)
+ALL_OBJS = $(CORE_OBJS) $(COMP_OBJS) $(UI_OBJS) $(SPELL_UTILS_OBJS) $(SPELL_OBJS) $(HYPHWRAP_OBJS) $(THES_OBJS) $(TRANSLATE_OBJS)
 
 all: $(TARGET) crashedit
 
@@ -266,9 +191,6 @@ $(OBJDIR)/keys.o: $(COREDIR)/keys.c $(COREDIR)/keys.h | $(OBJDIR)
 $(OBJDIR)/ftn.o: $(COREDIR)/ftn.c $(COREDIR)/ftn.h $(COREDIR)/jam_wrap.h $(COREDIR)/charset.h | $(OBJDIR)
 	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
 
-$(OBJDIR)/config.o: $(COMPDIR)/config.c $(COMPDIR)/config.h $(COREDIR)/charset.h | $(OBJDIR)
-	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
-
 $(OBJDIR)/msghdr.o: $(COREDIR)/msghdr.c $(COREDIR)/msghdr.h $(COREDIR)/jam_wrap.h $(COREDIR)/utf8.h | $(OBJDIR)
 	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
 
@@ -290,6 +212,9 @@ $(OBJDIR)/search.o: $(COREDIR)/search.c $(COREDIR)/search.h $(COREDIR)/jam_wrap.
 $(OBJDIR)/ansi.o: $(COREDIR)/ansi.c $(COREDIR)/ansi.h $(COREDIR)/utf8.h | $(OBJDIR)
 	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
 
+$(OBJDIR)/nodelist.o: $(COREDIR)/nodelist.c $(COREDIR)/nodelist.h | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
 # Component objects
 $(OBJDIR)/areafile.o: $(COMPDIR)/areafile.c $(COMPDIR)/areafile.h | $(OBJDIR)
 	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
@@ -303,7 +228,10 @@ $(OBJDIR)/editor_helper.o: $(COMPDIR)/editor_helper.c $(COMPDIR)/editor.h | $(OB
 $(OBJDIR)/reader.o: $(COMPDIR)/reader.c $(COMPDIR)/reader.h $(COREDIR)/ftn.h | $(OBJDIR)
 	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
 
-# UI objects (ui/)
+$(OBJDIR)/config.o: $(COMPDIR)/config.c $(COMPDIR)/config.h $(COREDIR)/charset.h | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
+# UI objects
 $(OBJDIR)/ui_app.o: $(UIDIR)/ui_app.c $(UIDIR)/ui.h $(UIDIR)/ui_internal.h | $(OBJDIR)
 	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
 
@@ -349,7 +277,6 @@ $(OBJDIR)/ui_editor_prep.o: $(UIDIR)/ui_editor_prep.c $(UIDIR)/ui_editor_interna
 $(OBJDIR)/ui_editor_popups.o: $(UIDIR)/ui_editor_popups.c $(UIDIR)/ui_editor_internal.h | $(OBJDIR)
 	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
 
-# Shared helpers (extracted from popup/editor/reader to avoid duplication)
 $(OBJDIR)/ui_aka.o: $(UIDIR)/ui_aka.c $(UIDIR)/ui_aka.h | $(OBJDIR)
 	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
 
@@ -371,28 +298,13 @@ $(OBJDIR)/ui_setup.o: $(UIDIR)/ui_setup.c $(UIDIR)/ui_internal.h $(COMPDIR)/conf
 $(OBJDIR)/ui_search.o: $(UIDIR)/ui_search.c $(UIDIR)/ui_search.h $(UIDIR)/ui_internal.h $(COREDIR)/search.h | $(OBJDIR)
 	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
 
-$(OBJDIR)/nodelist.o: $(COREDIR)/nodelist.c $(COREDIR)/nodelist.h | $(OBJDIR)
-	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
-
-$(OBJDIR)/spell_utils.o: $(HERE)spellchecker/spell_utils.c $(HERE)spellchecker/spell_priv.h | $(OBJDIR)
-	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
-
-$(OBJDIR)/dict_scan.o: $(HERE)spellchecker/dict_scan.c $(HERE)spellchecker/dict_scan.h | $(OBJDIR)
-	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
-
 $(OBJDIR)/ui_popup_nodelist.o: $(UIDIR)/ui_popup_nodelist.c $(UIDIR)/ui_internal.h $(COREDIR)/nodelist.h | $(OBJDIR)
 	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
 
 $(OBJDIR)/ui_glyph_picker.o: $(UIDIR)/ui_glyph_picker.c $(UIDIR)/ui_glyph_picker.h | $(OBJDIR)
 	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
 
-# Spell checker (backend + UI).  spell.c is only compiled when USE_HUNSPELL=1.
-ifeq ($(USE_HUNSPELL),1)
-$(OBJDIR)/spell.o: $(HERE)spell/spell.c $(HERE)spell/spell.h | $(OBJDIR)
-	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
-endif
-
-$(OBJDIR)/ui_spell.o: $(UIDIR)/ui_spell.c $(UIDIR)/ui_spell.h $(HERE)spell/spell.h | $(OBJDIR)
+$(OBJDIR)/ui_spell.o: $(UIDIR)/ui_spell.c $(UIDIR)/ui_spell.h | $(OBJDIR)
 	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
 
 $(OBJDIR)/ui_mouse.o: $(UIDIR)/ui_mouse.c $(UIDIR)/ui_mouse.h | $(OBJDIR)
@@ -401,7 +313,16 @@ $(OBJDIR)/ui_mouse.o: $(UIDIR)/ui_mouse.c $(UIDIR)/ui_mouse.h | $(OBJDIR)
 $(OBJDIR)/ui_assist.o: $(UIDIR)/ui_assist.c $(UIDIR)/ui_assist.h | $(OBJDIR)
 	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
 
-# Translator -- compiled only when USE_TRANSLATE=1
+ifeq ($(USE_HYPHEN),1)
+$(OBJDIR)/ui_hyph.o: $(UIDIR)/ui_hyph.c $(UIDIR)/ui_hyph.h | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+endif
+
+ifeq ($(USE_MYTHES),1)
+$(OBJDIR)/ui_thes.o: $(UIDIR)/ui_thes.c $(UIDIR)/ui_thes.h | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+endif
+
 ifeq ($(USE_TRANSLATE),1)
 $(OBJDIR)/ui_translate.o: $(UIDIR)/ui_translate.c $(UIDIR)/ui_translate.h | $(OBJDIR)
 	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
@@ -411,25 +332,46 @@ $(OBJDIR)/ui_dict.o: $(UIDIR)/ui_dict.c $(UIDIR)/ui_dict.h | $(OBJDIR)
 endif
 endif
 
-# Hyphenation -- compiled only when USE_HYPHEN=1
-ifeq ($(USE_HYPHEN),1)
-$(OBJDIR)/hyph.o: $(HERE)hyph/hyph.c $(HERE)hyph/hyph.h | $(OBJDIR)
+# spell_utils.o is always needed (te_is_word_char used by ui_mouse.c)
+$(OBJDIR)/spell_utils.o: $(SPELL_DIR)/spell_utils.c $(SPELL_DIR)/spell_priv.h $(SPELL_DIR)/spell.h | $(OBJDIR)
 	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
 
-$(OBJDIR)/ui_hyph.o: $(UIDIR)/ui_hyph.c $(UIDIR)/ui_hyph.h $(HERE)hyph/hyph.h | $(OBJDIR)
-	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
-endif
+# Spell checker objects (only if USE_HUNSPELL=1)
+SPELL_PRIV = $(SPELL_DIR)/spell_priv.h $(SPELL_DIR)/spell.h
 
-# Thesaurus -- compiled only when USE_MYTHES=1. Note the C++ compile rule
+$(OBJDIR)/spellchecker_htab.o: $(SPELL_DIR)/spell_htab.c $(SPELL_PRIV) | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
+$(OBJDIR)/spellchecker_affix.o: $(SPELL_DIR)/spell_affix.c $(SPELL_PRIV) | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
+$(OBJDIR)/spellchecker_core.o: $(SPELL_DIR)/spell_core.c $(SPELL_PRIV) | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
+$(OBJDIR)/spellchecker_suggest.o: $(SPELL_DIR)/spell_suggest.c $(SPELL_PRIV) | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
+$(OBJDIR)/spellchecker_stem.o: $(SPELL_DIR)/spell_stem.c $(SPELL_PRIV) | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
+$(OBJDIR)/spellchecker_custom.o: $(SPELL_DIR)/spell_custom.c $(SPELL_PRIV) | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
+$(OBJDIR)/spellchecker_dict_scan.o: $(SPELL_DIR)/dict_scan.c $(SPELL_DIR)/dict_scan.h | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
+# Hyphenation object (only if USE_HYPHEN=1)
+$(OBJDIR)/spellchecker_hyph.o: $(SPELL_DIR)/hyph.c $(SPELL_DIR)/hyph.h | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
+# Thesaurus object (only if USE_MYTHES=1)
 ifeq ($(USE_MYTHES),1)
-$(OBJDIR)/thes.o: $(HERE)thes/thes.cpp $(HERE)thes/thes.h $(HERE)spell/spell.h | $(OBJDIR)
-	$(CXX) $(CXXFLAGS) $(CDEFS) -c $< -o $@
-
-$(OBJDIR)/ui_thes.o: $(UIDIR)/ui_thes.c $(UIDIR)/ui_thes.h $(HERE)thes/thes.h | $(OBJDIR)
+$(OBJDIR)/spellchecker_thes.o: $(SPELL_DIR)/thes.c $(SPELL_DIR)/thes.h | $(OBJDIR)
 	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
 endif
 
-# Translator -- compiled only when USE_TRANSLATE=1
+# Translator objects (only if USE_TRANSLATE=1)
+ifeq ($(USE_TRANSLATE),1)
 $(OBJDIR)/translate.o: $(HERE)translate/translate.c $(HERE)translate/translate.h | $(OBJDIR)
 	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
 
@@ -442,8 +384,11 @@ $(OBJDIR)/http_client.o: $(HERE)translate/http_client.c $(HERE)translate/http_cl
 $(OBJDIR)/json_utils.o: $(HERE)translate/json_utils.c $(HERE)translate/json_utils.h | $(OBJDIR)
 	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
 
+ifeq ($(USE_STARDICT),1)
 $(OBJDIR)/translate_stardict.o: $(HERE)translate/translate_stardict.c $(HERE)translate/translate_stardict.h | $(OBJDIR)
 	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+endif
+endif
 
 # Application
 JAMLIB = $(HERE)../src/jamlib/jamlib.a
@@ -454,18 +399,12 @@ crashedit: $(CRASHEDIT)
 ifeq ($(USE_HUNSPELL)$(USE_MYTHES),00)
 $(CRASHEDIT): $(HERE)main_ui.c $(TARGET) $(UI_OBJS) $(JAMLIB)
 	$(CC) $(CFLAGS) $(CDEFS) $(HERE)main_ui.c $(UI_OBJS) $(TARGET) $(JAMLIB) \
-	      -o $@ $(NCURSES_LIB) $(SPELL_LIB) $(HYPH_LIB) $(MYTHES_LIB) $(TRANSLATE_LIB)
+	      -o $@ $(NCURSES_LIB) $(TRANSLATE_LIB)
 else
 $(OBJDIR)/main_ui.o: $(HERE)main_ui.c | $(OBJDIR)
 	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
 
-LINK_LIBS = $(SPELL_LIB)
-ifeq ($(USE_HYPHEN),1)
-LINK_LIBS += $(HYPH_LIB)
-endif
-ifeq ($(USE_MYTHES),1)
-LINK_LIBS += $(MYTHES_LIB)
-endif
+LINK_LIBS =
 ifeq ($(USE_TRANSLATE),1)
 LINK_LIBS += $(TRANSLATE_LIB)
 endif
@@ -479,4 +418,3 @@ clean:
 	rm -rf $(OBJDIR) $(TARGET) $(CRASHEDIT)
 
 .PHONY: all clean
-

@@ -344,9 +344,14 @@ struct UiApp
 #endif
 
 #ifdef HAVE_TRANSLATE
-    void *translate_handle;    /* TranslateHandle* (opaque) */
-    int translate_enabled;     /* mirrors cfg.translate_enabled; runtime toggle */
-    int translate_active;      /* translator active (manual toggle) */
+    void *translate_handle; /* TranslateHandle* (opaque) */
+    int translate_enabled;  /* mirrors cfg.translate_enabled; runtime toggle */
+    int translate_active;   /* translator active (manual toggle) */
+
+    int show_dict;             /* 1 = panel visible */
+    char *dict_result;         /* malloc'd, NULL when empty */
+    char dict_word[128];       /* header label */
+    int dict_scroll;           /* first visible line of dict_result */
     int translate_http_inited; /* flag: http_client_init was called */
 #endif
 };

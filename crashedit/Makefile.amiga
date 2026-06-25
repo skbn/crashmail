@@ -148,6 +148,9 @@ else
 endif
 ifeq ($(USE_TRANSLATE),1)
   TRANSLATE_UI_OBJS = $(OBJDIR)/ui_translate.o
+  ifeq ($(USE_STARDICT),1)
+    TRANSLATE_UI_OBJS += $(OBJDIR)/ui_dict.o
+  endif
 else
   TRANSLATE_UI_OBJS =
 endif
@@ -264,6 +267,10 @@ $(OBJDIR)/ui_thes.o: $(UIDIR)/ui_thes.c $(UIDIR)/ui_thes.h $(HERE)thes/thes.h | 
 ifeq ($(USE_TRANSLATE),1)
 $(OBJDIR)/ui_translate.o: $(UIDIR)/ui_translate.c $(UIDIR)/ui_translate.h | $(OBJDIR)
 	$(CC) $(CFLAGS) -c $< -o $@
+ifeq ($(USE_STARDICT),1)
+$(OBJDIR)/ui_dict.o: $(UIDIR)/ui_dict.c $(UIDIR)/ui_dict.h | $(OBJDIR)
+	$(CC) $(CFLAGS) -c $< -o $@
+endif
 endif
 
 # Translator objects (only if USE_TRANSLATE=1)

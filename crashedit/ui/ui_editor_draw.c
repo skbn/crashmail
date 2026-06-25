@@ -322,8 +322,8 @@ void draw_edit_body(UiApp *app)
     start_row = (ae->type == AREATYPE_NETMAIL) ? 8 : 7;
     rows = LINES - start_row - 1;
 
-    /* Reserve space for spell panel at bottom when active */
-    if (app->show_spell)
+    /* Reserve space for spell/dict panel at bottom when active */
+    if (app->show_spell || app->show_dict)
         rows -= SPELL_PANEL_H;
 
     if (rows < 1)

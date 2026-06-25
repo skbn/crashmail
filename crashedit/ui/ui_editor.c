@@ -37,6 +37,7 @@
 #include "ui_editor_paste.h"
 #include "ui_editor_draw.h"
 #include "ui_spell.h"
+#include "ui_dict.h"
 #ifdef HAVE_TRANSLATE
 #include "ui_translate.h"
 #endif
@@ -90,7 +91,7 @@ static const char *EDITOR_HELP[] =
         "    Ctrl+Left/Right Word movement",
         "    Ctrl-W          Rewrap paragraph",
         "    Alt+Q           Toggle wrap mode",
-        "    Alt+D           Toggle line numbers",
+        "    Alt+D           Toggle line numbers / dict panel",
         "",
         "  Block (selection):",
         "    Ctrl-C          Copy block",
@@ -417,6 +418,10 @@ static int handle_function_keys(UiApp *app, int ch, int is_key)
     if (ch == KEY_ALT('Q'))
     {
         app->cfg->hard_wrap = !app->cfg->hard_wrap;
+
+        /* Ensure cursor stays within visible area when dict/spell panel is active */
+        if (app->show_spell || app->show_dict)
+            ed_ensure_visible(app->editor);
 
         return 1;
     }
@@ -814,6 +819,22 @@ static int handle_alt_keys(UiApp *app, int ch, int is_key)
 #endif
     }
 
+    /* Alt+D : toggle dictionary overlay panel (StarDict result) */
+    if (ch == KEY_ALT('D'))
+    {
+#ifdef HAVE_TRANSLATE_STARDICT
+        if (app->translate_active)
+            return ui_dict_toggle_panel(app);
+#endif
+        if (app->cfg)
+        {
+            app->cfg->show_line_numbers = !app->cfg->show_line_numbers;
+            ui_status(app, "Line numbers: %s", app->cfg->show_line_numbers ? "ON" : "OFF");
+        }
+
+        return 1;
+    }
+
     /* Alt+T : toggle spell checker active */
     if (ch == KEY_ALT('T'))
     {
@@ -932,18 +953,6 @@ static int handle_alt_keys(UiApp *app, int ch, int is_key)
     if (ch == KEY_ALT('C'))
     {
         ui_popup_attach_clear(app);
-        return 1;
-    }
-
-    /* Alt+D : toggle line numbers */
-    if (ch == KEY_ALT('D'))
-    {
-        if (app->cfg)
-        {
-            app->cfg->show_line_numbers = !app->cfg->show_line_numbers;
-            ui_status(app, "Line numbers: %s", app->cfg->show_line_numbers ? "ON" : "OFF");
-        }
-
         return 1;
     }
 
@@ -1250,6 +1259,20 @@ static int handle_body_input(UiApp *app, int ch, int is_key, wint_t wch, int sof
             return 1;
 
         case KEY_PPAGE:
+#ifdef HAVE_TRANSLATE_STARDICT
+            if (app->show_dict && app->dict_result && app->dict_result[0])
+            {
+                int i;
+
+                for (i = 0; i < 4; i++)
+                {
+                    if (!ui_dict_scroll_up(app))
+                        break;
+                }
+
+                return 1;
+            }
+#endif
             ed_block_clear(app->editor);
 
             if (soft_active)
@@ -1263,6 +1286,20 @@ static int handle_body_input(UiApp *app, int ch, int is_key, wint_t wch, int sof
             return 1;
 
         case KEY_NPAGE:
+#ifdef HAVE_TRANSLATE_STARDICT
+            if (app->show_dict && app->dict_result && app->dict_result[0])
+            {
+                int i;
+
+                for (i = 0; i < 4; i++)
+                {
+                    if (!ui_dict_scroll_down(app))
+                        break;
+                }
+
+                return 1;
+            }
+#endif
             ed_block_clear(app->editor);
 
             if (soft_active)
@@ -1559,14 +1596,6 @@ static int handle_body_input(UiApp *app, int ch, int is_key, wint_t wch, int sof
         /* Alt-key chords: KEY_ALT() from shim (Amiga) or wrapper_read_key() fold */
         case KEY_ALT('L'):
             ui_popup_attach_clear(app);
-            return 1;
-
-        case KEY_ALT('D'):
-            if (app->cfg)
-            {
-                app->cfg->show_line_numbers = !app->cfg->show_line_numbers;
-                ui_status(app, "Line numbers: %s", app->cfg->show_line_numbers ? "ON" : "OFF");
-            }
             return 1;
 
         case KEY_ALT('Z'): /* Alt+Z: redo */
@@ -2060,6 +2089,11 @@ UiView ui_editor_run(UiApp *app)
         /* Spell panel overlay (no-op when hidden) */
         ui_spell_draw_panel(app);
 
+#ifdef HAVE_TRANSLATE_STARDICT
+        /* Dictionary panel overlay (Alt+D) */
+        ui_dict_draw_panel(app);
+#endif
+
         position_edit_cursor(app);
         refresh();
 
@@ -2095,7 +2129,7 @@ UiView ui_editor_run(UiApp *app)
                 /* Calculate body_rows for mouse dispatch */
                 body_rows = LINES - srow - 1;
 
-                if (app->show_spell)
+                if (app->show_spell || app->show_dict)
                     body_rows -= SPELL_PANEL_H;
 
                 if (body_rows < 1)
@@ -2168,7 +2202,7 @@ UiView ui_editor_run(UiApp *app)
             /* Calculate body_rows for mouse dispatch */
             body_rows = LINES - srow - 1;
 
-            if (app->show_spell)
+            if (app->show_spell || app->show_dict)
                 body_rows -= SPELL_PANEL_H;
 
             if (body_rows < 1)
@@ -2360,8 +2394,8 @@ UiView ui_editor_run(UiApp *app)
 
         body_rows = LINES - srow - 1;
 
-        /* Reserve space for spell panel at bottom when active */
-        if (app->show_spell)
+        /* Reserve space for spell/dict panel at bottom when active */
+        if (app->show_spell || app->show_dict)
             body_rows -= SPELL_PANEL_H;
 
         if (body_rows < 1)

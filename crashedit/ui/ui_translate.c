@@ -23,6 +23,7 @@
  */
 
 #include "ui_translate.h"
+#include "ui_dict.h"
 #include "ui.h"
 
 #include <stdio.h>
@@ -436,6 +437,34 @@ int ui_translate_action(UiApp *app)
         free(src);
         return 1;
     }
+
+#ifdef HAVE_TRANSLATE_STARDICT
+    if (app->cfg->translate_backend == TRANSLATE_BACKEND_STARDICT)
+    {
+        char header[128];
+        int n = (int)strlen(src);
+
+        if (n > (int)sizeof(header) - 1)
+            n = (int)sizeof(header) - 1;
+
+        memcpy(header, src, (size_t)n);
+        header[n] = '\0';
+
+        while (n > 0 && (header[n - 1] == ' ' || header[n - 1] == '\n' || header[n - 1] == '\r' || header[n - 1] == '\t'))
+            header[--n] = '\0';
+
+        ui_dict_set_result(app, header, result);
+
+        if (!app->show_dict && app->translate_active)
+            app->show_dict = 1;
+
+        ui_status(app, "Dictionary: lookup ready (Alt+D to toggle, PgUp/PgDn to scroll)");
+
+        free(result);
+        free(src);
+        return 1;
+    }
+#endif
 
     choice = translate_show_popup(app, from_lang, to_lang, result, NULL);
 
