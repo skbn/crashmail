@@ -57,67 +57,119 @@
 #endif /* PLATFORM_AMIGA end (includes) */
 #endif /* HAVE_MYTHES end (includes) */
 
-#ifdef PLATFORM_AMIGA /* PLATFORM_AMIGA begin (tabs) */
-#ifdef HAVE_HUNSPELL  /* HAVE_HUNSPELL begin (Amiga tabs) */
-#ifdef HAVE_TRANSLATE /* HAVE_TRANSLATE begin (Amiga+Hunspell tabs) */
+#ifdef PLATFORM_WIN32
+#include <windows.h>
+#endif
+
+static void setup_font_start_dir(char *out, int out_sz)
+{
+#ifdef PLATFORM_AMIGA
+    strncpy(out, "PROGDIR:", out_sz - 1);
+    out[out_sz - 1] = '\0';
+#elif defined(PLATFORM_WIN32)
+    wchar_t exe_path[MAX_PATH];
+    char *u = NULL;
+    wchar_t *last_slash = NULL;
+
+    if (GetModuleFileNameW(NULL, exe_path, sizeof(exe_path) / sizeof(wchar_t)) == 0)
+    {
+        strncpy(out, ".", out_sz - 1);
+        out[out_sz - 1] = '\0';
+        return;
+    }
+
+    last_slash = wcsrchr(exe_path, L'\\');
+
+    if (!last_slash)
+        last_slash = wcsrchr(exe_path, L'/');
+
+    if (last_slash)
+        *last_slash = L'\0';
+
+    u = pf_utf16_to_utf8(exe_path);
+
+    if (u)
+    {
+        snprintf(out, out_sz, "%s", u);
+        free(u);
+    }
+    else
+    {
+        strncpy(out, ".", out_sz - 1);
+        out[out_sz - 1] = '\0';
+    }
+#else
+    strncpy(out, ".", out_sz - 1);
+    out[out_sz - 1] = '\0';
+#endif
+}
+
+/* TTF tab exists on Amiga and on Win32 */
+#if defined(PLATFORM_AMIGA) || defined(PLATFORM_WIN32)
+#define HAVE_TTF_TAB 1
+#endif
+
+#ifdef HAVE_TTF_TAB   /* HAVE_TTF_TAB begin (tabs) */
+#ifdef HAVE_HUNSPELL  /* HAVE_HUNSPELL begin (TTF tabs) */
+#ifdef HAVE_TRANSLATE /* HAVE_TRANSLATE begin (TTF+Hunspell tabs) */
 #define ST_TAB_COUNT 9
 
 static const char *st_tab_names[ST_TAB_COUNT] =
     {
         "Identity", "Paths", "Display", "Editor", "Messages", "Colour/Font", "TTF", "Spell", "X-late"};
-#else /* HAVE_TRANSLATE else (Amiga+Hunspell without Translate tabs) */
+#else /* HAVE_TRANSLATE else (TTF+Hunspell without Translate tabs) */
 #define ST_TAB_COUNT 8
 
 static const char *st_tab_names[ST_TAB_COUNT] =
     {
         "Identity", "Paths", "Display", "Editor", "Messages", "Colour/Font", "TTF", "Spell"};
-#endif                /* HAVE_TRANSLATE end (Amiga+Hunspell tabs) */
-#else                 /* HAVE_HUNSPELL else (Amiga without Hunspell tabs) */
-#ifdef HAVE_TRANSLATE /* HAVE_TRANSLATE begin (Amiga without Hunspell tabs) */
+#endif                /* HAVE_TRANSLATE end (TTF+Hunspell tabs) */
+#else                 /* HAVE_HUNSPELL else (TTF without Hunspell tabs) */
+#ifdef HAVE_TRANSLATE /* HAVE_TRANSLATE begin (TTF without Hunspell tabs) */
 #define ST_TAB_COUNT 8
 
 static const char *st_tab_names[ST_TAB_COUNT] =
     {
         "Identity", "Paths", "Display", "Editor", "Messages", "Colour/Font", "TTF", "X-late"};
-#else /* HAVE_TRANSLATE else (Amiga without Hunspell without Translate tabs) */
+#else /* HAVE_TRANSLATE else (TTF without Hunspell without Translate tabs) */
 #define ST_TAB_COUNT 7
 
 static const char *st_tab_names[ST_TAB_COUNT] =
     {
         "Identity", "Paths", "Display", "Editor", "Messages", "Colour/Font", "TTF"};
-#endif                /* HAVE_TRANSLATE end (Amiga without Hunspell tabs) */
-#endif                /* HAVE_HUNSPELL end (Amiga tabs) */
-#else                 /* PLATFORM_AMIGA else (non-Amiga tabs) */
-#ifdef HAVE_HUNSPELL  /* HAVE_HUNSPELL begin (non-Amiga tabs) */
-#ifdef HAVE_TRANSLATE /* HAVE_TRANSLATE begin (non-Amiga+Hunspell tabs) */
+#endif                /* HAVE_TRANSLATE end (TTF without Hunspell tabs) */
+#endif                /* HAVE_HUNSPELL end (TTF tabs) */
+#else                 /* HAVE_TTF_TAB else (no TTF tab) */
+#ifdef HAVE_HUNSPELL  /* HAVE_HUNSPELL begin (non-TTF tabs) */
+#ifdef HAVE_TRANSLATE /* HAVE_TRANSLATE begin (non-TTF+Hunspell tabs) */
 #define ST_TAB_COUNT 8
 
 static const char *st_tab_names[ST_TAB_COUNT] =
     {
         "Identity", "Paths", "Display", "Editor", "Messages", "Colour/Font", "Spell", "X-late"};
-#else /* HAVE_TRANSLATE else (non-Amiga+Hunspell without Translate tabs) */
+#else /* HAVE_TRANSLATE else (non-TTF+Hunspell without Translate tabs) */
 #define ST_TAB_COUNT 7
 
 static const char *st_tab_names[ST_TAB_COUNT] =
     {
         "Identity", "Paths", "Display", "Editor", "Messages", "Colour/Font", "Spell"};
-#endif                /* HAVE_TRANSLATE end (non-Amiga+Hunspell tabs) */
-#else                 /* HAVE_HUNSPELL else (non-Amiga without Hunspell tabs) */
-#ifdef HAVE_TRANSLATE /* HAVE_TRANSLATE begin (non-Amiga without Hunspell tabs) */
+#endif                /* HAVE_TRANSLATE end (non-TTF+Hunspell tabs) */
+#else                 /* HAVE_HUNSPELL else (non-TTF without Hunspell tabs) */
+#ifdef HAVE_TRANSLATE /* HAVE_TRANSLATE begin (non-TTF without Hunspell tabs) */
 #define ST_TAB_COUNT 7
 
 static const char *st_tab_names[ST_TAB_COUNT] =
     {
         "Identity", "Paths", "Display", "Editor", "Messages", "Colour/Font", "X-late"};
-#else /* HAVE_TRANSLATE else (non-Amiga without Hunspell without Translate tabs) */
+#else /* HAVE_TRANSLATE else (non-TTF without Hunspell without Translate tabs) */
 #define ST_TAB_COUNT 6
 
 static const char *st_tab_names[ST_TAB_COUNT] =
     {
         "Identity", "Paths", "Display", "Editor", "Messages", "Colour/Font"};
-#endif /* HAVE_TRANSLATE end (non-Amiga without Hunspell tabs) */
-#endif /* HAVE_HUNSPELL end (non-Amiga tabs) */
-#endif /* PLATFORM_AMIGA end (tabs) */
+#endif /* HAVE_TRANSLATE end (non-TTF without Hunspell tabs) */
+#endif /* HAVE_HUNSPELL end (non-TTF tabs) */
+#endif /* HAVE_TTF_TAB end (tabs) */
 
 typedef enum
 {
@@ -192,18 +244,33 @@ static const SetupField st_fields[] =
         {2, "Area format", FT_STR, F_OFF(arealistformat), CFG_FORMAT_MAX},
 
         /* Editor */
-        {3, "Tearline", FT_STR, F_OFF(tearline), 80},
-        {3, "Force INTL 0/1/2", FT_TRI, F_OFF(forceintl), 0},
-        {3, "Auto-wrap col", FT_INT, F_OFF(autowrap_col), 0},
-        {3, "Quote margin", FT_INT, F_OFF(quotemargin), 0},
-        {3, "Undo levels", FT_INT, F_OFF(undo_levels), 0},
+        /* Display */
         {3, "Hard wrap", FT_BOOL, F_OFF(hard_wrap), 0},
         {3, "Line numbers", FT_BOOL, F_OFF(show_line_numbers), 0},
-        {3, "Terminal Mouse", FT_BOOL, F_OFF(mouse_enabled), 0},
+        {3, "Show whitespace", FT_BOOL, F_OFF(show_whitespace), 0},
+        {3, "Highlight line", FT_BOOL, F_OFF(highlight_line), 0},
+        {3, "Word count", FT_BOOL, F_OFF(word_count), 0},
+        {3, "Column ruler (0=off)", FT_INT, F_OFF(ruler_col), 0},
+        {3, "Indent guides", FT_BOOL, F_OFF(indent_guides), 0},
+        {3, "Wrap indicator", FT_BOOL, F_OFF(wrap_indicator), 0},
+        /* Editing */
+        {3, "Tab width", FT_INT, F_OFF(tab_width), 0},
+        {3, "Auto-wrap col", FT_INT, F_OFF(autowrap_col), 0},
+        {3, "Quote margin", FT_INT, F_OFF(quotemargin), 0},
+        {3, "Smart indent", FT_BOOL, F_OFF(smart_indent), 0},
+        {3, "Auto-close brackets", FT_BOOL, F_OFF(autoclose), 0},
+        {3, "Match brackets", FT_BOOL, F_OFF(show_brackets), 0},
+        {3, "Word move mode", FT_CYCLE, F_OFF(word_move_mode), 0},
+        /* Text assists */
         {3, "Smart quotes", FT_BOOL, F_OFF(assist_smart_quotes), 0},
         {3, "Auto-cap", FT_BOOL, F_OFF(assist_auto_cap), 0},
         {3, "Repeated words", FT_BOOL, F_OFF(assist_repeat_check), 0},
-
+        /* FTN message */
+        {3, "Tearline", FT_STR, F_OFF(tearline), 80},
+        {3, "Force INTL 0/1/2", FT_TRI, F_OFF(forceintl), 0},
+        /* System */
+        {3, "Terminal Mouse", FT_BOOL, F_OFF(mouse_enabled), 0},
+        {3, "Undo levels", FT_INT, F_OFF(undo_levels), 0},
         /* Messages */
         {4, "Greeting on", FT_BOOL, F_OFF(greeting), 0},
         {4, "Greeting text", FT_STR, F_OFF(greeting_text), CFG_STR_MAX},
@@ -220,6 +287,8 @@ static const SetupField st_fields[] =
 
 #if defined(PLATFORM_AMIGA)
         {5, "ANSI font", FT_STR, F_OFF(ansifont), CFG_STR_MAX},
+#endif
+#if defined(PLATFORM_AMIGA) || defined(PLATFORM_WIN32)
         {5, "TTF enabled", FT_BOOL, F_OFF(ttf_enabled), 0},
         {5, "TTF font", FT_STR, F_OFF(ttf_font), CFG_STR_MAX},
         {5, "TTF size", FT_INT, F_OFF(ttf_size), 0},
@@ -272,60 +341,76 @@ static const SetupField st_fields[] =
         {5, "Tagline", FT_COLORPAIR, offsetof(CrashEditCfg, color_fg) + COL_TAGLINE * sizeof(int), 0},
         {5, "Match Search", FT_COLORPAIR, offsetof(CrashEditCfg, color_fg) + COL_SEARCH_MATCH * sizeof(int), 0},
         {5, "Spell Current", FT_COLORPAIR, offsetof(CrashEditCfg, color_fg) + COL_SPELL_CURRENT * sizeof(int), 0},
+        {5, "Match Bracket", FT_COLORPAIR, offsetof(CrashEditCfg, color_fg) + COL_BRACKET_MATCH * sizeof(int), 0},
+        {5, "Current Line", FT_COLORPAIR, offsetof(CrashEditCfg, color_fg) + COL_CURRENT_LINE * sizeof(int), 0},
+        {5, "Guides", FT_COLORPAIR, offsetof(CrashEditCfg, color_fg) + COL_GUIDE * sizeof(int), 0},
 
-/* TTF */
-#ifdef PLATFORM_AMIGA
-        {6, "Fallback 1", FT_STR, offsetof(CrashEditCfg, ttf_fallback[0]), CFG_STR_MAX},
-        {6, "Fallback 1 Size", FT_INT, offsetof(CrashEditCfg, ttf_fallback_size[0]), 0},
-        {6, "Fallback 2", FT_STR, offsetof(CrashEditCfg, ttf_fallback[1]), CFG_STR_MAX},
-        {6, "Fallback 2 Size", FT_INT, offsetof(CrashEditCfg, ttf_fallback_size[1]), 0},
-        {6, "Fallback 3", FT_STR, offsetof(CrashEditCfg, ttf_fallback[2]), CFG_STR_MAX},
-        {6, "Fallback 3 Size", FT_INT, offsetof(CrashEditCfg, ttf_fallback_size[2]), 0},
-        {6, "Fallback 4", FT_STR, offsetof(CrashEditCfg, ttf_fallback[3]), CFG_STR_MAX},
-        {6, "Fallback 4 Size", FT_INT, offsetof(CrashEditCfg, ttf_fallback_size[3]), 0},
-        {6, "Fallback 5", FT_STR, offsetof(CrashEditCfg, ttf_fallback[4]), CFG_STR_MAX},
-        {6, "Fallback 5 Size", FT_INT, offsetof(CrashEditCfg, ttf_fallback_size[4]), 0},
-        {6, "Fallback 6", FT_STR, offsetof(CrashEditCfg, ttf_fallback[5]), CFG_STR_MAX},
-        {6, "Fallback 6 Size", FT_INT, offsetof(CrashEditCfg, ttf_fallback_size[5]), 0},
-        {6, "Fallback 7", FT_STR, offsetof(CrashEditCfg, ttf_fallback[6]), CFG_STR_MAX},
-        {6, "Fallback 7 Size", FT_INT, offsetof(CrashEditCfg, ttf_fallback_size[6]), 0},
-        {6, "Fallback 8", FT_STR, offsetof(CrashEditCfg, ttf_fallback[7]), CFG_STR_MAX},
-        {6, "Fallback 8 Size", FT_INT, offsetof(CrashEditCfg, ttf_fallback_size[7]), 0},
+/* TTF Fallbacks: always on the TTF tab (index 6) when it exists */
+#ifdef HAVE_TTF_TAB
+#define TAB_TTF_FB 6
+#endif
+
+#ifdef HAVE_TTF_TAB
+        {TAB_TTF_FB, "Fallback 1", FT_STR, offsetof(CrashEditCfg, ttf_fallback[0]), CFG_STR_MAX},
+        {TAB_TTF_FB, "Fallback 1 Size", FT_INT, offsetof(CrashEditCfg, ttf_fallback_size[0]), 0},
+        {TAB_TTF_FB, "Fallback 2", FT_STR, offsetof(CrashEditCfg, ttf_fallback[1]), CFG_STR_MAX},
+        {TAB_TTF_FB, "Fallback 2 Size", FT_INT, offsetof(CrashEditCfg, ttf_fallback_size[1]), 0},
+        {TAB_TTF_FB, "Fallback 3", FT_STR, offsetof(CrashEditCfg, ttf_fallback[2]), CFG_STR_MAX},
+        {TAB_TTF_FB, "Fallback 3 Size", FT_INT, offsetof(CrashEditCfg, ttf_fallback_size[2]), 0},
+        {TAB_TTF_FB, "Fallback 4", FT_STR, offsetof(CrashEditCfg, ttf_fallback[3]), CFG_STR_MAX},
+        {TAB_TTF_FB, "Fallback 4 Size", FT_INT, offsetof(CrashEditCfg, ttf_fallback_size[3]), 0},
+        {TAB_TTF_FB, "Fallback 5", FT_STR, offsetof(CrashEditCfg, ttf_fallback[4]), CFG_STR_MAX},
+        {TAB_TTF_FB, "Fallback 5 Size", FT_INT, offsetof(CrashEditCfg, ttf_fallback_size[4]), 0},
+        {TAB_TTF_FB, "Fallback 6", FT_STR, offsetof(CrashEditCfg, ttf_fallback[5]), CFG_STR_MAX},
+        {TAB_TTF_FB, "Fallback 6 Size", FT_INT, offsetof(CrashEditCfg, ttf_fallback_size[5]), 0},
+        {TAB_TTF_FB, "Fallback 7", FT_STR, offsetof(CrashEditCfg, ttf_fallback[6]), CFG_STR_MAX},
+        {TAB_TTF_FB, "Fallback 7 Size", FT_INT, offsetof(CrashEditCfg, ttf_fallback_size[6]), 0},
+        {TAB_TTF_FB, "Fallback 8", FT_STR, offsetof(CrashEditCfg, ttf_fallback[7]), CFG_STR_MAX},
+        {TAB_TTF_FB, "Fallback 8 Size", FT_INT, offsetof(CrashEditCfg, ttf_fallback_size[7]), 0},
+#endif
+
+/* Dictionary / Spell tab index */
+#ifdef HAVE_TTF_TAB
+#define TAB_SPELL 7
+#define TAB_TRANSLATE 8
+#else
+#define TAB_SPELL 6
+#define TAB_TRANSLATE 7
 #endif
 
 /* Dictionary */
 #ifdef HAVE_HUNSPELL        /* HAVE_HUNSPELL begin (fields) */
 #if defined(PLATFORM_AMIGA) /* PLATFORM_AMIGA begin (fields) */
-        {7, "Spell Enabled", FT_BOOL, offsetof(CrashEditCfg, spell_enabled), 0},
-        {7, "Dict Path", FT_STR, offsetof(CrashEditCfg, spell_dict_path), CFG_STR_MAX},
-        {7, "Dictionary", FT_DICTLIST, offsetof(CrashEditCfg, spell_dict_name), 0},
-        {7, "Custom Dict", FT_CUSTOMDICT, offsetof(CrashEditCfg, spell_custom_dict), 0},
+        {TAB_SPELL, "Spell Enabled", FT_BOOL, offsetof(CrashEditCfg, spell_enabled), 0},
+        {TAB_SPELL, "Dict Path", FT_STR, offsetof(CrashEditCfg, spell_dict_path), CFG_STR_MAX},
+        {TAB_SPELL, "Dictionary", FT_DICTLIST, offsetof(CrashEditCfg, spell_dict_name), 0},
+        {TAB_SPELL, "Custom Dict", FT_CUSTOMDICT, offsetof(CrashEditCfg, spell_custom_dict), 0},
 #ifdef HAVE_HYPHEN /* HAVE_HYPHEN begin (Amiga fields) */
-        {7, "Hyphen Enabled", FT_BOOL, offsetof(CrashEditCfg, hyph_enabled), 0},
-        {7, "Hyphen Path", FT_STR, offsetof(CrashEditCfg, hyph_dict_path), CFG_STR_MAX},
-        {7, "Hyphen Dictionary", FT_HYPHLIST, offsetof(CrashEditCfg, hyph_dict_name), 0},
-        {7, "Hyphen Wrap", FT_BOOL, offsetof(CrashEditCfg, hyph_wrap_enabled), 0},
+        {TAB_SPELL, "Hyphen Enabled", FT_BOOL, offsetof(CrashEditCfg, hyph_enabled), 0},
+        {TAB_SPELL, "Hyphen Path", FT_STR, offsetof(CrashEditCfg, hyph_dict_path), CFG_STR_MAX},
+        {TAB_SPELL, "Hyphen Dictionary", FT_HYPHLIST, offsetof(CrashEditCfg, hyph_dict_name), 0},
+        {TAB_SPELL, "Hyphen Wrap", FT_BOOL, offsetof(CrashEditCfg, hyph_wrap_enabled), 0},
 #endif             /* HAVE_HYPHEN end (Amiga fields) */
 #ifdef HAVE_MYTHES /* HAVE_MYTHES begin (Amiga fields) */
-        {7, "Thesaurus Enabled", FT_BOOL, offsetof(CrashEditCfg, thes_enabled), 0},
-        {7, "Thesaurus Path", FT_STR, offsetof(CrashEditCfg, thes_dict_path), CFG_STR_MAX},
-        {7, "Thesaurus Dictionary", FT_THESLIST, offsetof(CrashEditCfg, thes_dict_name), 0},
+        {TAB_SPELL, "Thesaurus Enabled", FT_BOOL, offsetof(CrashEditCfg, thes_enabled), 0},
+        {TAB_SPELL, "Thesaurus Path", FT_STR, offsetof(CrashEditCfg, thes_dict_path), CFG_STR_MAX},
+        {TAB_SPELL, "Thesaurus Dictionary", FT_THESLIST, offsetof(CrashEditCfg, thes_dict_name), 0},
 #endif             /* HAVE_MYTHES end (Amiga fields) */
 #else              /* PLATFORM_AMIGA else (non-Amiga fields) */
-        {6, "Spell Enabled", FT_BOOL, offsetof(CrashEditCfg, spell_enabled), 0},
-        {6, "Dict Path", FT_STR, offsetof(CrashEditCfg, spell_dict_path), CFG_STR_MAX},
-        {6, "Dictionary", FT_DICTLIST, offsetof(CrashEditCfg, spell_dict_name), 0},
-        {6, "Custom Dict", FT_CUSTOMDICT, offsetof(CrashEditCfg, spell_custom_dict), 0},
+        {TAB_SPELL, "Spell Enabled", FT_BOOL, offsetof(CrashEditCfg, spell_enabled), 0},
+        {TAB_SPELL, "Dict Path", FT_STR, offsetof(CrashEditCfg, spell_dict_path), CFG_STR_MAX},
+        {TAB_SPELL, "Dictionary", FT_DICTLIST, offsetof(CrashEditCfg, spell_dict_name), 0},
+        {TAB_SPELL, "Custom Dict", FT_CUSTOMDICT, offsetof(CrashEditCfg, spell_custom_dict), 0},
 #ifdef HAVE_HYPHEN /* HAVE_HYPHEN begin (non-Amiga fields) */
-        {6, "Hyphen Enabled", FT_BOOL, offsetof(CrashEditCfg, hyph_enabled), 0},
-        {6, "Hyphen Path", FT_STR, offsetof(CrashEditCfg, hyph_dict_path), CFG_STR_MAX},
-        {6, "Hyphen Dictionary", FT_HYPHLIST, offsetof(CrashEditCfg, hyph_dict_name), 0},
-        {6, "Hyphen Wrap", FT_BOOL, offsetof(CrashEditCfg, hyph_wrap_enabled), 0},
+        {TAB_SPELL, "Hyphen Enabled", FT_BOOL, offsetof(CrashEditCfg, hyph_enabled), 0},
+        {TAB_SPELL, "Hyphen Path", FT_STR, offsetof(CrashEditCfg, hyph_dict_path), CFG_STR_MAX},
+        {TAB_SPELL, "Hyphen Dictionary", FT_HYPHLIST, offsetof(CrashEditCfg, hyph_dict_name), 0},
+        {TAB_SPELL, "Hyphen Wrap", FT_BOOL, offsetof(CrashEditCfg, hyph_wrap_enabled), 0},
 #endif             /* HAVE_HYPHEN end (non-Amiga fields) */
 #ifdef HAVE_MYTHES /* HAVE_MYTHES begin (non-Amiga fields) */
-        {6, "Thesaurus Enabled", FT_BOOL, offsetof(CrashEditCfg, thes_enabled), 0},
-        {6, "Thesaurus Path", FT_STR, offsetof(CrashEditCfg, thes_dict_path), CFG_STR_MAX},
-        {6, "Thesaurus Dictionary", FT_THESLIST, offsetof(CrashEditCfg, thes_dict_name), 0},
+        {TAB_SPELL, "Thesaurus Enabled", FT_BOOL, offsetof(CrashEditCfg, thes_enabled), 0},
+        {TAB_SPELL, "Thesaurus Path", FT_STR, offsetof(CrashEditCfg, thes_dict_path), CFG_STR_MAX},
+        {TAB_SPELL, "Thesaurus Dictionary", FT_THESLIST, offsetof(CrashEditCfg, thes_dict_name), 0},
 #endif             /* HAVE_MYTHES end (non-Amiga fields) */
 #endif             /* PLATFORM_AMIGA end (fields) */
 #endif             /* HAVE_HUNSPELL end (fields) */
@@ -334,47 +419,47 @@ static const SetupField st_fields[] =
 #ifdef HAVE_TRANSLATE       /* HAVE_TRANSLATE begin */
 #if defined(PLATFORM_AMIGA) /* PLATFORM_AMIGA begin */
 #ifdef HAVE_HUNSPELL        /* HAVE_HUNSPELL begin (Amiga) */
-        {8, "Translate Enabled", FT_BOOL, offsetof(CrashEditCfg, translate_enabled), 0},
-        {8, "Backend", FT_TRANSLATE_BACKEND, offsetof(CrashEditCfg, translate_backend), 0},
-        {8, "Endpoint", FT_STR, offsetof(CrashEditCfg, translate_endpoint), CFG_STR_MAX},
-        {8, "API Key", FT_STR, offsetof(CrashEditCfg, translate_api_key), CFG_STR_MAX},
-        {8, "Email", FT_STR, offsetof(CrashEditCfg, translate_email), CFG_STR_MAX},
-        {8, "From Lang", FT_STR, offsetof(CrashEditCfg, translate_from_lang), 16},
-        {8, "To Lang", FT_STR, offsetof(CrashEditCfg, translate_to_lang), 16},
-        {8, "Timeout (sec)", FT_INT, offsetof(CrashEditCfg, translate_timeout), 0},
-        {8, "StarDict Path", FT_STR, offsetof(CrashEditCfg, stardict_path), CFG_STR_MAX},
+        {TAB_TRANSLATE, "Translate Enabled", FT_BOOL, offsetof(CrashEditCfg, translate_enabled), 0},
+        {TAB_TRANSLATE, "Backend", FT_TRANSLATE_BACKEND, offsetof(CrashEditCfg, translate_backend), 0},
+        {TAB_TRANSLATE, "Endpoint", FT_STR, offsetof(CrashEditCfg, translate_endpoint), CFG_STR_MAX},
+        {TAB_TRANSLATE, "API Key", FT_STR, offsetof(CrashEditCfg, translate_api_key), CFG_STR_MAX},
+        {TAB_TRANSLATE, "Email", FT_STR, offsetof(CrashEditCfg, translate_email), CFG_STR_MAX},
+        {TAB_TRANSLATE, "From Lang", FT_STR, offsetof(CrashEditCfg, translate_from_lang), 16},
+        {TAB_TRANSLATE, "To Lang", FT_STR, offsetof(CrashEditCfg, translate_to_lang), 16},
+        {TAB_TRANSLATE, "Timeout (sec)", FT_INT, offsetof(CrashEditCfg, translate_timeout), 0},
+        {TAB_TRANSLATE, "StarDict Path", FT_STR, offsetof(CrashEditCfg, stardict_path), CFG_STR_MAX},
 #else                /* HAVE_HUNSPELL else (Amiga without Hunspell) */
-        {7, "Translate Enabled", FT_BOOL, offsetof(CrashEditCfg, translate_enabled), 0},
-        {7, "Backend", FT_TRANSLATE_BACKEND, offsetof(CrashEditCfg, translate_backend), 0},
-        {7, "Endpoint", FT_STR, offsetof(CrashEditCfg, translate_endpoint), CFG_STR_MAX},
-        {7, "API Key", FT_STR, offsetof(CrashEditCfg, translate_api_key), CFG_STR_MAX},
-        {7, "Email", FT_STR, offsetof(CrashEditCfg, translate_email), CFG_STR_MAX},
-        {7, "From Lang", FT_STR, offsetof(CrashEditCfg, translate_from_lang), 16},
-        {7, "To Lang", FT_STR, offsetof(CrashEditCfg, translate_to_lang), 16},
-        {7, "Timeout (sec)", FT_INT, offsetof(CrashEditCfg, translate_timeout), 0},
-        {7, "StarDict Path", FT_STR, offsetof(CrashEditCfg, stardict_path), CFG_STR_MAX},
+        {TAB_TRANSLATE, "Translate Enabled", FT_BOOL, offsetof(CrashEditCfg, translate_enabled), 0},
+        {TAB_TRANSLATE, "Backend", FT_TRANSLATE_BACKEND, offsetof(CrashEditCfg, translate_backend), 0},
+        {TAB_TRANSLATE, "Endpoint", FT_STR, offsetof(CrashEditCfg, translate_endpoint), CFG_STR_MAX},
+        {TAB_TRANSLATE, "API Key", FT_STR, offsetof(CrashEditCfg, translate_api_key), CFG_STR_MAX},
+        {TAB_TRANSLATE, "Email", FT_STR, offsetof(CrashEditCfg, translate_email), CFG_STR_MAX},
+        {TAB_TRANSLATE, "From Lang", FT_STR, offsetof(CrashEditCfg, translate_from_lang), 16},
+        {TAB_TRANSLATE, "To Lang", FT_STR, offsetof(CrashEditCfg, translate_to_lang), 16},
+        {TAB_TRANSLATE, "Timeout (sec)", FT_INT, offsetof(CrashEditCfg, translate_timeout), 0},
+        {TAB_TRANSLATE, "StarDict Path", FT_STR, offsetof(CrashEditCfg, stardict_path), CFG_STR_MAX},
 #endif               /* HAVE_HUNSPELL end (Amiga) */
 #else                /* PLATFORM_AMIGA else (non-Amiga) */
 #ifdef HAVE_HUNSPELL /* HAVE_HUNSPELL begin (non-Amiga with Hunspell) */
-        {7, "Translate Enabled", FT_BOOL, offsetof(CrashEditCfg, translate_enabled), 0},
-        {7, "Backend", FT_TRANSLATE_BACKEND, offsetof(CrashEditCfg, translate_backend), 0},
-        {7, "Endpoint", FT_STR, offsetof(CrashEditCfg, translate_endpoint), CFG_STR_MAX},
-        {7, "API Key", FT_STR, offsetof(CrashEditCfg, translate_api_key), CFG_STR_MAX},
-        {7, "Email", FT_STR, offsetof(CrashEditCfg, translate_email), CFG_STR_MAX},
-        {7, "From Lang", FT_STR, offsetof(CrashEditCfg, translate_from_lang), 16},
-        {7, "To Lang", FT_STR, offsetof(CrashEditCfg, translate_to_lang), 16},
-        {7, "Timeout (sec)", FT_INT, offsetof(CrashEditCfg, translate_timeout), 0},
-        {7, "StarDict Path", FT_STR, offsetof(CrashEditCfg, stardict_path), CFG_STR_MAX},
+        {TAB_TRANSLATE, "Translate Enabled", FT_BOOL, offsetof(CrashEditCfg, translate_enabled), 0},
+        {TAB_TRANSLATE, "Backend", FT_TRANSLATE_BACKEND, offsetof(CrashEditCfg, translate_backend), 0},
+        {TAB_TRANSLATE, "Endpoint", FT_STR, offsetof(CrashEditCfg, translate_endpoint), CFG_STR_MAX},
+        {TAB_TRANSLATE, "API Key", FT_STR, offsetof(CrashEditCfg, translate_api_key), CFG_STR_MAX},
+        {TAB_TRANSLATE, "Email", FT_STR, offsetof(CrashEditCfg, translate_email), CFG_STR_MAX},
+        {TAB_TRANSLATE, "From Lang", FT_STR, offsetof(CrashEditCfg, translate_from_lang), 16},
+        {TAB_TRANSLATE, "To Lang", FT_STR, offsetof(CrashEditCfg, translate_to_lang), 16},
+        {TAB_TRANSLATE, "Timeout (sec)", FT_INT, offsetof(CrashEditCfg, translate_timeout), 0},
+        {TAB_TRANSLATE, "StarDict Path", FT_STR, offsetof(CrashEditCfg, stardict_path), CFG_STR_MAX},
 #else                /* HAVE_HUNSPELL else (non-Amiga without Hunspell) */
-        {6, "Translate Enabled", FT_BOOL, offsetof(CrashEditCfg, translate_enabled), 0},
-        {6, "Backend", FT_TRANSLATE_BACKEND, offsetof(CrashEditCfg, translate_backend), 0},
-        {6, "Endpoint", FT_STR, offsetof(CrashEditCfg, translate_endpoint), CFG_STR_MAX},
-        {6, "API Key", FT_STR, offsetof(CrashEditCfg, translate_api_key), CFG_STR_MAX},
-        {6, "Email", FT_STR, offsetof(CrashEditCfg, translate_email), CFG_STR_MAX},
-        {6, "From Lang", FT_STR, offsetof(CrashEditCfg, translate_from_lang), 16},
-        {6, "To Lang", FT_STR, offsetof(CrashEditCfg, translate_to_lang), 16},
-        {6, "Timeout (sec)", FT_INT, offsetof(CrashEditCfg, translate_timeout), 0},
-        {6, "StarDict Path", FT_STR, offsetof(CrashEditCfg, stardict_path), CFG_STR_MAX},
+        {TAB_TRANSLATE, "Translate Enabled", FT_BOOL, offsetof(CrashEditCfg, translate_enabled), 0},
+        {TAB_TRANSLATE, "Backend", FT_TRANSLATE_BACKEND, offsetof(CrashEditCfg, translate_backend), 0},
+        {TAB_TRANSLATE, "Endpoint", FT_STR, offsetof(CrashEditCfg, translate_endpoint), CFG_STR_MAX},
+        {TAB_TRANSLATE, "API Key", FT_STR, offsetof(CrashEditCfg, translate_api_key), CFG_STR_MAX},
+        {TAB_TRANSLATE, "Email", FT_STR, offsetof(CrashEditCfg, translate_email), CFG_STR_MAX},
+        {TAB_TRANSLATE, "From Lang", FT_STR, offsetof(CrashEditCfg, translate_from_lang), 16},
+        {TAB_TRANSLATE, "To Lang", FT_STR, offsetof(CrashEditCfg, translate_to_lang), 16},
+        {TAB_TRANSLATE, "Timeout (sec)", FT_INT, offsetof(CrashEditCfg, translate_timeout), 0},
+        {TAB_TRANSLATE, "StarDict Path", FT_STR, offsetof(CrashEditCfg, stardict_path), CFG_STR_MAX},
 #endif               /* HAVE_HUNSPELL end (non-Amiga) */
 #endif               /* PLATFORM_AMIGA end */
 #endif               /* HAVE_TRANSLATE end */
@@ -452,6 +537,14 @@ static void st_format_value(const CrashEditCfg *w, const SetupField *fld, char *
                 label = "UTF-16";
             else
                 label = "UTF-8";
+        }
+        else if (strcmp(fld->label, "Word move mode") == 0)
+        {
+            /* 0=standard, 1=vim-like (non-space blocks) */
+            if (v == 0)
+                label = "Standard";
+            else
+                label = "Vim-like";
         }
         else
         {
@@ -776,48 +869,78 @@ static void st_edit_field(CrashEditCfg *w, const SetupField *fld)
                     if (use_file_mode)
                     {
                         /* File mode: use file picker */
-                        if (ui_files_pick(fld->label, "PROGDIR:", tmp, sizeof(tmp)) == 0)
+                        char start_dir[CFG_STR_MAX];
+
+                        setup_font_start_dir(start_dir, sizeof(start_dir));
+
+                        if (ui_files_pick(fld->label, start_dir, tmp, sizeof(tmp)) == 0)
                         {
-                            strncpy(s, tmp, CFG_STR_MAX - 1);
-                            s[CFG_STR_MAX - 1] = '\0';
-                        }
-                    }
-                    else
-                    {
-                        /* Memory mode: text input */
-                        wchar_t wtmp[CFG_STR_MAX];
-                        wchar_t *w_initial = utf8_to_wcs(tmp, NULL);
-                        int cap = CFG_STR_MAX;
+#ifdef PLATFORM_WIN32
+                            /* Extract font family and move path to TTF slot */
+                            char family[256];
+                            char *ttf_font = (char *)(base + F_OFF(ttf_font));
+                            int *ttf_enabled = (int *)(base + F_OFF(ttf_enabled));
 
-                        wtmp[0] = L'\0';
-
-                        if (w_initial)
-                        {
-                            wcsncpy(wtmp, w_initial, (size_t)(cap - 1));
-                            wtmp[cap - 1] = L'\0';
-                            free(w_initial);
-                        }
-
-                        if (ui_popup_input(fld->label, "Font name:", wtmp, cap) == 0)
-                        {
-                            char *u = wcs_to_utf8(wtmp, (int)wcslen(wtmp));
-
-                            if (u)
+                            if (win32_get_font_family_name(tmp, family, sizeof(family)) == 0)
                             {
-                                size_t n = strlen(u);
+                                strncpy(s, family, CFG_STR_MAX - 1);
+                                s[CFG_STR_MAX - 1] = '\0';
 
-                                if (n >= (size_t)cap)
-                                    n = cap - 1;
+                                strncpy(ttf_font, tmp, CFG_STR_MAX - 1);
+                                ttf_font[CFG_STR_MAX - 1] = '\0';
 
-                                memcpy(s, u, n);
+                                *ttf_enabled = 1;
+                            }
+                            else
+                            {
+                                strncpy(s, tmp, CFG_STR_MAX - 1);
+                                s[CFG_STR_MAX - 1] = '\0';
+                            }
 
-                                s[n] = '\0';
+#else
+                            {
+                                strncpy(s, tmp, CFG_STR_MAX - 1);
+                                s[CFG_STR_MAX - 1] = '\0';
+                            }
+#endif
+                        }
+                        else
+                        {
+                            /* Memory mode: text input */
+                            wchar_t wtmp[CFG_STR_MAX];
+                            wchar_t *w_initial = utf8_to_wcs(tmp, NULL);
+                            int cap = CFG_STR_MAX;
 
-                                free(u);
+                            wtmp[0] = L'\0';
+
+                            if (w_initial)
+                            {
+                                wcsncpy(wtmp, w_initial, (size_t)(cap - 1));
+                                wtmp[cap - 1] = L'\0';
+                                free(w_initial);
+                            }
+
+                            if (ui_popup_input(fld->label, "Font name:", wtmp, cap) == 0)
+                            {
+                                char *u = wcs_to_utf8(wtmp, (int)wcslen(wtmp));
+
+                                if (u)
+                                {
+                                    size_t n = strlen(u);
+
+                                    if (n >= (size_t)cap)
+                                        n = cap - 1;
+
+                                    memcpy(s, u, n);
+
+                                    s[n] = '\0';
+
+                                    free(u);
+                                }
                             }
                         }
+                        break;
                     }
-                    break;
                 }
             }
         }
@@ -830,17 +953,31 @@ static void st_edit_field(CrashEditCfg *w, const SetupField *fld)
                  strncmp(fld->label, "Fallback", 8) == 0)
         {
             char tmp[CFG_STR_MAX];
+            char start_dir[CFG_STR_MAX];
+            int is_font_field = (strcmp(fld->label, "ANSI font") == 0 || strcmp(fld->label, "TTF font") == 0 || strncmp(fld->label, "Fallback", 8) == 0);
+
             strncpy(tmp, s, sizeof(tmp) - 1);
             tmp[sizeof(tmp) - 1] = '\0';
 
-            if (ui_files_pick(fld->label, NULL, tmp, sizeof(tmp)) == 0)
+            if (is_font_field)
+                setup_font_start_dir(start_dir, sizeof(start_dir));
+            else
+                start_dir[0] = '\0';
+
+            if (ui_files_pick(fld->label, start_dir, tmp, sizeof(tmp)) == 0)
             {
                 strncpy(s, tmp, CFG_STR_MAX - 1);
                 s[CFG_STR_MAX - 1] = '\0';
             }
         }
         /* Directory fields: use directory picker */
-        else if (strcmp(fld->label, "Freq outbound dir") == 0)
+        else if (strcmp(fld->label, "Freq outbound dir") == 0 ||
+                 strcmp(fld->label, "Dict Path") == 0 ||
+                 strcmp(fld->label, "Hyphen Path") == 0 ||
+                 strcmp(fld->label, "Hyphen Dict Path") == 0 ||
+                 strcmp(fld->label, "Thesaurus Path") == 0 ||
+                 strcmp(fld->label, "Thesaurus Dict Path") == 0 ||
+                 strcmp(fld->label, "StarDict Path") == 0)
         {
             char tmp[CFG_STR_MAX];
 
@@ -1073,6 +1210,9 @@ static void st_edit_field(CrashEditCfg *w, const SetupField *fld)
 
         if (strcmp(fld->label, "TTF encoding") == 0)
             /* TTF encoding: 0=UTF-16, 1=UTF-8 (toggle between 2 options) */
+            *v = (*v == 0) ? 1 : 0;
+        else if (strcmp(fld->label, "Word move mode") == 0)
+            /* Word move mode: 0=Standard, 1=Vim-like (toggle between 2 options) */
             *v = (*v == 0) ? 1 : 0;
         else
             /* TTF antialias: 0=AUTO, 1=OFF, 2=ON (cycle through 3 options) */

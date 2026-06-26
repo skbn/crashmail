@@ -27,6 +27,7 @@
 #include "ui_editor_helper.h"
 #include "ui_attr.h"
 #include "ui_spell.h"
+#include "ui_dict.h"
 #include "ui_assist.h"
 #include "../core/msghdr.h"
 #include "../components/editor.h"
@@ -208,6 +209,9 @@ void position_edit_cursor(UiApp *app)
     if (!app)
         return;
 
+    /* Clear residual attributes before positioning cursor */
+    standend();
+
     ec = msghdr_edit_col(app->edit_hdr);
 
     switch (app->edit_active_field)
@@ -231,7 +235,7 @@ void position_edit_cursor(UiApp *app)
     case EF_BODY:
     {
         EdInfo info;
-        AreaEntry *ae;
+        AreaEntry *ae = NULL;
         int start_row, rows;
         int cy, cx;
         int max_y;
@@ -255,7 +259,7 @@ void position_edit_cursor(UiApp *app)
 
         /* Calculate line number offset if enabled */
         if (show_lnum)
-            ln_offset = lineno_width(info.line_count);
+            ln_offset = editor_body_offset(app, info.line_count);
 
         if (soft)
         {
@@ -271,8 +275,18 @@ void position_edit_cursor(UiApp *app)
         }
         else
         {
+            const wchar_t *wl = ed_line_wcs(app->editor, info.row);
+            int line_len = ed_line_len(app->editor, info.row);
+            int wchar_col = info.col;
+            extern int s_tab_width;
+
+            if (wchar_col > line_len)
+                wchar_col = line_len;
+            if (wchar_col < 0)
+                wchar_col = 0;
+
             cy = start_row + (info.row - info.top);
-            cx = ln_offset + info.col;
+            cx = ln_offset + (wl ? wcs_vwidth_ex(wl, wchar_col, 0, s_tab_width) : wchar_col);
         }
 
         /* Always move; clamp to body region */
@@ -296,6 +310,8 @@ void position_edit_cursor(UiApp *app)
             cx = COLS - 1;
 
         move(cy, cx);
+
+        /* Use normal cursor visibility */
         curs_set(1);
 
         return;
@@ -309,7 +325,7 @@ void position_edit_cursor(UiApp *app)
 void draw_edit_body(UiApp *app)
 {
     EdInfo info;
-    AreaEntry *ae;
+    AreaEntry *ae = NULL;
     int rows, start_row, i;
     int b_r1 = -1, b_c1 = 0, b_r2 = -1, b_c2 = 0;
     int soft;
@@ -319,14 +335,24 @@ void draw_edit_body(UiApp *app)
     int ln_offset = 0; /* offset for editor content */
     int show_lnum = app->cfg && app->cfg->show_line_numbers;
     int sub_skip;
+    int tab_width = (app->cfg && app->cfg->tab_width > 0) ? app->cfg->tab_width : 4;
+
+    standend();
+
+    extern int s_tab_width;
+
+    s_tab_width = tab_width;
+    ed_set_tab_width(tab_width);
 
     ae = &app->areas->entries[app->sess.area_idx];
     start_row = (ae->type == AREATYPE_NETMAIL) ? 8 : 7;
     rows = LINES - start_row - 1;
 
     /* Reserve space for spell/dict panel at bottom when active */
-    if (app->show_spell || app->show_dict)
+    if (app->show_spell)
         rows -= SPELL_PANEL_H;
+    else if (app->show_dict)
+        rows -= DICT_PANEL_HEIGHT;
 
     if (rows < 1)
         rows = 1;
@@ -340,11 +366,135 @@ void draw_edit_body(UiApp *app)
     ed_set_page(app->editor, rows);
     ed_get_info(app->editor, &info);
 
+    /* Bracket matching: find partner bracket across buffer */
+    {
+        int match_row = -1;
+        int match_col = -1;
+        app->bracket_match_row = -1;
+        app->bracket_match_col = -1;
+
+        if (app->cfg && app->cfg->show_brackets)
+        {
+            const wchar_t *line = ed_line_wcs(app->editor, info.row);
+            int line_len = ed_line_len(app->editor, info.row);
+
+            if (line && info.col < line_len)
+            {
+                wchar_t ch = line[info.col];
+                wchar_t partner = 0;
+                int dir = 0;
+
+                switch (ch)
+                {
+                case L'(':
+                    partner = L')';
+                    dir = +1;
+                    break;
+                case L'[':
+                    partner = L']';
+                    dir = +1;
+                    break;
+                case L'{':
+                    partner = L'}';
+                    dir = +1;
+                    break;
+                case L')':
+                    partner = L'(';
+                    dir = -1;
+                    break;
+                case L']':
+                    partner = L'[';
+                    dir = -1;
+                    break;
+                case L'}':
+                    partner = L'{';
+                    dir = -1;
+                    break;
+                default:
+                    break;
+                }
+
+                if (partner)
+                {
+                    int depth = 1;
+                    int row;
+
+                    if (dir > 0)
+                    {
+                        for (row = info.row; row < info.line_count && match_row < 0; row++)
+                        {
+                            const wchar_t *rl = ed_line_wcs(app->editor, row);
+                            int rl_len = ed_line_len(app->editor, row);
+                            int col;
+                            int start_col = (row == info.row) ? info.col + 1 : 0;
+
+                            if (!rl)
+                                continue;
+
+                            for (col = start_col; col < rl_len; col++)
+                            {
+                                if (rl[col] == ch)
+                                    depth++;
+                                else if (rl[col] == partner)
+                                {
+                                    depth--;
+
+                                    if (depth == 0)
+                                    {
+                                        match_row = row;
+                                        match_col = col;
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    else
+                    {
+                        for (row = info.row; row >= 0 && match_row < 0; row--)
+                        {
+                            const wchar_t *rl = ed_line_wcs(app->editor, row);
+                            int rl_len = ed_line_len(app->editor, row);
+                            int col;
+                            int start_col = (row == info.row) ? info.col - 1 : rl_len - 1;
+
+                            if (!rl)
+                                continue;
+
+                            for (col = start_col; col >= 0; col--)
+                            {
+                                if (rl[col] == ch)
+                                    depth++;
+                                else if (rl[col] == partner)
+                                {
+                                    depth--;
+
+                                    if (depth == 0)
+                                    {
+                                        match_row = row;
+                                        match_col = col;
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (match_row >= 0)
+                {
+                    app->bracket_match_row = match_row;
+                    app->bracket_match_col = match_col;
+                }
+            }
+        }
+    }
+
     /* Calculate line number width if enabled */
     if (show_lnum)
     {
         ln_width = lineno_width(info.line_count);
-        ln_offset = ln_width;
+        ln_offset = editor_body_offset(app, info.line_count);
         width = COLS - ln_offset; /* Reduce available width for text */
     }
 
@@ -375,6 +525,9 @@ void draw_edit_body(UiApp *app)
             int line_idx = info.top + i;
             int line_len;
             const wchar_t *wl;
+            int line_vw;
+            int x_text_end;
+            int x_screen_end;
 
             move(start_row + i, 0);
             clrtoeol();
@@ -385,9 +538,11 @@ void draw_edit_body(UiApp *app)
             /* Draw line number if enabled */
             if (show_lnum)
             {
-                attron(COLOR_PAIR(COL_BORDER));
+                attrset(COLOR_PAIR(COL_BORDER));
                 mvprintw(start_row + i, 0, "%*d", ln_width - 1, line_idx + 1);
-                attroff(COLOR_PAIR(COL_BORDER));
+                standend();
+
+                attron(COLOR_PAIR(COL_NORMAL));
             }
 
             /* mvaddnwstr: n is in wide chars, no UTF-8 conversion needed */
@@ -395,7 +550,18 @@ void draw_edit_body(UiApp *app)
             line_len = ed_line_len(app->editor, line_idx);
 
             if (wl && line_len > 0)
-                mvaddnwstr(start_row + i, ln_offset, wl, line_len);
+                ui_draw_wcs_line_with_tabs(start_row + i, ln_offset, wl, line_len, tab_width);
+
+            /* Highlight matched bracket partner only */
+            if (app->cfg && app->cfg->show_brackets && app->bracket_match_row == line_idx && app->bracket_match_col >= 0 && app->bracket_match_col < line_len && wl)
+            {
+                int tc = app->bracket_match_col;
+                int col_x = ln_offset + wcs_vwidth_ex(wl, tc, 0, tab_width);
+
+                attron(COLOR_PAIR(COL_BRACKET_MATCH) | A_BOLD);
+                mvaddnwstr(start_row + i, col_x, &wl[tc], 1);
+                attroff(COLOR_PAIR(COL_BRACKET_MATCH) | A_BOLD);
+            }
 
             /* Highlight search matches */
             if (app->edit_search.rows && app->edit_search.match_count > 0)
@@ -412,7 +578,7 @@ void draw_edit_body(UiApp *app)
                         if (match_col >= 0 && match_col + match_len <= line_len)
                         {
                             attron(COLOR_PAIR(COL_SEARCH_MATCH));
-                            mvaddnwstr(start_row + i, ln_offset + wcs_vwidth(wl, match_col), &wl[match_col], match_len);
+                            mvaddnwstr(start_row + i, ln_offset + wcs_vwidth_ex(wl, match_col, 0, tab_width), &wl[match_col], match_len);
                             attroff(COLOR_PAIR(COL_SEARCH_MATCH));
                         }
                     }
@@ -448,7 +614,7 @@ void draw_edit_body(UiApp *app)
                         if (spell_on && word_len > 1 && ui_spell_check_word_simple(app, &wl[word_start], word_len))
                         {
                             attron(COLOR_PAIR(COL_SPELL_CURRENT));
-                            mvaddnwstr(start_row + i, ln_offset + wcs_vwidth(wl, word_start), &wl[word_start], word_len);
+                            mvaddnwstr(start_row + i, ln_offset + wcs_vwidth_ex(wl, word_start, 0, tab_width), &wl[word_start], word_len);
                             attroff(COLOR_PAIR(COL_SPELL_CURRENT));
 
                             marked = 1;
@@ -458,7 +624,7 @@ void draw_edit_body(UiApp *app)
                         if (!marked && app->cfg->assist_repeat_check && ui_assist_check_repeat(app, line_idx, word_start, word_len))
                         {
                             attron(A_REVERSE);
-                            mvaddnwstr(start_row + i, ln_offset + wcs_vwidth(wl, word_start), &wl[word_start], word_len);
+                            mvaddnwstr(start_row + i, ln_offset + wcs_vwidth_ex(wl, word_start, 0, tab_width), &wl[word_start], word_len);
                             attroff(A_REVERSE);
                         }
                     }
@@ -467,6 +633,36 @@ void draw_edit_body(UiApp *app)
                 }
             }
 #endif
+
+            /* Paint tabs and trailing spaces as visible glyphs */
+            if (app->cfg->show_whitespace && line_len > 0)
+            {
+                int k;
+                int trail_start = line_len;
+                int max_chars = width;
+                int display_len = line_len;
+
+                if (display_len > max_chars)
+                    display_len = max_chars;
+
+                while (trail_start > 0 && (wl[trail_start - 1] == L' ' || wl[trail_start - 1] == L'\t'))
+                    trail_start--;
+
+                attron(COLOR_PAIR(COL_BORDER));
+
+                for (k = 0; k < display_len; k++)
+                {
+                    wchar_t ch = wl[k];
+                    int col_x = ln_offset + wcs_vwidth_ex(wl, k, 0, tab_width);
+
+                    if (ch == L'\t')
+                        mvaddnwstr(start_row + i, col_x, L"\u2192", 1);
+                    else if (ch == L' ' && k >= trail_start)
+                        mvaddnwstr(start_row + i, col_x, L"\u00b7", 1);
+                }
+
+                attroff(COLOR_PAIR(COL_BORDER));
+            }
 
             if (b_r1 >= 0 && line_idx >= b_r1 && line_idx <= b_r2)
             {
@@ -487,7 +683,7 @@ void draw_edit_body(UiApp *app)
                 if (wcs && hs < he)
                 {
                     attron(A_REVERSE);
-                    mvaddnwstr(start_row + i, ln_offset + wcs_vwidth(wcs, hs), &wcs[hs], he - hs);
+                    mvaddnwstr(start_row + i, ln_offset + wcs_vwidth_ex(wcs, hs, 0, tab_width), &wcs[hs], he - hs);
                     attroff(A_REVERSE);
                 }
                 else if (hs == 0 && he == 0)
@@ -498,13 +694,75 @@ void draw_edit_body(UiApp *app)
                     attroff(A_REVERSE);
                 }
             }
+
+            /* Visual overlays (hard-wrap path) */
+            line_vw = wl ? wcs_vwidth_ex(wl, line_len, 0, tab_width) : 0;
+            x_text_end = ln_offset + line_vw;
+            x_screen_end = width;
+
+            /* Highlight current line: paint empty area only */
+            if (app->cfg && app->cfg->highlight_line && line_idx == info.row && x_text_end < x_screen_end)
+            {
+                int x;
+
+                attron(COLOR_PAIR(COL_CURRENT_LINE));
+
+                for (x = x_text_end; x < x_screen_end; x++)
+                    mvaddch(start_row + i, x, ' ');
+
+                attroff(COLOR_PAIR(COL_CURRENT_LINE));
+            }
+
+            /* Column ruler */
+            if (app->cfg && app->cfg->ruler_col > 0)
+            {
+                int rx = ln_offset + app->cfg->ruler_col;
+
+                if (rx > x_text_end && rx < x_screen_end)
+                {
+                    attron(COLOR_PAIR(COL_GUIDE));
+                    mvaddch(start_row + i, rx, '|');
+                    attroff(COLOR_PAIR(COL_GUIDE));
+                }
+            }
+
+            /* Indent guides */
+            if (app->cfg && app->cfg->indent_guides && wl && line_len > 0 && tab_width > 1)
+            {
+                int k;
+                int leading_count = 0;
+
+                for (k = 0; k < line_len; k++)
+                {
+                    if (wl[k] != L' ')
+                        break;
+
+                    leading_count++;
+                }
+
+                if (leading_count > 0)
+                {
+                    int g;
+
+                    attron(COLOR_PAIR(COL_GUIDE));
+
+                    for (g = tab_width; g <= leading_count; g += tab_width)
+                    {
+                        int gx = ln_offset + g - 1;
+
+                        if (gx >= ln_offset && gx < width)
+                            mvaddch(start_row + i, gx, '|');
+                    }
+
+                    attroff(COLOR_PAIR(COL_GUIDE));
+                }
+            }
         }
 
         return;
     }
 
     /* SOFT-WRAP: one logical line spans several screen rows */
-
     /* Adjust viewport so cursor is visible, O(distance to cursor) bounded by rows */
     soft_ensure_visible_for_draw(app, width, rows);
 
@@ -535,9 +793,11 @@ void draw_edit_body(UiApp *app)
             {
                 if (show_lnum)
                 {
-                    attron(COLOR_PAIR(COL_BORDER));
+                    attrset(COLOR_PAIR(COL_BORDER));
                     mvprintw(start_row + sr, 0, "%*d", ln_width - 1, li + 1);
-                    attroff(COLOR_PAIR(COL_BORDER));
+                    standend();
+
+                    attron(COLOR_PAIR(COL_NORMAL));
                 }
 
                 if (b_r1 >= 0 && li >= b_r1 && li <= b_r2)
@@ -565,6 +825,13 @@ void draw_edit_body(UiApp *app)
             if (s >= sub_skip)
             {
                 int seg_len = seg_end - seg_start;
+                int text_vw;
+                int x_text_end;
+                int x_screen_end;
+                int has_more_subrows;
+
+                /* Tab offset is 0 inside each sub-row */
+                int seg_start_vcol = 0;
 
                 if (seg_len < 0)
                     seg_len = 0;
@@ -572,14 +839,56 @@ void draw_edit_body(UiApp *app)
                 /* Line number on the first painted sub-row of this line */
                 if (show_lnum && first_seg)
                 {
-                    attron(COLOR_PAIR(COL_BORDER));
+                    attrset(COLOR_PAIR(COL_BORDER));
                     mvprintw(start_row + sr, 0, "%*d", ln_width - 1, li + 1);
-                    attroff(COLOR_PAIR(COL_BORDER));
+                    standend();
+
+                    attron(COLOR_PAIR(COL_NORMAL));
                     first_seg = 0;
                 }
 
                 if (seg_len > 0)
-                    mvaddnwstr(start_row + sr, ln_offset, &l[seg_start], seg_len);
+                    ui_draw_wcs_line_with_tabs(start_row + sr, ln_offset, &l[seg_start], seg_len, tab_width);
+
+                /* Paint tabs and trailing spaces as visible glyphs */
+                if (app->cfg->show_whitespace && seg_len > 0)
+                {
+                    int k;
+                    int trail_start = seg_end;
+
+                    if (seg_end == len)
+                    {
+                        while (trail_start > seg_start && (l[trail_start - 1] == L' ' || l[trail_start - 1] == L'\t'))
+                            trail_start--;
+                    }
+
+                    attron(COLOR_PAIR(COL_BORDER));
+
+                    for (k = 0; k < seg_len; k++)
+                    {
+                        wchar_t ch = l[seg_start + k];
+                        int col_x = ln_offset + wcs_vwidth_ex(&l[seg_start], k, seg_start_vcol, tab_width);
+
+                        if (ch == L'\t')
+                            mvaddnwstr(start_row + sr, col_x, L"\u2192", 1);
+                        else if (ch == L' ' &&
+                                 (seg_start + k) >= trail_start)
+                            mvaddnwstr(start_row + sr, col_x, L"\u00b7", 1);
+                    }
+
+                    attroff(COLOR_PAIR(COL_BORDER));
+                }
+
+                /* Highlight matched bracket partner only */
+                if (app->cfg && app->cfg->show_brackets && seg_len > 0 && app->bracket_match_row == li && app->bracket_match_col >= seg_start && app->bracket_match_col < seg_end)
+                {
+                    int tc = app->bracket_match_col;
+                    int col_x = ln_offset + wcs_vwidth_ex(&l[seg_start], tc - seg_start, seg_start_vcol, tab_width);
+
+                    attron(COLOR_PAIR(COL_BRACKET_MATCH) | A_BOLD);
+                    mvaddnwstr(start_row + sr, col_x, &l[tc], 1);
+                    attroff(COLOR_PAIR(COL_BRACKET_MATCH) | A_BOLD);
+                }
 
                 /* Highlight search matches */
                 if (app->edit_search.rows && app->edit_search.match_count > 0)
@@ -597,14 +906,14 @@ void draw_edit_body(UiApp *app)
                             if (match_col >= seg_start && match_end <= seg_end)
                             {
                                 attron(COLOR_PAIR(COL_SEARCH_MATCH));
-                                mvaddnwstr(start_row + sr, ln_offset + wcs_vwidth(&l[seg_start], match_col - seg_start), &l[match_col], match_len);
+                                mvaddnwstr(start_row + sr, ln_offset + wcs_vwidth_ex(&l[seg_start], match_col - seg_start, seg_start_vcol, tab_width), &l[match_col], match_len);
                                 attroff(COLOR_PAIR(COL_SEARCH_MATCH));
                             }
                             else if (match_col >= seg_start && match_col < seg_end)
                             {
                                 int partial_len = seg_end - match_col;
                                 attron(COLOR_PAIR(COL_SEARCH_MATCH));
-                                mvaddnwstr(start_row + sr, ln_offset + wcs_vwidth(&l[seg_start], match_col - seg_start), &l[match_col], partial_len);
+                                mvaddnwstr(start_row + sr, ln_offset + wcs_vwidth_ex(&l[seg_start], match_col - seg_start, seg_start_vcol, tab_width), &l[match_col], partial_len);
                                 attroff(COLOR_PAIR(COL_SEARCH_MATCH));
                             }
                             else if (match_end > seg_start && match_end <= seg_end)
@@ -647,7 +956,7 @@ void draw_edit_body(UiApp *app)
                             if (spell_on && word_len > 1 && ui_spell_check_word_simple(app, &l[word_start], word_len))
                             {
                                 attron(COLOR_PAIR(COL_SPELL_CURRENT));
-                                mvaddnwstr(start_row + sr, ln_offset + wcs_vwidth(&l[seg_start], word_start - seg_start), &l[word_start], word_len);
+                                mvaddnwstr(start_row + sr, ln_offset + wcs_vwidth_ex(&l[seg_start], word_start - seg_start, seg_start_vcol, tab_width), &l[word_start], word_len);
                                 attroff(COLOR_PAIR(COL_SPELL_CURRENT));
 
                                 marked = 1;
@@ -657,7 +966,7 @@ void draw_edit_body(UiApp *app)
                             if (!marked && app->cfg->assist_repeat_check && ui_assist_check_repeat(app, li, word_start, word_len))
                             {
                                 attron(A_REVERSE);
-                                mvaddnwstr(start_row + sr, ln_offset + wcs_vwidth(&l[seg_start], word_start - seg_start), &l[word_start], word_len);
+                                mvaddnwstr(start_row + sr, ln_offset + wcs_vwidth_ex(&l[seg_start], word_start - seg_start, seg_start_vcol, tab_width), &l[word_start], word_len);
                                 attroff(A_REVERSE);
                             }
                         }
@@ -682,7 +991,7 @@ void draw_edit_body(UiApp *app)
                     if (hs < he)
                     {
                         attron(A_REVERSE);
-                        mvaddnwstr(start_row + sr, ln_offset + wcs_vwidth(&l[seg_start], hs - seg_start), &l[hs], he - hs);
+                        mvaddnwstr(start_row + sr, ln_offset + wcs_vwidth_ex(&l[seg_start], hs - seg_start, seg_start_vcol, tab_width), &l[hs], he - hs);
                         attroff(A_REVERSE);
                     }
                     else if (hs == seg_start && he == seg_start)
@@ -690,6 +999,96 @@ void draw_edit_body(UiApp *app)
                         attron(A_REVERSE);
                         mvaddch(start_row + sr, ln_offset, ' ');
                         attroff(A_REVERSE);
+                    }
+                }
+
+                /* Visual overlays (soft-wrap path) */
+                text_vw = wcs_vwidth_ex(&l[seg_start], seg_len, 0, tab_width);
+                x_text_end = ln_offset + text_vw;
+                x_screen_end = ln_offset + width;
+                has_more_subrows = (seg_end < len);
+
+                /* Highlight current line: paint empty area only */
+                if (app->cfg && app->cfg->highlight_line && li == info.row && x_text_end < x_screen_end)
+                {
+                    int x;
+
+                    attron(COLOR_PAIR(COL_CURRENT_LINE));
+
+                    for (x = x_text_end; x < x_screen_end; x++)
+                        mvaddch(start_row + sr, x, ' ');
+
+                    attroff(COLOR_PAIR(COL_CURRENT_LINE));
+                }
+
+                /* Column ruler */
+                if (app->cfg && app->cfg->ruler_col > 0)
+                {
+                    int rx = ln_offset + app->cfg->ruler_col;
+
+                    if (rx > x_text_end && rx < x_screen_end)
+                    {
+                        attron(COLOR_PAIR(COL_GUIDE));
+                        mvaddch(start_row + sr, rx, '|');
+                        attroff(COLOR_PAIR(COL_GUIDE));
+                    }
+                }
+
+                /* Draw wrap indicator */
+                if (app->cfg && app->cfg->wrap_indicator && has_more_subrows && x_screen_end > 0)
+                {
+                    int free_cols = x_screen_end - x_text_end;
+
+                    if (free_cols >= 1)
+                    {
+                        attron(COLOR_PAIR(COL_GUIDE));
+
+                        if (free_cols >= 2)
+                        {
+                            int wx = x_screen_end - 2;
+
+                            wchar_t wrap_mark[2] = {L'\x21B5', L'\0'};
+
+                            mvaddnwstr(start_row + sr, wx, wrap_mark, 1);
+                            mvaddch(start_row + sr, x_screen_end - 1, ' ');
+                        }
+                        else
+                        {
+                            mvaddch(start_row + sr, x_screen_end - 1, '<');
+                        }
+
+                        attroff(COLOR_PAIR(COL_GUIDE));
+                    }
+                }
+
+                /* Indent guides (start of logical line only) */
+                if (app->cfg && app->cfg->indent_guides && s == sub_skip && seg_len > 0 && tab_width > 1)
+                {
+                    int k;
+                    int leading_count = 0;
+
+                    for (k = seg_start; k < seg_end && k < len; k++)
+                    {
+                        if (l[k] != L' ')
+                            break;
+                        leading_count++;
+                    }
+
+                    if (leading_count > 0)
+                    {
+                        int g;
+
+                        attron(COLOR_PAIR(COL_GUIDE));
+
+                        for (g = tab_width; g <= leading_count; g += tab_width)
+                        {
+                            int gx = ln_offset + g - 1;
+
+                            if (gx >= ln_offset && gx < width)
+                                mvaddch(start_row + sr, gx, '|');
+                        }
+
+                        attroff(COLOR_PAIR(COL_GUIDE));
                     }
                 }
 

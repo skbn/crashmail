@@ -25,6 +25,7 @@
 #include "ui_internal.h"
 #include "ui_mouse.h"
 #include "../components/editor.h"
+#include "ui_editor_helper.h"
 #include "ui_spell.h"
 
 #include <stdlib.h>
@@ -112,23 +113,6 @@ void ui_mouse_set_event_time_ms(unsigned long ms)
 }
 
 /* Compute editor body width with line-number offset */
-static int lineno_width(int line_count)
-{
-    int width = 1;
-    int n = line_count;
-
-    if (n <= 0)
-        n = 1;
-
-    while (n >= 10)
-    {
-        n /= 10;
-        width++;
-    }
-
-    return width + 1; /* digits + 1 space */
-}
-
 static int compute_body_width(UiApp *app)
 {
     EdInfo info;
@@ -140,7 +124,7 @@ static int compute_body_width(UiApp *app)
     width = COLS;
 
     if (app->cfg && app->cfg->show_line_numbers)
-        width -= lineno_width(info.line_count);
+        width -= editor_body_offset(app, info.line_count);
 
     if (width < 1)
         width = 1;
@@ -255,7 +239,7 @@ int ui_mouse_dispatch(UiApp *app, UiMouseEventType type, int y, int x, int body_
 
         ed_get_info(app->editor, &info);
 
-        lnw = lineno_width(info.line_count);
+        lnw = editor_body_offset(app, info.line_count);
         x -= lnw;
 
         if (x < 0)

@@ -61,13 +61,13 @@ int paste_char_width(wchar_t c)
 }
 
 /* Word-wrap UTF-8 paste (space-only variant) */
-char *wrap_paste_text(const char *utf8, int col)
+char *wrap_paste_text(const char *utf8, int col, int tab_width)
 {
-    return wrap_paste_text_ex(utf8, col, NULL, NULL);
+    return wrap_paste_text_ex(utf8, col, tab_width, NULL, NULL);
 }
 
 /* Word-wrap UTF-8 paste with hyphenation support */
-char *wrap_paste_text_ex(const char *utf8, int col, PasteHyphFn hyph, void *hyph_data)
+char *wrap_paste_text_ex(const char *utf8, int col, int tab_width, PasteHyphFn hyph, void *hyph_data)
 {
     wchar_t *w = NULL;
     int wlen = 0;
@@ -78,6 +78,9 @@ char *wrap_paste_text_ex(const char *utf8, int col, PasteHyphFn hyph, void *hyph
     int out_cap, out_len = 0;
     wchar_t *out = NULL;
     char *result = NULL;
+
+    if (tab_width < 1)
+        tab_width = 4;
 
     if (col <= 0)
         return NULL;
@@ -132,7 +135,7 @@ char *wrap_paste_text_ex(const char *utf8, int col, PasteHyphFn hyph, void *hyph
         cw = paste_char_width(ch);
 
         if (ch == L'\t')
-            cw = 1;
+            cw = tab_width - (col_pos % tab_width);
 
         if (out_len < out_cap)
             out[out_len++] = ch;
@@ -201,7 +204,12 @@ char *wrap_paste_text_ex(const char *utf8, int col, PasteHyphFn hyph, void *hyph
                                     continue;
 
                                 for (m = line_start; m < break_at; m++)
-                                    break_col += (out[m] == L'\t') ? 1 : paste_char_width(out[m]);
+                                {
+                                    if (out[m] == L'\t')
+                                        break_col += tab_width - (break_col % tab_width);
+                                    else
+                                        break_col += paste_char_width(out[m]);
+                                }
 
                                 /* Reserve column for '-' */
                                 if (break_col > col - 1)
@@ -237,7 +245,12 @@ char *wrap_paste_text_ex(const char *utf8, int col, PasteHyphFn hyph, void *hyph
                                 width_after = 0;
 
                                 for (m = new_start; m < out_len; m++)
-                                    width_after += (out[m] == L'\t') ? 1 : paste_char_width(out[m]);
+                                {
+                                    if (out[m] == L'\t')
+                                        width_after += tab_width - (width_after % tab_width);
+                                    else
+                                        width_after += paste_char_width(out[m]);
+                                }
 
                                 line_start = new_start;
                                 last_space = -1;
@@ -259,7 +272,13 @@ char *wrap_paste_text_ex(const char *utf8, int col, PasteHyphFn hyph, void *hyph
 
                 for (j = new_start; j < out_len; j++)
                 {
-                    int w2 = (out[j] == L'\t') ? 1 : paste_char_width(out[j]);
+                    int w2;
+
+                    if (out[j] == L'\t')
+                        w2 = tab_width - (width_after % tab_width);
+                    else
+                        w2 = paste_char_width(out[j]);
+
                     width_after += w2;
                 }
 
@@ -354,11 +373,11 @@ void deliver_paste(UiApp *app, const char *utf8)
 #ifdef HAVE_HYPHEN
                 /* Use hyphenation if enabled */
                 if (app->hyph_wrap_enabled && app->hyph_handle)
-                    wrapped = wrap_paste_text_ex(utf8, pw, paste_hyph_thunk, app->hyph_handle);
+                    wrapped = wrap_paste_text_ex(utf8, pw, app->cfg->tab_width, paste_hyph_thunk, app->hyph_handle);
                 else
-                    wrapped = wrap_paste_text(utf8, pw);
+                    wrapped = wrap_paste_text(utf8, pw, app->cfg->tab_width);
 #else
-                wrapped = wrap_paste_text(utf8, pw);
+                wrapped = wrap_paste_text(utf8, pw, app->cfg->tab_width);
 #endif
 
                 if (wrapped)

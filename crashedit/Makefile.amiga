@@ -18,17 +18,25 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
-# Makefile.amiga -- Build libwrapper.a + crashedit for AmigaOS 3
+# Makefile.amiga.te -- Build crashedit for AmigaOS 3 with the new static
+#                      TE rastport engine (te_rastport.c) + FreeType + zlib
+#                      + libpng.
 #
-# Position-independent: paths anchored to the directory containing this
-# Makefile, so it works from any CWD (e.g. `make -f path/to/Makefile.amiga`)
+# Place this Makefile next to ./freetype/ ./zlib/ ./libpng/
+#
+# prep target installs the upstream defaults that ship with zlib/libpng:
+#     zlib/zconf.h.in                       -> zlib/zconf.h
+#     libpng/scripts/pnglibconf.h.prebuilt  -> libpng/pnglibconf.h
+#
+# USE:
+#   make -f Makefile.amiga.te prep all       -- full: FT + zlib + PNG (color emoji)
+#
 
 # Directory of this Makefile (with trailing slash)
 HERE := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 
 # Feature selection options (set to 1 to enable)
 USE_HUNSPELL ?= 0
-USE_SPELLCHECKER ?= 0
 USE_HYPHEN ?= 0
 USE_MYTHES ?= 0
 USE_TRANSLATE ?= 0
@@ -38,39 +46,54 @@ WITH_AMISSL ?= 0
 # AmiSSL SDK path for TLS support
 AMISSL_SDK ?= AmiSSL
 
-CC = m68k-amigaos-gcc -noixemul -mcpu=68020 -msoft-float -DPLATFORM_AMIGA
-CXX = m68k-amigaos-g++ -noixemul -mcpu=68020 -msoft-float -DPLATFORM_AMIGA
-#CFLAGS = -I$(HERE).. -I$(HERE) -I$(HERE)core -I$(HERE)components -I$(HERE)ui -Wall -std=gnu89 -O2
-CFLAGS = -I$(HERE).. -I$(HERE) -I$(HERE)core -I$(HERE)components -I$(HERE)ui -Wall -Wextra -Wpedantic -Wmissing-prototypes -Wstrict-prototypes -Wdeclaration-after-statement -Wimplicit-function-declaration -Wno-unused-parameter -std=gnu89 -O2 -lm
-CXXFLAGS = -I$(HERE).. -I$(HERE) -I$(HERE)core -I$(HERE)components -I$(HERE)ui -std=c++14 -O2 -Wall -Wextra -Wpedantic -Wno-unused-parameter -Wno-unused-result -fno-strict-aliasing -fwrapv -fno-omit-frame-pointer -DHUNSPELL_STATIC
-AR = m68k-amigaos-ar
-RANLIB = m68k-amigaos-ranlib
-TARGET = $(HERE)libwrapper-amiga.a
+CROSS      ?= m68k-amigaos-
+CC         := $(CROSS)gcc -noixemul -mcpu=68020 -msoft-float -DPLATFORM_AMIGA -DUSE_FREETYPE
+CXX        := $(CROSS)g++ -noixemul -mcpu=68020 -msoft-float -DPLATFORM_AMIGA -DUSE_FREETYPE
+AR         := $(CROSS)ar
+RANLIB     := $(CROSS)ranlib
 
-# Directories -- separate obj dir from Linux build so .o files don't collide
-OBJDIR = $(HERE)objs.amiga
-COREDIR = $(HERE)core
-COMPDIR = $(HERE)components
-UIDIR = $(HERE)ui
-SPELLDIR = $(HERE)spellchecker
+CFLAGS     := -I$(HERE).. -I$(HERE) -I$(HERE)core -I$(HERE)components -I$(HERE)ui -Wall -std=gnu89 -O2 -Wno-pointer-sign -Wno-unused-result
+CXXFLAGS   := -I$(HERE).. -I$(HERE) -I$(HERE)core -I$(HERE)components -I$(HERE)ui -std=c++14 -O2 -Wall -Wno-unused-result -fno-strict-aliasing -fwrapv -fno-omit-frame-pointer -DHUNSPELL_STATIC
 
-# Object files in objs/
-CORE_OBJS = $(OBJDIR)/portable.o $(OBJDIR)/msg_wrap.o $(OBJDIR)/msgbase.o \
+# External tree locations -- relative to HERE
+FTDIR      := $(HERE)freetype
+ZLIBDIR    := $(HERE)zlib
+PNGDIR     := $(HERE)libpng
+FTOPTION   := $(FTDIR)/include/freetype/config/ftoption.h
+BACKUP     := $(FTOPTION).backup
+
+FTINC      := -I$(FTDIR)/include -I$(FTDIR)/builds/amiga/include
+ZLIBINC    := -I$(ZLIBDIR)
+PNGINC     := -I$(PNGDIR)
+
+# crashedit layout
+TARGET     := $(HERE)libwrapper-amiga.a
+CRASHEDIT  := $(HERE)../bin/crashedit
+OBJDIR     := $(HERE)objs.amiga
+COREDIR    := $(HERE)core
+COMPDIR    := $(HERE)components
+UIDIR      := $(HERE)ui
+SPELLDIR   := $(HERE)spellchecker
+JAMLIB     := $(HERE)../src/jamlib/jamlib.a
+
+# crashedit object files (matches Makefile.amiga structure, with _te wrapper)
+CORE_OBJS  = $(OBJDIR)/portable.o $(OBJDIR)/msg_wrap.o $(OBJDIR)/msgbase.o \
             $(OBJDIR)/jam_wrap.o $(OBJDIR)/utf8.o $(OBJDIR)/charset.o \
-            $(OBJDIR)/ftn.o $(OBJDIR)/msghdr.o $(OBJDIR)/wrapper_io.o \
-            $(OBJDIR)/clipboard.o $(OBJDIR)/ncursesw_amiga.o $(OBJDIR)/attach.o $(OBJDIR)/freq.o \
-            $(OBJDIR)/keys.o $(OBJDIR)/ansi.o $(OBJDIR)/search.o $(OBJDIR)/nodelist.o
-COMP_OBJS = $(OBJDIR)/editor.o $(OBJDIR)/editor_helper.o $(OBJDIR)/reader.o $(OBJDIR)/areafile.o $(OBJDIR)/config.o
-UI_OBJS   = $(OBJDIR)/ui_app.o \
-            $(OBJDIR)/ui_session.o $(OBJDIR)/ui_popup.o $(OBJDIR)/ui_arealist.o \
-            $(OBJDIR)/ui_arealist_layout.o \
-            $(OBJDIR)/ui_msglist.o $(OBJDIR)/ui_reader.o $(OBJDIR)/ui_editor.o \
-            $(OBJDIR)/ui_editor_prep.o $(OBJDIR)/ui_editor_popups.o \
-            $(OBJDIR)/ui_editor_softwrap.o $(OBJDIR)/ui_editor_search.o $(OBJDIR)/ui_editor_paste.o $(OBJDIR)/ui_editor_draw.o $(OBJDIR)/ui_editor_helper.o \
-            $(OBJDIR)/ui_assist.o \
-            $(OBJDIR)/ui_aka.o $(OBJDIR)/ui_attr.o $(OBJDIR)/ui_files.o \
-            $(OBJDIR)/ui_popup_attach.o $(OBJDIR)/ui_popup_freq.o $(OBJDIR)/ui_setup.o \
-            $(OBJDIR)/ui_search.o $(OBJDIR)/ui_popup_nodelist.o $(OBJDIR)/ui_glyph_picker.o \
+             $(OBJDIR)/ftn.o $(OBJDIR)/msghdr.o $(OBJDIR)/wrapper_io.o \
+             $(OBJDIR)/clipboard.o $(OBJDIR)/ncursesw_amiga.o $(OBJDIR)/attach.o $(OBJDIR)/freq.o \
+             $(OBJDIR)/keys.o $(OBJDIR)/ansi.o $(OBJDIR)/search.o $(OBJDIR)/nodelist.o \
+             $(OBJDIR)/te_rastport.o
+COMP_OBJS  = $(OBJDIR)/editor.o $(OBJDIR)/editor_helper.o $(OBJDIR)/reader.o $(OBJDIR)/areafile.o $(OBJDIR)/config.o
+UI_OBJS    = $(OBJDIR)/ui_app.o \
+             $(OBJDIR)/ui_session.o $(OBJDIR)/ui_popup.o $(OBJDIR)/ui_arealist.o \
+             $(OBJDIR)/ui_arealist_layout.o \
+             $(OBJDIR)/ui_msglist.o $(OBJDIR)/ui_reader.o $(OBJDIR)/ui_editor.o \
+             $(OBJDIR)/ui_editor_prep.o $(OBJDIR)/ui_editor_popups.o \
+             $(OBJDIR)/ui_editor_softwrap.o $(OBJDIR)/ui_editor_search.o $(OBJDIR)/ui_editor_paste.o $(OBJDIR)/ui_editor_draw.o $(OBJDIR)/ui_editor_helper.o \
+             $(OBJDIR)/ui_assist.o \
+             $(OBJDIR)/ui_aka.o $(OBJDIR)/ui_attr.o $(OBJDIR)/ui_files.o \
+             $(OBJDIR)/ui_popup_attach.o $(OBJDIR)/ui_popup_freq.o $(OBJDIR)/ui_setup.o \
+             $(OBJDIR)/ui_search.o $(OBJDIR)/ui_popup_nodelist.o $(OBJDIR)/ui_glyph_picker.o \
             $(OBJDIR)/ui_spell.o $(OBJDIR)/ui_mouse.o
 
 # Hunspell support
@@ -93,74 +116,47 @@ ifeq ($(USE_HUNSPELL),1)
                $(OBJDIR)/spellchecker_dict_scan.o
 endif
 
-# Native spell checker (AmigaOS) - set to 1 to use native implementation instead of Hunspell
-ifeq ($(USE_SPELLCHECKER),1)
-  ifeq ($(USE_HUNSPELL),1)
-    $(error USE_SPELLCHECKER=1 conflicts with USE_HUNSPELL=1)
-  endif
-  CFLAGS += -DHAVE_SPELLCHECKER -I$(SPELLDIR) -I$(HERE)core
-  SPELL_OBJS = $(OBJDIR)/spellchecker_utils.o \
-               $(OBJDIR)/spellchecker_htab.o \
-               $(OBJDIR)/spellchecker_affix.o \
-               $(OBJDIR)/spellchecker_core.o \
-               $(OBJDIR)/spellchecker_suggest.o \
-               $(OBJDIR)/spellchecker_stem.o \
-               $(OBJDIR)/spellchecker_custom.o \
-               $(OBJDIR)/spellchecker_dict_scan.o
-endif
-
-# libhyphen support -- requires the hyphen sources to be unpacked under
-# $(HERE)hyphen, exposing libhyphen.a. Pre-built objs live in objs.amiga
-# REQUIRES Hunspell
-HYPHEN_DIR     = $(HERE)hyphen
-HYPHEN_OBJDIR  = $(HYPHEN_DIR)/objs.amiga
-HYPHEN_LIB     = $(HYPHEN_DIR)/libhyphen.a
+# Hyphen support
+HYPHEN_DIR = $(HERE)hyphen
+HYPHEN_OBJDIR = $(HYPHEN_DIR)/objs.amiga
+HYPHEN_LIB = $(HYPHEN_DIR)/libhyphen.a
 
 ifeq ($(USE_HYPHEN),1)
   CFLAGS += -DHAVE_HYPHEN -I$(SPELLDIR)
-  HYPH_OBJS = $(OBJDIR)/spellchecker_hyph.o $(OBJDIR)/ui_hyph.o
-else
-  ifeq ($(USE_SPELLCHECKER),1)
-    CFLAGS += -DHAVE_HYPHEN
-    HYPH_OBJS = $(OBJDIR)/spellchecker_hyph.o $(OBJDIR)/ui_hyph.o
-  else
-    HYPH_OBJS =
-  endif
+  HYPHWRAP_OBJS = $(OBJDIR)/spellchecker_hyph.o
 endif
 
-# MyThes support -- requires mythes sources under $(HERE)mythes, exposing
-# libmythes.a. Pre-built objs live in objs.amiga. Uses C++; CXX must be set
-# REQUIRES Hunspell
-MYTHES_DIR     = $(HERE)mythes
-MYTHES_OBJDIR  = $(MYTHES_DIR)/objs.amiga
-MYTHES_LIB     = $(MYTHES_DIR)/libmythes.a
+# MyThes support
+MYTHES_DIR = $(HERE)mythes
+MYTHES_OBJDIR = $(MYTHES_DIR)/objs.amiga
+MYTHES_LIB = $(MYTHES_DIR)/libmythes.a
 
 ifeq ($(USE_MYTHES),1)
   CFLAGS += -DHAVE_MYTHES -I$(SPELLDIR)
-  THES_OBJS = $(OBJDIR)/spellchecker_thes.o $(OBJDIR)/ui_thes.o
-else
-  ifeq ($(USE_SPELLCHECKER),1)
-    CFLAGS += -DHAVE_MYTHES
-    THES_OBJS = $(OBJDIR)/spellchecker_thes.o $(OBJDIR)/ui_thes.o
-  else
-    THES_OBJS =
-  endif
+  THES_OBJS = $(OBJDIR)/spellchecker_thes.o
+endif
+
+ifeq ($(USE_HYPHEN),1)
+UI_OBJS    += $(OBJDIR)/ui_hyph.o
+endif
+
+ifeq ($(USE_MYTHES),1)
+UI_OBJS    += $(OBJDIR)/ui_thes.o
 endif
 ifeq ($(USE_TRANSLATE),1)
-  TRANSLATE_UI_OBJS = $(OBJDIR)/ui_translate.o
-  ifeq ($(USE_STARDICT),1)
-    TRANSLATE_UI_OBJS += $(OBJDIR)/ui_dict.o
-    TRANSLATE_UI_OBJS += $(OBJDIR)/ui_dict_picker.o
-  endif
-else
-  TRANSLATE_UI_OBJS =
+UI_OBJS    += $(OBJDIR)/ui_translate.o
+ifeq ($(USE_STARDICT),1)
+UI_OBJS    += $(OBJDIR)/ui_dict.o
+UI_OBJS    += $(OBJDIR)/ui_dict_picker.o
+UI_OBJS    += $(OBJDIR)/ui_dict_reverse.o
+endif
 endif
 
 # Translator support -- uses HTTP backends (MyMemory, LibreTranslate, Lingva)
 ifeq ($(USE_TRANSLATE),1)
   CFLAGS += -DHAVE_TRANSLATE -DHAVE_TRANSLATE_HTTP -I$(HERE)translate
   TRANSLATE_OBJS = $(OBJDIR)/translate.o $(OBJDIR)/translate_http.o $(OBJDIR)/http_client.o $(OBJDIR)/json_utils.o
-  TRANSLATE_LIB = -lm -lgcc
+  TRANSLATE_LIB = -lm
 
   # StarDict offline backend (pure C, no extra library). Works fine on
   # classic Amiga because it reads RAM:/Work:/etc directly with stdio
@@ -173,9 +169,6 @@ else
   TRANSLATE_LIB =
 endif
 
-# AmiSSL SDK path for TLS support
-AMISSL_SDK ?= AmiSSL
-
 # Set WITH_AMISSL=1 to enable TLS support via AmiSSL (requires USE_TRANSLATE=1)
 ifeq ($(WITH_AMISSL),1)
   ifeq ($(USE_TRANSLATE),0)
@@ -185,254 +178,71 @@ ifeq ($(WITH_AMISSL),1)
   TRANSLATE_LIBS = -L$(AMISSL_SDK)/Developer/lib/AmigaOS3 -lamisslstubs
 endif
 
-ALL_OBJS = $(CORE_OBJS) $(COMP_OBJS) $(UI_OBJS) $(SPELL_OBJS) $(HYPH_OBJS) $(THES_OBJS) $(TRANSLATE_OBJS) $(TRANSLATE_UI_OBJS)
+ALL_OBJS   = $(CORE_OBJS) $(COMP_OBJS) $(UI_OBJS) $(SPELL_OBJS) $(HYPHWRAP_OBJS) $(THES_OBJS) $(TRANSLATE_OBJS) $(OBJDIR)/spellchecker_utils.o
 
+# FreeType objects (with gzip + lzw modules) - all in OBJDIR
+FT_OBJS    := \
+  $(OBJDIR)/ftbase.o       $(OBJDIR)/ftbbox.o       \
+  $(OBJDIR)/ftbitmap.o     $(OBJDIR)/ftdebug.o      \
+  $(OBJDIR)/ftgasp.o       $(OBJDIR)/ftglyph.o      \
+  $(OBJDIR)/ftinit.o       $(OBJDIR)/ftmm.o         \
+  $(OBJDIR)/ftpatent.o     $(OBJDIR)/ftstroke.o     \
+  $(OBJDIR)/ftsynth.o      $(OBJDIR)/ftsystem.o     \
+  $(OBJDIR)/fttype1.o      $(OBJDIR)/ftwinfnt.o     \
+  $(OBJDIR)/autofit.o      $(OBJDIR)/smooth.o       \
+  $(OBJDIR)/raster.o       $(OBJDIR)/truetype.o     \
+  $(OBJDIR)/cff.o          $(OBJDIR)/sfnt.o         \
+  $(OBJDIR)/psnames.o      $(OBJDIR)/pshinter.o     \
+  $(OBJDIR)/ftgzip.o       $(OBJDIR)/ftlzw.o        \
+  $(OBJDIR)/type1.o        $(OBJDIR)/type1cid.o     \
+  $(OBJDIR)/pfr.o          $(OBJDIR)/type42.o       \
+  $(OBJDIR)/winfnt.o       $(OBJDIR)/pcf.o          \
+  $(OBJDIR)/bdf.o          $(OBJDIR)/psaux.o        \
+  $(OBJDIR)/sdf.o          $(OBJDIR)/svg.o
+
+# zlib objects (only needed for full mode with PNG support) - all in OBJDIR
+ZLIB_OBJS  := \
+  $(OBJDIR)/adler32.o    $(OBJDIR)/compress.o   $(OBJDIR)/crc32.o      \
+  $(OBJDIR)/deflate.o    $(OBJDIR)/infback.o    $(OBJDIR)/inffast.o    \
+  $(OBJDIR)/inflate.o    $(OBJDIR)/inftrees.o   $(OBJDIR)/trees.o      \
+  $(OBJDIR)/uncompr.o    $(OBJDIR)/zutil.o      $(OBJDIR)/gzclose.o    \
+  $(OBJDIR)/gzlib.o      $(OBJDIR)/gzread.o     $(OBJDIR)/gzwrite.o
+
+# libpng objects (only for full mode with color emoji support) - all in OBJDIR
+PNG_OBJS   := \
+  $(OBJDIR)/png.o        $(OBJDIR)/pngerror.o   $(OBJDIR)/pngget.o     \
+  $(OBJDIR)/pngmem.o     $(OBJDIR)/pngpread.o   $(OBJDIR)/pngread.o    \
+  $(OBJDIR)/pngrio.o     $(OBJDIR)/pngrtran.o   $(OBJDIR)/pngrutil.o   \
+  $(OBJDIR)/pngset.o     $(OBJDIR)/pngtrans.o   $(OBJDIR)/pngwio.o     \
+  $(OBJDIR)/pngwrite.o   $(OBJDIR)/pngwtran.o   $(OBJDIR)/pngwutil.o
+
+# Sentinel files: presence of these tells us prep was run in full mode
+ZCONF      := $(ZLIBDIR)/zconf.h
+PNGLIBCONF := $(PNGDIR)/pnglibconf.h
+
+# Auto-detect zlib/libpng presence and adapt build accordingly
+ifneq ($(wildcard $(ZCONF)),)
+ifneq ($(wildcard $(PNGLIBCONF)),)
+EXTRA_OBJS := $(ZLIB_OBJS) $(PNG_OBJS)
+EXTRA_INC  := $(ZLIBINC) $(PNGINC)
+else
+EXTRA_OBJS := $(ZLIB_OBJS)
+EXTRA_INC  := $(ZLIBINC)
+endif
+else
+EXTRA_OBJS :=
+EXTRA_INC  :=
+endif
+
+# ====================================================================
+# Top-level targets
+# ====================================================================
 all: $(TARGET) crashedit
 
-$(TARGET): $(ALL_OBJS)
-	$(AR) rcs $@ $(ALL_OBJS)
+# Build libwrapper-amiga.a containing everything: app + FT + zlib + png
+$(TARGET): $(ALL_OBJS) $(FT_OBJS) $(EXTRA_OBJS)
+	$(AR) rcs $@ $(ALL_OBJS) $(FT_OBJS) $(EXTRA_OBJS)
 	$(RANLIB) $@
-
-# Create obj directory
-$(OBJDIR):
-	mkdir -p $(OBJDIR)
-
-# Core library objects
-$(OBJDIR)/jam_wrap.o: $(COREDIR)/jam_wrap.c $(COREDIR)/jam_wrap.h $(HERE)../src/jamlib/jam.h $(COREDIR)/portable.h | $(OBJDIR)
-	$(CC) $(CFLAGS) -c $< -o $@
-
-# Spell checker (backend + UI).  spell.c is only compiled when USE_HUNSPELL=1.
-$(OBJDIR)/spell.o: $(HERE)spell/spell.c $(HERE)spell/spell.h | $(OBJDIR)
-	$(CC) $(CFLAGS) -c $< -o $@
-
-$(OBJDIR)/ui_spell.o: $(UIDIR)/ui_spell.c $(UIDIR)/ui_spell.h $(HERE)spell/spell.h | $(OBJDIR)
-	$(CC) $(CFLAGS) -c $< -o $@
-
-$(OBJDIR)/ui_mouse.o: $(UIDIR)/ui_mouse.c $(UIDIR)/ui_mouse.h | $(OBJDIR)
-	$(CC) $(CFLAGS) -c $< -o $@
-
-$(OBJDIR)/ui_assist.o: $(UIDIR)/ui_assist.c $(UIDIR)/ui_assist.h | $(OBJDIR)
-	$(CC) $(CFLAGS) -c $< -o $@
-
-# Spell checker objects (new multi-file spellchecker)
-SPELL_PRIV = $(SPELLDIR)/spell_priv.h $(SPELLDIR)/spell.h
-
-$(OBJDIR)/spellchecker_utils.o: $(SPELLDIR)/spell_utils.c $(SPELL_PRIV) | $(OBJDIR)
-	$(CC) $(CFLAGS) -c $< -o $@
-
-$(OBJDIR)/spellchecker_htab.o: $(SPELLDIR)/spell_htab.c $(SPELL_PRIV) | $(OBJDIR)
-	$(CC) $(CFLAGS) -c $< -o $@
-
-$(OBJDIR)/spellchecker_affix.o: $(SPELLDIR)/spell_affix.c $(SPELL_PRIV) | $(OBJDIR)
-	$(CC) $(CFLAGS) -c $< -o $@
-
-$(OBJDIR)/spellchecker_core.o: $(SPELLDIR)/spell_core.c $(SPELL_PRIV) | $(OBJDIR)
-	$(CC) $(CFLAGS) -c $< -o $@
-
-$(OBJDIR)/spellchecker_suggest.o: $(SPELLDIR)/spell_suggest.c $(SPELL_PRIV) | $(OBJDIR)
-	$(CC) $(CFLAGS) -c $< -o $@
-
-$(OBJDIR)/spellchecker_stem.o: $(SPELLDIR)/spell_stem.c $(SPELL_PRIV) | $(OBJDIR)
-	$(CC) $(CFLAGS) -c $< -o $@
-
-$(OBJDIR)/spellchecker_custom.o: $(SPELLDIR)/spell_custom.c $(SPELL_PRIV) | $(OBJDIR)
-	$(CC) $(CFLAGS) -c $< -o $@
-
-$(OBJDIR)/spellchecker_dict_scan.o: $(SPELLDIR)/dict_scan.c $(SPELLDIR)/dict_scan.h | $(OBJDIR)
-	$(CC) $(CFLAGS) -c $< -o $@
-
-# Hyphenation object (only if USE_HYPHEN=1)
-$(OBJDIR)/spellchecker_hyph.o: $(SPELLDIR)/hyph.c $(SPELLDIR)/hyph.h | $(OBJDIR)
-	$(CC) $(CFLAGS) -c $< -o $@
-
-# Thesaurus object (only if USE_MYTHES=1)
-$(OBJDIR)/spellchecker_thes.o: $(SPELLDIR)/thes.c $(SPELLDIR)/thes.h | $(OBJDIR)
-	$(CC) $(CFLAGS) -c $< -o $@
-
-# Hyphenation (built only when USE_HYPHEN=1)
-# On AmigaOS, use native spellchecker hyph.c instead of hyph/hyph.c
-$(OBJDIR)/hyph.o: $(HERE)hyph/hyph.c $(HERE)hyph/hyph.h | $(OBJDIR)
-	$(CC) $(CFLAGS) -c $< -o $@
-
-$(OBJDIR)/ui_hyph.o: $(UIDIR)/ui_hyph.c $(UIDIR)/ui_hyph.h $(HERE)hyph/hyph.h | $(OBJDIR)
-	$(CC) $(CFLAGS) -c $< -o $@
-
-# Thesaurus (built only when USE_MYTHES=1, C++ compile)
-$(OBJDIR)/thes.o: $(HERE)thes/thes.cpp $(HERE)thes/thes.h $(HERE)spell/spell.h | $(OBJDIR)
-	$(CXX) $(CXXFLAGS) -c $< -o $@
-
-$(OBJDIR)/ui_thes.o: $(UIDIR)/ui_thes.c $(UIDIR)/ui_thes.h $(HERE)thes/thes.h | $(OBJDIR)
-	$(CC) $(CFLAGS) -c $< -o $@
-
-# Translator UI (built only when USE_TRANSLATE=1)
-ifeq ($(USE_TRANSLATE),1)
-$(OBJDIR)/ui_translate.o: $(UIDIR)/ui_translate.c $(UIDIR)/ui_translate.h | $(OBJDIR)
-	$(CC) $(CFLAGS) -c $< -o $@
-ifeq ($(USE_STARDICT),1)
-$(OBJDIR)/ui_dict.o: $(UIDIR)/ui_dict.c $(UIDIR)/ui_dict.h | $(OBJDIR)
-	$(CC) $(CFLAGS) -c $< -o $@
-$(OBJDIR)/ui_dict_picker.o: $(UIDIR)/ui_dict_picker.c $(UIDIR)/ui_dict_picker.h | $(OBJDIR)
-	$(CC) $(CFLAGS) -c $< -o $@
-endif
-endif
-
-# Translator objects (only if USE_TRANSLATE=1)
-$(OBJDIR)/translate.o: $(HERE)translate/translate.c $(HERE)translate/translate.h | $(OBJDIR)
-	$(CC) $(CFLAGS) -c $< -o $@
-
-$(OBJDIR)/translate_http.o: $(HERE)translate/translate_http.c $(HERE)translate/translate.h $(HERE)translate/http_client.h $(HERE)translate/json_utils.h | $(OBJDIR)
-	$(CC) $(CFLAGS) -c $< -o $@
-
-$(OBJDIR)/http_client.o: $(HERE)translate/http_client.c $(HERE)translate/http_client.h | $(OBJDIR)
-	$(CC) $(CFLAGS) -c $< -o $@
-
-$(OBJDIR)/json_utils.o: $(HERE)translate/json_utils.c $(HERE)translate/json_utils.h | $(OBJDIR)
-	$(CC) $(CFLAGS:-msoft-float=) -c $< -o $@
-
-$(OBJDIR)/translate_stardict.o: $(HERE)translate/translate_stardict.c $(HERE)translate/translate_stardict.h $(COREDIR)/portable.h | $(OBJDIR)
-	$(CC) $(CFLAGS) -c $< -o $@
-
-$(OBJDIR)/portable.o: $(COREDIR)/portable.c $(COREDIR)/portable.h | $(OBJDIR)
-	$(CC) $(CFLAGS) -c $< -o $@
-
-$(OBJDIR)/msg_wrap.o: $(COREDIR)/msg_wrap.c $(COREDIR)/msg_wrap.h $(COREDIR)/jam_wrap.h $(COREDIR)/portable.h | $(OBJDIR)
-	$(CC) $(CFLAGS) -c $< -o $@
-
-$(OBJDIR)/msgbase.o: $(COREDIR)/msgbase.c $(COREDIR)/msgbase.h $(COREDIR)/jam_wrap.h $(COREDIR)/msg_wrap.h | $(OBJDIR)
-	$(CC) $(CFLAGS) -c $< -o $@
-
-$(OBJDIR)/utf8.o: $(COREDIR)/utf8.c $(COREDIR)/utf8.h | $(OBJDIR)
-	$(CC) $(CFLAGS) -c $< -o $@
-
-$(OBJDIR)/charset.o: $(COREDIR)/charset.c $(COREDIR)/charset.h $(COREDIR)/utf8.h | $(OBJDIR)
-	$(CC) $(CFLAGS) -c $< -o $@
-
-$(OBJDIR)/keys.o: $(COREDIR)/keys.c $(COREDIR)/keys.h | $(OBJDIR)
-	$(CC) $(CFLAGS) -c $< -o $@
-
-$(OBJDIR)/ftn.o: $(COREDIR)/ftn.c $(COREDIR)/ftn.h $(COREDIR)/jam_wrap.h $(COREDIR)/charset.h | $(OBJDIR)
-	$(CC) $(CFLAGS) -c $< -o $@
-
-$(OBJDIR)/config.o: $(COMPDIR)/config.c $(COMPDIR)/config.h $(COREDIR)/charset.h $(COREDIR)/portable.h | $(OBJDIR)
-	$(CC) $(CFLAGS) -c $< -o $@
-
-$(OBJDIR)/ncursesw_amiga.o: $(HERE)ncursesw_amiga.c $(HERE)ncursesw_amiga.h | $(OBJDIR)
-	$(CC) $(CFLAGS) -c $< -o $@
-
-$(OBJDIR)/msghdr.o: $(COREDIR)/msghdr.c $(COREDIR)/msghdr.h $(COREDIR)/jam_wrap.h $(COREDIR)/utf8.h | $(OBJDIR)
-	$(CC) $(CFLAGS) -c $< -o $@
-
-$(OBJDIR)/wrapper_io.o: $(COREDIR)/wrapper_io.c $(COREDIR)/wrapper_io.h $(COREDIR)/jam_wrap.h $(COREDIR)/utf8.h $(COREDIR)/charset.h $(COREDIR)/ftn.h | $(OBJDIR)
-	$(CC) $(CFLAGS) -c $< -o $@
-
-$(OBJDIR)/clipboard.o: $(COREDIR)/clipboard.c $(COREDIR)/clipboard.h $(COREDIR)/portable.h | $(OBJDIR)
-	$(CC) $(CFLAGS) -c $< -o $@
-
-$(OBJDIR)/attach.o: $(COREDIR)/attach.c $(COREDIR)/attach.h | $(OBJDIR)
-	$(CC) $(CFLAGS) -c $< -o $@
-
-$(OBJDIR)/freq.o: $(COREDIR)/freq.c $(COREDIR)/freq.h $(COREDIR)/portable.h | $(OBJDIR)
-	$(CC) $(CFLAGS) -c $< -o $@
-
-$(OBJDIR)/ansi.o: $(COREDIR)/ansi.c $(COREDIR)/ansi.h $(COREDIR)/utf8.h | $(OBJDIR)
-	$(CC) $(CFLAGS) -c $< -o $@
-
-# Component objects
-$(OBJDIR)/areafile.o: $(COMPDIR)/areafile.c $(COMPDIR)/areafile.h | $(OBJDIR)
-	$(CC) $(CFLAGS) -c $< -o $@
-
-$(OBJDIR)/editor.o: $(COMPDIR)/editor.c $(COMPDIR)/editor.h | $(OBJDIR)
-	$(CC) $(CFLAGS) -c $< -o $@
-
-$(OBJDIR)/editor_helper.o: $(COMPDIR)/editor_helper.c $(COMPDIR)/editor.h | $(OBJDIR)
-	$(CC) $(CFLAGS) -c $< -o $@
-
-$(OBJDIR)/reader.o: $(COMPDIR)/reader.c $(COMPDIR)/reader.h $(COREDIR)/ftn.h | $(OBJDIR)
-	$(CC) $(CFLAGS) -c $< -o $@
-
-# UI objects (ui/)
-$(OBJDIR)/ui_app.o: $(UIDIR)/ui_app.c $(UIDIR)/ui.h $(UIDIR)/ui_internal.h | $(OBJDIR)
-	$(CC) $(CFLAGS) -c $< -o $@
-
-$(OBJDIR)/ui_session.o: $(UIDIR)/ui_session.c $(UIDIR)/ui_internal.h | $(OBJDIR)
-	$(CC) $(CFLAGS) -c $< -o $@
-
-$(OBJDIR)/ui_popup.o: $(UIDIR)/ui_popup.c $(UIDIR)/ui_internal.h $(UIDIR)/ui_aka.h | $(OBJDIR)
-	$(CC) $(CFLAGS) -c $< -o $@
-
-$(OBJDIR)/ui_arealist.o: $(UIDIR)/ui_arealist.c $(UIDIR)/ui_internal.h $(UIDIR)/ui_arealist_layout.h | $(OBJDIR)
-	$(CC) $(CFLAGS) -c $< -o $@
-
-$(OBJDIR)/ui_arealist_layout.o: $(UIDIR)/ui_arealist_layout.c $(UIDIR)/ui_arealist_layout.h | $(OBJDIR)
-	$(CC) $(CFLAGS) -c $< -o $@
-
-$(OBJDIR)/ui_msglist.o: $(UIDIR)/ui_msglist.c $(UIDIR)/ui_internal.h | $(OBJDIR)
-	$(CC) $(CFLAGS) -c $< -o $@
-
-$(OBJDIR)/ui_reader.o: $(UIDIR)/ui_reader.c $(UIDIR)/ui_internal.h $(UIDIR)/ui_attr.h | $(OBJDIR)
-	$(CC) $(CFLAGS) -c $< -o $@
-
-$(OBJDIR)/ui_editor.o: $(UIDIR)/ui_editor.c $(UIDIR)/ui_editor_internal.h $(UIDIR)/ui_aka.h $(UIDIR)/ui_attr.h | $(OBJDIR)
-	$(CC) $(CFLAGS) -c $< -o $@
-
-$(OBJDIR)/ui_editor_prep.o: $(UIDIR)/ui_editor_prep.c $(UIDIR)/ui_editor_internal.h $(UIDIR)/ui_aka.h | $(OBJDIR)
-	$(CC) $(CFLAGS) -c $< -o $@
-
-$(OBJDIR)/ui_editor_popups.o: $(UIDIR)/ui_editor_popups.c $(UIDIR)/ui_editor_internal.h | $(OBJDIR)
-	$(CC) $(CFLAGS) -c $< -o $@
-
-$(OBJDIR)/ui_editor_softwrap.o: $(UIDIR)/ui_editor_softwrap.c $(UIDIR)/ui_editor_softwrap.h | $(OBJDIR)
-	$(CC) $(CFLAGS) -c $< -o $@
-
-$(OBJDIR)/ui_editor_search.o: $(UIDIR)/ui_editor_search.c $(UIDIR)/ui_editor_search.h | $(OBJDIR)
-	$(CC) $(CFLAGS) -c $< -o $@
-
-$(OBJDIR)/ui_editor_paste.o: $(UIDIR)/ui_editor_paste.c $(UIDIR)/ui_editor_paste.h | $(OBJDIR)
-	$(CC) $(CFLAGS) -c $< -o $@
-
-$(OBJDIR)/ui_editor_draw.o: $(UIDIR)/ui_editor_draw.c $(UIDIR)/ui_editor_draw.h | $(OBJDIR)
-	$(CC) $(CFLAGS) -c $< -o $@
-
-$(OBJDIR)/ui_editor_helper.o: $(UIDIR)/ui_editor_helper.c $(UIDIR)/ui_editor_helper.h | $(OBJDIR)
-	$(CC) $(CFLAGS) -c $< -o $@
-
-# Shared helpers (extracted from popup/editor/reader to avoid duplication)
-$(OBJDIR)/ui_aka.o: $(UIDIR)/ui_aka.c $(UIDIR)/ui_aka.h | $(OBJDIR)
-	$(CC) $(CFLAGS) -c $< -o $@
-
-$(OBJDIR)/ui_attr.o: $(UIDIR)/ui_attr.c $(UIDIR)/ui_attr.h | $(OBJDIR)
-	$(CC) $(CFLAGS) -c $< -o $@
-
-$(OBJDIR)/ui_files.o: $(UIDIR)/ui_files.c $(UIDIR)/ui_files.h $(UIDIR)/ui_internal.h $(COREDIR)/portable.h | $(OBJDIR)
-	$(CC) $(CFLAGS) -c $< -o $@
-
-$(OBJDIR)/ui_popup_attach.o: $(UIDIR)/ui_popup_attach.c $(UIDIR)/ui_internal.h $(UIDIR)/ui_files.h | $(OBJDIR)
-	$(CC) $(CFLAGS) -c $< -o $@
-
-$(OBJDIR)/ui_popup_freq.o: $(UIDIR)/ui_popup_freq.c $(UIDIR)/ui_internal.h $(COREDIR)/freq.h $(COMPDIR)/config.h | $(OBJDIR)
-	$(CC) $(CFLAGS) -c $< -o $@
-
-$(OBJDIR)/ui_setup.o: $(UIDIR)/ui_setup.c $(UIDIR)/ui_internal.h $(COMPDIR)/config.h $(COREDIR)/freq.h | $(OBJDIR)
-	$(CC) $(CFLAGS) -c $< -o $@
-
-$(OBJDIR)/search.o: $(COREDIR)/search.c $(COREDIR)/search.h $(COREDIR)/jam_wrap.h $(COMPDIR)/areafile.h | $(OBJDIR)
-	$(CC) $(CFLAGS) -c $< -o $@
-
-$(OBJDIR)/ui_search.o: $(UIDIR)/ui_search.c $(UIDIR)/ui_search.h $(UIDIR)/ui_internal.h $(COREDIR)/search.h | $(OBJDIR)
-	$(CC) $(CFLAGS) -c $< -o $@
-
-$(OBJDIR)/nodelist.o: $(COREDIR)/nodelist.c $(COREDIR)/nodelist.h | $(OBJDIR)
-	$(CC) $(CFLAGS) -c $< -o $@
-
-$(OBJDIR)/ui_popup_nodelist.o: $(UIDIR)/ui_popup_nodelist.c $(UIDIR)/ui_internal.h $(COREDIR)/nodelist.h | $(OBJDIR)
-	$(CC) $(CFLAGS) -c $< -o $@
-
-$(OBJDIR)/ui_glyph_picker.o: $(UIDIR)/ui_glyph_picker.c $(UIDIR)/ui_glyph_picker.h | $(OBJDIR)
-	$(CC) $(CFLAGS) -c $< -o $@
-
-# Application
-JAMLIB = $(HERE)../src/jamlib/jamlib.a
-CRASHEDIT = $(HERE)../bin/crashedit
 
 crashedit: $(CRASHEDIT)
 
@@ -441,16 +251,437 @@ $(OBJDIR)/main_ui.o: $(HERE)main_ui.c | $(OBJDIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 # On AmigaOS we use native spellchecker, so no HUNSPELL_LIB, HYPHEN_LIB or MYTHES_LIB needed
-EXTRA_LIBS =
+LINK_LIBS =
 ifeq ($(USE_TRANSLATE),1)
-EXTRA_LIBS += $(TRANSLATE_LIB)
+LINK_LIBS += $(TRANSLATE_LIB)
 endif
 
-$(CRASHEDIT): $(OBJDIR)/main_ui.o $(TARGET) $(ALL_OBJS) $(JAMLIB)
-	$(CXX) $(CFLAGS) $(OBJDIR)/main_ui.o $(ALL_OBJS) $(TARGET) $(EXTRA_LIBS) $(TRANSLATE_LIBS) $(JAMLIB) -o $@ -lm
+$(CRASHEDIT): $(OBJDIR)/main_ui.o $(TARGET) $(LINK_LIBS) $(JAMLIB)
+	$(CXX) $(CFLAGS) $(OBJDIR)/main_ui.o $(TARGET) $(LINK_LIBS) $(TRANSLATE_LIBS) $(JAMLIB) -lm -o $@
 else
-$(CRASHEDIT): $(HERE)main_ui.c $(TARGET) $(ALL_OBJS) $(JAMLIB)
-	$(CC) $(CFLAGS) $(HERE)main_ui.c $(ALL_OBJS) $(TARGET) $(EXTRA_LIBS) $(TRANSLATE_LIBS) $(JAMLIB) -o $@ -lm
+$(CRASHEDIT): $(HERE)main_ui.c $(TARGET) $(JAMLIB)
+	$(CC) $(CFLAGS) $(HERE)main_ui.c $(TARGET) $(TRANSLATE_LIBS) $(JAMLIB) -lm -o $@
+endif
+
+# ====================================================================
+# prep target -- full mode (PNG + system zlib for color emoji fonts)
+# Requires zconf_amiga.h and pnglibconf_amiga.h in HERE
+# ====================================================================
+prep:
+	@if grep -q "crashedit:" $(FTOPTION); then \
+	    echo "ERROR: $(FTOPTION) already patched. Run 'unprep' first."; \
+	    exit 1; \
+	fi
+	@if [ ! -f $(ZLIBDIR)/zconf.h.in ]; then \
+	    echo "ERROR: $(ZLIBDIR)/zconf.h.in not found -- is zlib present?"; \
+	    exit 1; \
+	fi
+	@if [ ! -f $(PNGDIR)/scripts/pnglibconf.h.prebuilt ]; then \
+	    echo "ERROR: $(PNGDIR)/scripts/pnglibconf.h.prebuilt not found -- is libpng present?"; \
+	    exit 1; \
+	fi
+	@echo ">>> Installing upstream zconf.h (from zlib/zconf.h.in)"
+	@cp $(ZLIBDIR)/zconf.h.in $(ZCONF)
+	@echo ">>> Installing upstream pnglibconf.h (from libpng/scripts/pnglibconf.h.prebuilt)"
+	@cp $(PNGDIR)/scripts/pnglibconf.h.prebuilt $(PNGLIBCONF)
+	@echo ">>> Installing Amiga-native ftsystem.c / ftdebug.c"
+	@if [ -f $(FTDIR)/builds/amiga/src/base/ftsystem.c ]; then \
+	    if ! grep -q "Detlef Wurkner" $(FTDIR)/src/base/ftsystem.c 2>/dev/null; then \
+	        cp $(FTDIR)/builds/amiga/src/base/ftsystem.c $(FTDIR)/src/base/ftsystem.c; \
+	        cp $(FTDIR)/builds/amiga/src/base/ftdebug.c  $(FTDIR)/src/base/ftdebug.c; \
+	    fi; \
+	fi
+	@echo ">>> Patching $(FTOPTION) (full mode: PNG + SYSTEM_ZLIB on, SVG off)"
+	@cp $(FTOPTION) $(BACKUP)
+	@sed -i \
+	    -e 's|^/\* #define FT_CONFIG_OPTION_USE_PNG \*/$$|#define FT_CONFIG_OPTION_USE_PNG /* crashedit:full */|' \
+	    -e 's|^/\* #define FT_CONFIG_OPTION_SYSTEM_ZLIB \*/$$|#define FT_CONFIG_OPTION_SYSTEM_ZLIB /* crashedit:full */|' \
+	    -e 's|^#define FT_CONFIG_OPTION_SVG$$|/* #define FT_CONFIG_OPTION_SVG */ /* crashedit:full */|' \
+	    $(FTOPTION)
+	@echo ">>> Prep complete (full)."
+
+unprep:
+	@if [ -f $(BACKUP) ]; then \
+	    mv $(BACKUP) $(FTOPTION); \
+	    echo ">>> $(FTOPTION) restored"; \
+	fi
+	@rm -f $(ZCONF) $(PNGLIBCONF)
+	@echo ">>> custom headers removed"
+
+# ====================================================================
+# Build rules: FreeType / zlib / libpng / tinyedit
+# ====================================================================
+$(OBJDIR):
+	mkdir -p $(OBJDIR)
+
+# FreeType objects - compiled to OBJDIR
+$(OBJDIR)/ftbase.o: $(FTDIR)/src/base/ftbase.c | $(OBJDIR)
+	$(CC) $(CFLAGS) -DFT2_BUILD_LIBRARY $(FTINC) $(EXTRA_INC) -c $< -o $@
+$(OBJDIR)/ftbbox.o: $(FTDIR)/src/base/ftbbox.c | $(OBJDIR)
+	$(CC) $(CFLAGS) -DFT2_BUILD_LIBRARY $(FTINC) $(EXTRA_INC) -c $< -o $@
+$(OBJDIR)/ftbitmap.o: $(FTDIR)/src/base/ftbitmap.c | $(OBJDIR)
+	$(CC) $(CFLAGS) -DFT2_BUILD_LIBRARY $(FTINC) $(EXTRA_INC) -c $< -o $@
+$(OBJDIR)/ftdebug.o: $(FTDIR)/src/base/ftdebug.c | $(OBJDIR)
+	$(CC) $(CFLAGS) -DFT2_BUILD_LIBRARY $(FTINC) $(EXTRA_INC) -c $< -o $@
+$(OBJDIR)/ftgasp.o: $(FTDIR)/src/base/ftgasp.c | $(OBJDIR)
+	$(CC) $(CFLAGS) -DFT2_BUILD_LIBRARY $(FTINC) $(EXTRA_INC) -c $< -o $@
+$(OBJDIR)/ftglyph.o: $(FTDIR)/src/base/ftglyph.c | $(OBJDIR)
+	$(CC) $(CFLAGS) -DFT2_BUILD_LIBRARY $(FTINC) $(EXTRA_INC) -c $< -o $@
+$(OBJDIR)/ftinit.o: $(FTDIR)/src/base/ftinit.c | $(OBJDIR)
+	$(CC) $(CFLAGS) -DFT2_BUILD_LIBRARY $(FTINC) $(EXTRA_INC) -c $< -o $@
+$(OBJDIR)/ftmm.o: $(FTDIR)/src/base/ftmm.c | $(OBJDIR)
+	$(CC) $(CFLAGS) -DFT2_BUILD_LIBRARY $(FTINC) $(EXTRA_INC) -c $< -o $@
+$(OBJDIR)/ftpatent.o: $(FTDIR)/src/base/ftpatent.c | $(OBJDIR)
+	$(CC) $(CFLAGS) -DFT2_BUILD_LIBRARY $(FTINC) $(EXTRA_INC) -c $< -o $@
+$(OBJDIR)/ftstroke.o: $(FTDIR)/src/base/ftstroke.c | $(OBJDIR)
+	$(CC) $(CFLAGS) -DFT2_BUILD_LIBRARY $(FTINC) $(EXTRA_INC) -c $< -o $@
+$(OBJDIR)/ftsynth.o: $(FTDIR)/src/base/ftsynth.c | $(OBJDIR)
+	$(CC) $(CFLAGS) -DFT2_BUILD_LIBRARY $(FTINC) $(EXTRA_INC) -c $< -o $@
+$(OBJDIR)/ftsystem.o: $(FTDIR)/src/base/ftsystem.c | $(OBJDIR)
+	$(CC) $(CFLAGS) -DFT2_BUILD_LIBRARY $(FTINC) $(EXTRA_INC) -c $< -o $@
+$(OBJDIR)/fttype1.o: $(FTDIR)/src/base/fttype1.c | $(OBJDIR)
+	$(CC) $(CFLAGS) -DFT2_BUILD_LIBRARY $(FTINC) $(EXTRA_INC) -c $< -o $@
+$(OBJDIR)/ftwinfnt.o: $(FTDIR)/src/base/ftwinfnt.c | $(OBJDIR)
+	$(CC) $(CFLAGS) -DFT2_BUILD_LIBRARY $(FTINC) $(EXTRA_INC) -c $< -o $@
+$(OBJDIR)/autofit.o: $(FTDIR)/src/autofit/autofit.c | $(OBJDIR)
+	$(CC) $(CFLAGS) -DFT2_BUILD_LIBRARY $(FTINC) $(EXTRA_INC) -c $< -o $@
+$(OBJDIR)/smooth.o: $(FTDIR)/src/smooth/smooth.c | $(OBJDIR)
+	$(CC) $(CFLAGS) -DFT2_BUILD_LIBRARY $(FTINC) $(EXTRA_INC) -c $< -o $@
+$(OBJDIR)/raster.o: $(FTDIR)/src/raster/raster.c | $(OBJDIR)
+	$(CC) $(CFLAGS) -DFT2_BUILD_LIBRARY $(FTINC) $(EXTRA_INC) -c $< -o $@
+$(OBJDIR)/truetype.o: $(FTDIR)/src/truetype/truetype.c | $(OBJDIR)
+	$(CC) $(CFLAGS) -DFT2_BUILD_LIBRARY $(FTINC) $(EXTRA_INC) -c $< -o $@
+$(OBJDIR)/cff.o: $(FTDIR)/src/cff/cff.c | $(OBJDIR)
+	$(CC) $(CFLAGS) -DFT2_BUILD_LIBRARY $(FTINC) $(EXTRA_INC) -c $< -o $@
+$(OBJDIR)/sfnt.o: $(FTDIR)/src/sfnt/sfnt.c | $(OBJDIR)
+	$(CC) $(CFLAGS) -DFT2_BUILD_LIBRARY $(FTINC) $(EXTRA_INC) -c $< -o $@
+$(OBJDIR)/psnames.o: $(FTDIR)/src/psnames/psnames.c | $(OBJDIR)
+	$(CC) $(CFLAGS) -DFT2_BUILD_LIBRARY $(FTINC) $(EXTRA_INC) -c $< -o $@
+$(OBJDIR)/pshinter.o: $(FTDIR)/src/pshinter/pshinter.c | $(OBJDIR)
+	$(CC) $(CFLAGS) -DFT2_BUILD_LIBRARY $(FTINC) $(EXTRA_INC) -c $< -o $@
+$(OBJDIR)/ftgzip.o: $(FTDIR)/src/gzip/ftgzip.c | $(OBJDIR)
+	$(CC) $(CFLAGS) -DFT2_BUILD_LIBRARY $(FTINC) $(EXTRA_INC) -c $< -o $@
+$(OBJDIR)/ftlzw.o: $(FTDIR)/src/lzw/ftlzw.c | $(OBJDIR)
+	$(CC) $(CFLAGS) -DFT2_BUILD_LIBRARY $(FTINC) $(EXTRA_INC) -c $< -o $@
+$(OBJDIR)/type1.o: $(FTDIR)/src/type1/type1.c | $(OBJDIR)
+	$(CC) $(CFLAGS) -DFT2_BUILD_LIBRARY $(FTINC) $(EXTRA_INC) -c $< -o $@
+$(OBJDIR)/type1cid.o: $(FTDIR)/src/cid/type1cid.c | $(OBJDIR)
+	$(CC) $(CFLAGS) -DFT2_BUILD_LIBRARY $(FTINC) $(EXTRA_INC) -c $< -o $@
+$(OBJDIR)/pfr.o: $(FTDIR)/src/pfr/pfr.c | $(OBJDIR)
+	$(CC) $(CFLAGS) -DFT2_BUILD_LIBRARY $(FTINC) $(EXTRA_INC) -c $< -o $@
+$(OBJDIR)/type42.o: $(FTDIR)/src/type42/type42.c | $(OBJDIR)
+	$(CC) $(CFLAGS) -DFT2_BUILD_LIBRARY $(FTINC) $(EXTRA_INC) -c $< -o $@
+$(OBJDIR)/winfnt.o: $(FTDIR)/src/winfonts/winfnt.c | $(OBJDIR)
+	$(CC) $(CFLAGS) -DFT2_BUILD_LIBRARY $(FTINC) $(EXTRA_INC) -c $< -o $@
+$(OBJDIR)/pcf.o: $(FTDIR)/src/pcf/pcf.c | $(OBJDIR)
+	$(CC) $(CFLAGS) -DFT2_BUILD_LIBRARY $(FTINC) $(EXTRA_INC) -c $< -o $@
+$(OBJDIR)/bdf.o: $(FTDIR)/src/bdf/bdf.c | $(OBJDIR)
+	$(CC) $(CFLAGS) -DFT2_BUILD_LIBRARY $(FTINC) $(EXTRA_INC) -c $< -o $@
+$(OBJDIR)/psaux.o: $(FTDIR)/src/psaux/psaux.c | $(OBJDIR)
+	$(CC) $(CFLAGS) -DFT2_BUILD_LIBRARY $(FTINC) $(EXTRA_INC) -c $< -o $@
+$(OBJDIR)/sdf.o: $(FTDIR)/src/sdf/sdf.c | $(OBJDIR)
+	$(CC) $(CFLAGS) -DFT2_BUILD_LIBRARY $(FTINC) $(EXTRA_INC) -c $< -o $@
+$(OBJDIR)/svg.o: $(FTDIR)/src/svg/svg.c | $(OBJDIR)
+	$(CC) $(CFLAGS) -DFT2_BUILD_LIBRARY $(FTINC) $(EXTRA_INC) -c $< -o $@
+
+# zlib objects - compiled to OBJDIR
+$(OBJDIR)/adler32.o: $(ZLIBDIR)/adler32.c | $(OBJDIR)
+	$(CC) $(CFLAGS) $(ZLIBINC) -c $< -o $@
+$(OBJDIR)/compress.o: $(ZLIBDIR)/compress.c | $(OBJDIR)
+	$(CC) $(CFLAGS) $(ZLIBINC) -c $< -o $@
+$(OBJDIR)/crc32.o: $(ZLIBDIR)/crc32.c | $(OBJDIR)
+	$(CC) $(CFLAGS) $(ZLIBINC) -c $< -o $@
+$(OBJDIR)/deflate.o: $(ZLIBDIR)/deflate.c | $(OBJDIR)
+	$(CC) $(CFLAGS) $(ZLIBINC) -c $< -o $@
+$(OBJDIR)/infback.o: $(ZLIBDIR)/infback.c | $(OBJDIR)
+	$(CC) $(CFLAGS) $(ZLIBINC) -c $< -o $@
+$(OBJDIR)/inffast.o: $(ZLIBDIR)/inffast.c | $(OBJDIR)
+	$(CC) $(CFLAGS) $(ZLIBINC) -c $< -o $@
+$(OBJDIR)/inflate.o: $(ZLIBDIR)/inflate.c | $(OBJDIR)
+	$(CC) $(CFLAGS) $(ZLIBINC) -c $< -o $@
+$(OBJDIR)/inftrees.o: $(ZLIBDIR)/inftrees.c | $(OBJDIR)
+	$(CC) $(CFLAGS) $(ZLIBINC) -c $< -o $@
+$(OBJDIR)/trees.o: $(ZLIBDIR)/trees.c | $(OBJDIR)
+	$(CC) $(CFLAGS) $(ZLIBINC) -c $< -o $@
+$(OBJDIR)/uncompr.o: $(ZLIBDIR)/uncompr.c | $(OBJDIR)
+	$(CC) $(CFLAGS) $(ZLIBINC) -c $< -o $@
+$(OBJDIR)/zutil.o: $(ZLIBDIR)/zutil.c | $(OBJDIR)
+	$(CC) $(CFLAGS) $(ZLIBINC) -c $< -o $@
+$(OBJDIR)/gzclose.o: $(ZLIBDIR)/gzclose.c | $(OBJDIR)
+	$(CC) $(CFLAGS) $(ZLIBINC) -c $< -o $@
+$(OBJDIR)/gzlib.o: $(ZLIBDIR)/gzlib.c | $(OBJDIR)
+	$(CC) $(CFLAGS) $(ZLIBINC) -c $< -o $@
+$(OBJDIR)/gzread.o: $(ZLIBDIR)/gzread.c | $(OBJDIR)
+	$(CC) $(CFLAGS) $(ZLIBINC) -c $< -o $@
+$(OBJDIR)/gzwrite.o: $(ZLIBDIR)/gzwrite.c | $(OBJDIR)
+	$(CC) $(CFLAGS) $(ZLIBINC) -c $< -o $@
+
+# libpng objects - compiled to OBJDIR
+$(OBJDIR)/png.o: $(PNGDIR)/png.c | $(OBJDIR)
+	$(CC) $(CFLAGS) $(PNGINC) $(ZLIBINC) -c $< -o $@
+$(OBJDIR)/pngerror.o: $(PNGDIR)/pngerror.c | $(OBJDIR)
+	$(CC) $(CFLAGS) $(PNGINC) $(ZLIBINC) -c $< -o $@
+$(OBJDIR)/pngget.o: $(PNGDIR)/pngget.c | $(OBJDIR)
+	$(CC) $(CFLAGS) $(PNGINC) $(ZLIBINC) -c $< -o $@
+$(OBJDIR)/pngmem.o: $(PNGDIR)/pngmem.c | $(OBJDIR)
+	$(CC) $(CFLAGS) $(PNGINC) $(ZLIBINC) -c $< -o $@
+$(OBJDIR)/pngpread.o: $(PNGDIR)/pngpread.c | $(OBJDIR)
+	$(CC) $(CFLAGS) $(PNGINC) $(ZLIBINC) -c $< -o $@
+$(OBJDIR)/pngread.o: $(PNGDIR)/pngread.c | $(OBJDIR)
+	$(CC) $(CFLAGS) $(PNGINC) $(ZLIBINC) -c $< -o $@
+$(OBJDIR)/pngrio.o: $(PNGDIR)/pngrio.c | $(OBJDIR)
+	$(CC) $(CFLAGS) $(PNGINC) $(ZLIBINC) -c $< -o $@
+$(OBJDIR)/pngrtran.o: $(PNGDIR)/pngrtran.c | $(OBJDIR)
+	$(CC) $(CFLAGS) $(PNGINC) $(ZLIBINC) -c $< -o $@
+$(OBJDIR)/pngrutil.o: $(PNGDIR)/pngrutil.c | $(OBJDIR)
+	$(CC) $(CFLAGS) $(PNGINC) $(ZLIBINC) -c $< -o $@
+$(OBJDIR)/pngset.o: $(PNGDIR)/pngset.c | $(OBJDIR)
+	$(CC) $(CFLAGS) $(PNGINC) $(ZLIBINC) -c $< -o $@
+$(OBJDIR)/pngtrans.o: $(PNGDIR)/pngtrans.c | $(OBJDIR)
+	$(CC) $(CFLAGS) $(PNGINC) $(ZLIBINC) -c $< -o $@
+$(OBJDIR)/pngwio.o: $(PNGDIR)/pngwio.c | $(OBJDIR)
+	$(CC) $(CFLAGS) $(PNGINC) $(ZLIBINC) -c $< -o $@
+$(OBJDIR)/pngwrite.o: $(PNGDIR)/pngwrite.c | $(OBJDIR)
+	$(CC) $(CFLAGS) $(PNGINC) $(ZLIBINC) -c $< -o $@
+$(OBJDIR)/pngwtran.o: $(PNGDIR)/pngwtran.c | $(OBJDIR)
+	$(CC) $(CFLAGS) $(PNGINC) $(ZLIBINC) -c $< -o $@
+$(OBJDIR)/pngwutil.o: $(PNGDIR)/pngwutil.c | $(OBJDIR)
+	$(CC) $(CFLAGS) $(PNGINC) $(ZLIBINC) -c $< -o $@
+
+# crashedit core/components/ui object rules
+TEFLAGS = $(CFLAGS) -I$(HERE) -I$(HERE).. -I$(COREDIR) -I$(COMPDIR) -I$(UIDIR) $(FTINC)
+
+# Core library objects
+$(OBJDIR)/jam_wrap.o: $(COREDIR)/jam_wrap.c $(COREDIR)/jam_wrap.h $(HERE)../src/jamlib/jam.h $(COREDIR)/portable.h | $(OBJDIR)
+	$(CC) $(TEFLAGS) -c $< -o $@
+
+# Spell checker objects (new multi-file spellchecker)
+SPELL_PRIV = $(SPELLDIR)/spell_priv.h $(SPELLDIR)/spell.h
+
+$(OBJDIR)/spellchecker_utils.o: $(SPELLDIR)/spell_utils.c $(SPELL_PRIV) | $(OBJDIR)
+	$(CC) $(TEFLAGS) -c $< -o $@
+
+$(OBJDIR)/spellchecker_htab.o: $(SPELLDIR)/spell_htab.c $(SPELL_PRIV) | $(OBJDIR)
+	$(CC) $(TEFLAGS) -c $< -o $@
+
+$(OBJDIR)/spellchecker_affix.o: $(SPELLDIR)/spell_affix.c $(SPELL_PRIV) | $(OBJDIR)
+	$(CC) $(TEFLAGS) -c $< -o $@
+
+$(OBJDIR)/spellchecker_core.o: $(SPELLDIR)/spell_core.c $(SPELL_PRIV) | $(OBJDIR)
+	$(CC) $(TEFLAGS) -c $< -o $@
+
+$(OBJDIR)/spellchecker_suggest.o: $(SPELLDIR)/spell_suggest.c $(SPELL_PRIV) | $(OBJDIR)
+	$(CC) $(TEFLAGS) -c $< -o $@
+
+$(OBJDIR)/spellchecker_stem.o: $(SPELLDIR)/spell_stem.c $(SPELL_PRIV) | $(OBJDIR)
+	$(CC) $(TEFLAGS) -c $< -o $@
+
+$(OBJDIR)/spellchecker_custom.o: $(SPELLDIR)/spell_custom.c $(SPELL_PRIV) | $(OBJDIR)
+	$(CC) $(TEFLAGS) -c $< -o $@
+
+$(OBJDIR)/spellchecker_dict_scan.o: $(SPELLDIR)/dict_scan.c $(SPELLDIR)/dict_scan.h | $(OBJDIR)
+	$(CC) $(TEFLAGS) -c $< -o $@
+
+# Hyphenation object (only if USE_HYPHEN=1)
+$(OBJDIR)/spellchecker_hyph.o: $(SPELLDIR)/hyph.c $(SPELLDIR)/hyph.h | $(OBJDIR)
+	$(CC) $(TEFLAGS) -c $< -o $@
+
+# Thesaurus object (only if USE_MYTHES=1)
+$(OBJDIR)/spellchecker_thes.o: $(SPELLDIR)/thes.c $(SPELLDIR)/thes.h | $(OBJDIR)
+	$(CC) $(TEFLAGS) -c $< -o $@
+
+$(OBJDIR)/ui_spell.o: $(UIDIR)/ui_spell.c $(UIDIR)/ui_spell.h | $(OBJDIR)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(OBJDIR)/ui_mouse.o: $(UIDIR)/ui_mouse.c $(UIDIR)/ui_mouse.h | $(OBJDIR)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(OBJDIR)/ui_assist.o: $(UIDIR)/ui_assist.c $(UIDIR)/ui_assist.h | $(OBJDIR)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+
+$(OBJDIR)/portable.o: $(COREDIR)/portable.c $(COREDIR)/portable.h | $(OBJDIR)
+	$(CC) $(TEFLAGS) -c $< -o $@
+
+$(OBJDIR)/msg_wrap.o: $(COREDIR)/msg_wrap.c $(COREDIR)/msg_wrap.h $(COREDIR)/jam_wrap.h $(COREDIR)/portable.h | $(OBJDIR)
+	$(CC) $(TEFLAGS) -c $< -o $@
+
+$(OBJDIR)/msgbase.o: $(COREDIR)/msgbase.c $(COREDIR)/msgbase.h $(COREDIR)/jam_wrap.h $(COREDIR)/msg_wrap.h | $(OBJDIR)
+	$(CC) $(TEFLAGS) -c $< -o $@
+
+$(OBJDIR)/utf8.o: $(COREDIR)/utf8.c $(COREDIR)/utf8.h | $(OBJDIR)
+	$(CC) $(TEFLAGS) -c $< -o $@
+
+$(OBJDIR)/charset.o: $(COREDIR)/charset.c $(COREDIR)/charset.h $(COREDIR)/utf8.h | $(OBJDIR)
+	$(CC) $(TEFLAGS) -c $< -o $@
+
+$(OBJDIR)/keys.o: $(COREDIR)/keys.c $(COREDIR)/keys.h | $(OBJDIR)
+	$(CC) $(TEFLAGS) -c $< -o $@
+
+$(OBJDIR)/ftn.o: $(COREDIR)/ftn.c $(COREDIR)/ftn.h $(COREDIR)/jam_wrap.h $(COREDIR)/charset.h | $(OBJDIR)
+	$(CC) $(TEFLAGS) -c $< -o $@
+
+$(OBJDIR)/msghdr.o: $(COREDIR)/msghdr.c $(COREDIR)/msghdr.h $(COREDIR)/jam_wrap.h $(COREDIR)/utf8.h | $(OBJDIR)
+	$(CC) $(TEFLAGS) -c $< -o $@
+
+$(OBJDIR)/wrapper_io.o: $(COREDIR)/wrapper_io.c $(COREDIR)/wrapper_io.h $(COREDIR)/jam_wrap.h $(COREDIR)/utf8.h $(COREDIR)/charset.h $(COREDIR)/ftn.h | $(OBJDIR)
+	$(CC) $(TEFLAGS) -c $< -o $@
+
+$(OBJDIR)/clipboard.o: $(COREDIR)/clipboard.c $(COREDIR)/clipboard.h $(COREDIR)/portable.h | $(OBJDIR)
+	$(CC) $(TEFLAGS) -c $< -o $@
+
+$(OBJDIR)/attach.o: $(COREDIR)/attach.c $(COREDIR)/attach.h | $(OBJDIR)
+	$(CC) $(TEFLAGS) -c $< -o $@
+
+$(OBJDIR)/freq.o: $(COREDIR)/freq.c $(COREDIR)/freq.h $(COREDIR)/portable.h | $(OBJDIR)
+	$(CC) $(TEFLAGS) -c $< -o $@
+
+$(OBJDIR)/ansi.o: $(COREDIR)/ansi.c $(COREDIR)/ansi.h $(COREDIR)/utf8.h | $(OBJDIR)
+	$(CC) $(TEFLAGS) -c $< -o $@
+
+$(OBJDIR)/search.o: $(COREDIR)/search.c $(COREDIR)/search.h $(COREDIR)/jam_wrap.h $(COMPDIR)/areafile.h | $(OBJDIR)
+	$(CC) $(TEFLAGS) -c $< -o $@
+
+$(OBJDIR)/nodelist.o: $(COREDIR)/nodelist.c $(COREDIR)/nodelist.h | $(OBJDIR)
+	$(CC) $(TEFLAGS) -c $< -o $@
+
+# The curses surface wrapper, renamed for TE static engine
+$(OBJDIR)/ncursesw_amiga.o: $(HERE)ncursesw_amiga.c \
+                               $(HERE)ncursesw_amiga.h \
+                               $(HERE)te_rastport.h | $(OBJDIR)
+	$(CC) $(TEFLAGS) $(FTINC) -DPLATFORM_AMIGA -c $< -o $@
+
+# The static text-engine implementation
+$(OBJDIR)/te_rastport.o: $(HERE)te_rastport.c $(HERE)te_rastport.h | $(OBJDIR)
+	$(CC) $(TEFLAGS) $(FTINC) -DPLATFORM_AMIGA -c $< -o $@
+
+# Component objects
+$(OBJDIR)/areafile.o: $(COMPDIR)/areafile.c $(COMPDIR)/areafile.h | $(OBJDIR)
+	$(CC) $(TEFLAGS) -c $< -o $@
+
+$(OBJDIR)/editor.o: $(COMPDIR)/editor.c $(COMPDIR)/editor.h | $(OBJDIR)
+	$(CC) $(TEFLAGS) -c $< -o $@
+
+$(OBJDIR)/editor_helper.o: $(COMPDIR)/editor_helper.c $(COMPDIR)/editor.h | $(OBJDIR)
+	$(CC) $(TEFLAGS) -c $< -o $@
+
+$(OBJDIR)/reader.o: $(COMPDIR)/reader.c $(COMPDIR)/reader.h $(COREDIR)/ftn.h | $(OBJDIR)
+	$(CC) $(TEFLAGS) -c $< -o $@
+
+$(OBJDIR)/config.o: $(COMPDIR)/config.c $(COMPDIR)/config.h $(COREDIR)/charset.h $(COREDIR)/portable.h | $(OBJDIR)
+	$(CC) $(TEFLAGS) -c $< -o $@
+
+# UI objects (ui/)
+$(OBJDIR)/ui_app.o: $(UIDIR)/ui_app.c $(UIDIR)/ui.h $(UIDIR)/ui_internal.h | $(OBJDIR)
+	$(CC) $(TEFLAGS) -c $< -o $@
+
+$(OBJDIR)/ui_session.o: $(UIDIR)/ui_session.c $(UIDIR)/ui_internal.h | $(OBJDIR)
+	$(CC) $(TEFLAGS) -c $< -o $@
+
+$(OBJDIR)/ui_popup.o: $(UIDIR)/ui_popup.c $(UIDIR)/ui_internal.h $(UIDIR)/ui_aka.h | $(OBJDIR)
+	$(CC) $(TEFLAGS) -c $< -o $@
+
+$(OBJDIR)/ui_arealist.o: $(UIDIR)/ui_arealist.c $(UIDIR)/ui_internal.h $(UIDIR)/ui_arealist_layout.h | $(OBJDIR)
+	$(CC) $(TEFLAGS) -c $< -o $@
+
+$(OBJDIR)/ui_arealist_layout.o: $(UIDIR)/ui_arealist_layout.c $(UIDIR)/ui_arealist_layout.h | $(OBJDIR)
+	$(CC) $(TEFLAGS) -c $< -o $@
+
+$(OBJDIR)/ui_msglist.o: $(UIDIR)/ui_msglist.c $(UIDIR)/ui_internal.h | $(OBJDIR)
+	$(CC) $(TEFLAGS) -c $< -o $@
+
+$(OBJDIR)/ui_reader.o: $(UIDIR)/ui_reader.c $(UIDIR)/ui_internal.h $(UIDIR)/ui_attr.h | $(OBJDIR)
+	$(CC) $(TEFLAGS) -c $< -o $@
+
+$(OBJDIR)/ui_editor.o: $(UIDIR)/ui_editor.c $(UIDIR)/ui_editor_internal.h $(UIDIR)/ui_aka.h $(UIDIR)/ui_attr.h | $(OBJDIR)
+	$(CC) $(TEFLAGS) -c $< -o $@
+
+$(OBJDIR)/ui_editor_prep.o: $(UIDIR)/ui_editor_prep.c $(UIDIR)/ui_editor_internal.h $(UIDIR)/ui_aka.h | $(OBJDIR)
+	$(CC) $(TEFLAGS) -c $< -o $@
+
+$(OBJDIR)/ui_editor_popups.o: $(UIDIR)/ui_editor_popups.c $(UIDIR)/ui_editor_internal.h | $(OBJDIR)
+	$(CC) $(TEFLAGS) -c $< -o $@
+
+$(OBJDIR)/ui_editor_softwrap.o: $(UIDIR)/ui_editor_softwrap.c $(UIDIR)/ui_editor_softwrap.h | $(OBJDIR)
+	$(CC) $(TEFLAGS) -c $< -o $@
+
+$(OBJDIR)/ui_editor_search.o: $(UIDIR)/ui_editor_search.c $(UIDIR)/ui_editor_search.h | $(OBJDIR)
+	$(CC) $(TEFLAGS) -c $< -o $@
+
+$(OBJDIR)/ui_editor_paste.o: $(UIDIR)/ui_editor_paste.c $(UIDIR)/ui_editor_paste.h | $(OBJDIR)
+	$(CC) $(TEFLAGS) -c $< -o $@
+
+$(OBJDIR)/ui_editor_draw.o: $(UIDIR)/ui_editor_draw.c $(UIDIR)/ui_editor_draw.h | $(OBJDIR)
+	$(CC) $(TEFLAGS) -c $< -o $@
+
+$(OBJDIR)/ui_editor_helper.o: $(UIDIR)/ui_editor_helper.c $(UIDIR)/ui_editor_helper.h | $(OBJDIR)
+	$(CC) $(TEFLAGS) -c $< -o $@
+
+$(OBJDIR)/ui_aka.o: $(UIDIR)/ui_aka.c $(UIDIR)/ui_aka.h | $(OBJDIR)
+	$(CC) $(TEFLAGS) -c $< -o $@
+
+$(OBJDIR)/ui_attr.o: $(UIDIR)/ui_attr.c $(UIDIR)/ui_attr.h | $(OBJDIR)
+	$(CC) $(TEFLAGS) -c $< -o $@
+
+$(OBJDIR)/ui_files.o: $(UIDIR)/ui_files.c $(UIDIR)/ui_files.h $(UIDIR)/ui_internal.h $(COREDIR)/portable.h | $(OBJDIR)
+	$(CC) $(TEFLAGS) -c $< -o $@
+
+$(OBJDIR)/ui_popup_attach.o: $(UIDIR)/ui_popup_attach.c $(UIDIR)/ui_internal.h $(UIDIR)/ui_files.h | $(OBJDIR)
+	$(CC) $(TEFLAGS) -c $< -o $@
+
+$(OBJDIR)/ui_popup_freq.o: $(UIDIR)/ui_popup_freq.c $(UIDIR)/ui_internal.h $(COREDIR)/freq.h $(COMPDIR)/config.h | $(OBJDIR)
+	$(CC) $(TEFLAGS) -c $< -o $@
+
+$(OBJDIR)/ui_setup.o: $(UIDIR)/ui_setup.c $(UIDIR)/ui_internal.h $(COMPDIR)/config.h $(COREDIR)/freq.h | $(OBJDIR)
+	$(CC) $(TEFLAGS) -c $< -o $@
+
+$(OBJDIR)/ui_search.o: $(UIDIR)/ui_search.c $(UIDIR)/ui_search.h $(UIDIR)/ui_internal.h $(COREDIR)/search.h | $(OBJDIR)
+	$(CC) $(TEFLAGS) -c $< -o $@
+
+$(OBJDIR)/ui_popup_nodelist.o: $(UIDIR)/ui_popup_nodelist.c $(UIDIR)/ui_internal.h $(COREDIR)/nodelist.h | $(OBJDIR)
+	$(CC) $(TEFLAGS) -c $< -o $@
+
+$(OBJDIR)/ui_glyph_picker.o: $(UIDIR)/ui_glyph_picker.c $(UIDIR)/ui_glyph_picker.h | $(OBJDIR)
+	$(CC) $(TEFLAGS) -c $< -o $@
+
+ifeq ($(USE_HYPHEN),1)
+$(OBJDIR)/ui_hyph.o: $(UIDIR)/ui_hyph.c $(UIDIR)/ui_hyph.h | $(OBJDIR)
+	$(CC) $(TEFLAGS) -c $< -o $@
+endif
+
+ifeq ($(USE_MYTHES),1)
+$(OBJDIR)/ui_thes.o: $(UIDIR)/ui_thes.c $(UIDIR)/ui_thes.h | $(OBJDIR)
+	$(CC) $(TEFLAGS) -c $< -o $@
+endif
+ifeq ($(USE_TRANSLATE),1)
+$(OBJDIR)/ui_translate.o: $(UIDIR)/ui_translate.c $(UIDIR)/ui_translate.h | $(OBJDIR)
+	$(CC) $(TEFLAGS) -c $< -o $@
+ifeq ($(USE_STARDICT),1)
+$(OBJDIR)/ui_dict.o: $(UIDIR)/ui_dict.c $(UIDIR)/ui_dict.h | $(OBJDIR)
+	$(CC) $(TEFLAGS) -c $< -o $@
+$(OBJDIR)/ui_dict_picker.o: $(UIDIR)/ui_dict_picker.c $(UIDIR)/ui_dict_picker.h | $(OBJDIR)
+	$(CC) $(TEFLAGS) -c $< -o $@
+$(OBJDIR)/ui_dict_reverse.o: $(UIDIR)/ui_dict_reverse.c $(UIDIR)/ui_dict_reverse.h | $(OBJDIR)
+	$(CC) $(TEFLAGS) -c $< -o $@
+endif
+endif
+
+# Translator objects (only if USE_TRANSLATE=1)
+ifeq ($(USE_TRANSLATE),1)
+$(OBJDIR)/translate.o: $(HERE)translate/translate.c $(HERE)translate/translate.h | $(OBJDIR)
+	$(CC) $(TEFLAGS) -c $< -o $@
+
+$(OBJDIR)/translate_http.o: $(HERE)translate/translate_http.c $(HERE)translate/translate.h $(HERE)translate/http_client.h $(HERE)translate/json_utils.h | $(OBJDIR)
+	$(CC) $(TEFLAGS) -c $< -o $@
+
+$(OBJDIR)/http_client.o: $(HERE)translate/http_client.c $(HERE)translate/http_client.h | $(OBJDIR)
+	$(CC) $(TEFLAGS) -c $< -o $@
+
+$(OBJDIR)/json_utils.o: $(HERE)translate/json_utils.c $(HERE)translate/json_utils.h | $(OBJDIR)
+	$(CC) $(TEFLAGS) -c $< -o $@
+
+$(OBJDIR)/translate_stardict.o: $(HERE)translate/translate_stardict.c $(HERE)translate/translate_stardict.h $(COREDIR)/portable.h | $(OBJDIR)
+	$(CC) $(TEFLAGS) -c $< -o $@
 endif
 
 clean:
@@ -464,50 +695,10 @@ endif
 ifeq ($(USE_MYTHES),1)
 	rm -rf $(MYTHES_OBJDIR) $(MYTHES_LIB)
 endif
-# Hunspell build rules (only if USE_HUNSPELL=1)
-ifeq ($(USE_HUNSPELL),1)
 
-# Create Hunspell object directory
-$(HUNSPELL_OBJDIR):
-	mkdir -p $(HUNSPELL_OBJDIR)
+clean-ft:
+	rm -f $(FT_OBJS) $(ZLIB_OBJS) $(PNG_OBJS)
 
-# Compile Hunspell C++ source files
-$(HUNSPELL_OBJDIR)/%.o: $(HUNSPELL_SRC)/%.cxx | $(HUNSPELL_OBJDIR)
-	$(CXX) $(CXXFLAGS) -DPLATFORM_AMIGA -I$(HUNSPELL_SRC) -c $< -o $@
+clean-all: clean clean-ft
 
-# Create Hunspell static library
-$(HUNSPELL_LIB): $(HUNSPELL_OBJS)
-	$(AR) rcs $@ $(HUNSPELL_OBJS)
-	$(RANLIB) $@
-	@echo ">>> $(HUNSPELL_LIB) built successfully"
-
-endif
-
-# libhyphen build rules (only if USE_HYPHEN=1)
-# Mirror the hunspell pattern: build into objs.amiga then archive
-ifeq ($(USE_HYPHEN),1)
-$(HYPHEN_LIB): $(HYPHEN_BUILD_OBJS)
-	$(AR) rcs $@ $(HYPHEN_BUILD_OBJS)
-	$(RANLIB) $@
-
-$(HYPHEN_OBJDIR):
-	mkdir -p $@
-
-$(HYPHEN_OBJDIR)/%.o: $(HYPHEN_DIR)/%.c | $(HYPHEN_OBJDIR)
-	$(CC) $(CFLAGS) -I$(HYPHEN_DIR) -c $< -o $@
-endif
-
-# MyThes build rules (only if USE_MYTHES=1)
-ifeq ($(USE_MYTHES),1)
-$(MYTHES_LIB): $(MYTHES_BUILD_OBJS)
-	$(AR) rcs $@ $(MYTHES_BUILD_OBJS)
-	$(RANLIB) $@
-
-$(MYTHES_OBJDIR):
-	mkdir -p $@
-
-$(MYTHES_OBJDIR)/%.o: $(MYTHES_DIR)/%.cxx | $(MYTHES_OBJDIR)
-	$(CXX) $(CXXFLAGS) -I$(MYTHES_DIR) -c $< -o $@
-endif
-
-.PHONY: all clean
+.PHONY: all clean clean-ft clean-all prep unprep crashedit

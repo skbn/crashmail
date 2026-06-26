@@ -84,6 +84,12 @@ extern "C"
     void translate_cache_clear(TranslateHandle *h);
     int translate_set_opts(TranslateHandle *h, const TranslateOpts *opts);
     const char *const *translate_supported_langs(TranslateHandle *h);
+
+    /* Suggest similar dictionary entries for word when using STARDICT (caller frees each item) */
+    int translate_suggest(TranslateHandle *h, const char *word, char **items, int max);
+
+    /* Reverse lookup for STARDICT: return source words whose definitions contain target (caller frees each item) */
+    int translate_reverse(TranslateHandle *h, const char *target, char **items, int max, int max_scan);
     int translate_is_available(void);
     const char *translate_backend_name(TranslateBackend backend);
     TranslateBackend translate_backend_parse(const char *name);

@@ -38,9 +38,7 @@
 
 #define SEARCH_PATTERN_MAX 256
 
-#if defined(PLATFORM_AMIGA) && defined(AMIGA_TTF_TE)
-#include "../ncursesw_amiga_te.h"
-#elif defined(PLATFORM_AMIGA)
+#if defined(PLATFORM_AMIGA)
 #include "../ncursesw_amiga.h"
 #elif defined(PLATFORM_WIN32)
 #include "../ncursesw_win32.h"
@@ -138,6 +136,12 @@
 #ifndef KEY_CSDOWNU
 #define KEY_CSDOWNU 0x80A /* Ctrl+Shift+U */
 #endif
+#ifndef KEY_ALT_UP
+#define KEY_ALT_UP 0xA00 /* Alt+Up */
+#endif
+#ifndef KEY_ALT_DOWN
+#define KEY_ALT_DOWN 0xA01 /* Alt+Down */
+#endif
 #ifndef KEY_MOUSE_SGR
 #define KEY_MOUSE_SGR 0x80B
 #endif
@@ -185,6 +189,9 @@
 #define COL_TAGLINE 22
 #define COL_SEARCH_MATCH 23
 #define COL_SPELL_CURRENT 24
+#define COL_BRACKET_MATCH 25
+#define COL_CURRENT_LINE 26
+#define COL_GUIDE 27
 
 /* View states */
 typedef enum
@@ -343,17 +350,23 @@ struct UiApp
     void *thes_handle; /* opaque ThesHandle* */
 #endif
 
-#ifdef HAVE_TRANSLATE
-    void *translate_handle; /* TranslateHandle* (opaque) */
-    int translate_enabled;  /* mirrors cfg.translate_enabled; runtime toggle */
-    int translate_active;   /* translator active (manual toggle) */
+    /* Dictionary panel (always present; StarDict backend is optional) */
+    int show_dict;       /* 1 = panel visible */
+    char *dict_result;   /* malloc'd, NULL when empty */
+    char dict_word[128]; /* header label */
+    int dict_scroll;     /* first visible line of dict_result */
 
-    int show_dict;             /* 1 = panel visible */
-    char *dict_result;         /* malloc'd, NULL when empty */
-    char dict_word[128];       /* header label */
-    int dict_scroll;           /* first visible line of dict_result */
+#ifdef HAVE_TRANSLATE
+    void *translate_handle;    /* TranslateHandle* (opaque) */
+    int translate_enabled;     /* mirrors cfg.translate_enabled; runtime toggle */
+    int translate_active;      /* translator active (manual toggle) */
     int translate_http_inited; /* flag: http_client_init was called */
 #endif
+
+    /* Bracket matching: row/col of partner of bracket under cursor.
+     * -1 = no match. Recomputed each render */
+    int bracket_match_row;
+    int bracket_match_col;
 };
 
 /* Status and UI helpers */
@@ -447,6 +460,6 @@ void ui_draw_popup_frame(int y, int x, int h, int w, const char *title);
 
 void input_draw(InputState *state, int y, int x, int width, int is_active);
 void input_move_cursor(InputState *state, int y, int x, int width);
-int input_handle_key(InputState *state, int ch);
+int input_handle_key(InputState *state, int ch, int is_key);
 
 #endif /* UI_INTERNAL_H */

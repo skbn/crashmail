@@ -165,11 +165,18 @@ int pf_path_exists(const char *path)
     return 0;
 #elif defined(PLATFORM_WIN32)
     DWORD attr;
+    wchar_t *wpath = NULL;
 
     if (!path || !path[0])
         return 0;
 
-    attr = GetFileAttributesA(path);
+    wpath = pf_utf8_to_utf16(path);
+    if (!wpath)
+        return 0;
+
+    attr = GetFileAttributesW(wpath);
+
+    free(wpath);
     return (attr != INVALID_FILE_ATTRIBUTES) ? 1 : 0;
 #else
     struct stat st;
@@ -211,11 +218,19 @@ int pf_is_regular_file(const char *path)
     return res;
 #elif defined(PLATFORM_WIN32)
     DWORD attr;
+    wchar_t *wpath = NULL;
 
     if (!path || !path[0])
         return 0;
 
-    attr = GetFileAttributesA(path);
+    wpath = pf_utf8_to_utf16(path);
+
+    if (!wpath)
+        return 0;
+
+    attr = GetFileAttributesW(wpath);
+
+    free(wpath);
 
     if (attr == INVALID_FILE_ATTRIBUTES)
         return 0;
@@ -449,12 +464,22 @@ long pf_get_file_size(const char *path)
 #if defined(PLATFORM_WIN32)
     WIN32_FILE_ATTRIBUTE_DATA info;
     LARGE_INTEGER size;
+    wchar_t *wpath = NULL;
 
     if (!path || !path[0])
         return -1;
 
-    if (!GetFileAttributesExA(path, GetFileExInfoStandard, &info))
+    wpath = pf_utf8_to_utf16(path);
+    if (!wpath)
         return -1;
+
+    if (!GetFileAttributesExW(wpath, GetFileExInfoStandard, &info))
+    {
+        free(wpath);
+        return -1;
+    }
+
+    free(wpath);
 
     size.LowPart = info.nFileSizeLow;
     size.HighPart = info.nFileSizeHigh;
@@ -505,12 +530,23 @@ long pf_get_file_mtime(const char *path)
     WIN32_FILE_ATTRIBUTE_DATA info;
     FILETIME ft;
     ULARGE_INTEGER ull;
+    wchar_t *wpath = NULL;
 
     if (!path || !path[0])
         return 0;
 
-    if (!GetFileAttributesExA(path, GetFileExInfoStandard, &info))
+    wpath = pf_utf8_to_utf16(path);
+
+    if (!wpath)
         return 0;
+
+    if (!GetFileAttributesExW(wpath, GetFileExInfoStandard, &info))
+    {
+        free(wpath);
+        return 0;
+    }
+
+    free(wpath);
 
     ft = info.ftLastWriteTime;
     ull.LowPart = ft.dwLowDateTime;
@@ -561,29 +597,45 @@ long pf_get_file_mtime(const char *path)
 struct PfDir
 {
     HANDLE h;
-    WIN32_FIND_DATAA fd;
+    WIN32_FIND_DATAW fd;
     int started;
     int eod;
     char name[260];
 };
 
+static int pf_dir_skip_entry(const char *name)
+{
+    return (name[0] == '.' && (name[1] == '\0' || (name[1] == '.' && name[2] == '\0')));
+}
+
 PfDir *pf_dir_open(const char *path)
 {
     PfDir *d = NULL;
-    char pattern[300];
+    wchar_t *wpath = NULL;
+    wchar_t pattern[512];
 
     if (!path || !path[0])
         return NULL;
 
-    if ((size_t)snprintf(pattern, sizeof(pattern), "%s\\*", path) >= sizeof(pattern))
+    wpath = pf_utf8_to_utf16(path);
+
+    if (!wpath)
         return NULL;
+
+    if ((size_t)swprintf(pattern, sizeof(pattern) / sizeof(wchar_t), L"%s\\*", wpath) >= sizeof(pattern) / sizeof(wchar_t))
+    {
+        free(wpath);
+        return NULL;
+    }
+
+    free(wpath);
 
     d = (PfDir *)malloc(sizeof(*d));
 
     if (!d)
         return NULL;
 
-    d->h = FindFirstFileA(pattern, &d->fd);
+    d->h = FindFirstFileW(pattern, &d->fd);
 
     if (d->h == INVALID_HANDLE_VALUE)
     {
@@ -597,16 +649,18 @@ PfDir *pf_dir_open(const char *path)
     return d;
 }
 
-const char *pf_dir_next(PfDir *d)
+const char *pf_dir_next_entry(PfDir *d, int *is_dir)
 {
     if (!d || d->eod)
         return NULL;
 
     for (;;)
     {
+        char *name_utf8 = NULL;
+
         if (d->started)
         {
-            if (!FindNextFileA(d->h, &d->fd))
+            if (!FindNextFileW(d->h, &d->fd))
             {
                 d->eod = 1;
                 return NULL;
@@ -617,17 +671,37 @@ const char *pf_dir_next(PfDir *d)
             d->started = 1;
         }
 
-        if (d->fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+        if (wcscmp(d->fd.cFileName, L".") == 0 || wcscmp(d->fd.cFileName, L"..") == 0)
             continue;
 
-        if (d->fd.cFileName[0] == '.' && (d->fd.cFileName[1] == '\0' || (d->fd.cFileName[1] == '.' && d->fd.cFileName[2] == '\0')))
+        name_utf8 = pf_utf16_to_utf8(d->fd.cFileName);
+        if (!name_utf8)
             continue;
 
-        strncpy(d->name, d->fd.cFileName, sizeof(d->name) - 1);
+        strncpy(d->name, name_utf8, sizeof(d->name) - 1);
         d->name[sizeof(d->name) - 1] = '\0';
+
+        free(name_utf8);
+
+        if (is_dir)
+            *is_dir = (d->fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) ? 1 : 0;
 
         return d->name;
     }
+}
+
+const char *pf_dir_next(PfDir *d)
+{
+    int is_dir;
+    const char *name = NULL;
+
+    while ((name = pf_dir_next_entry(d, &is_dir)) != NULL)
+    {
+        if (!is_dir)
+            return name;
+    }
+
+    return NULL;
 }
 
 void pf_dir_close(PfDir *d)
@@ -692,21 +766,39 @@ PfDir *pf_dir_open(const char *path)
     return d;
 }
 
-const char *pf_dir_next(PfDir *d)
+const char *pf_dir_next_entry(PfDir *d, int *is_dir)
 {
     if (!d)
         return NULL;
 
     while (ExNext(d->lock, d->fib))
     {
-        if (d->fib->fib_DirEntryType > 0)
+        if (d->fib->fib_DirEntryType == 0)
             continue;
 
         strncpy(d->name, d->fib->fib_FileName, sizeof(d->name) - 1);
         d->name[sizeof(d->name) - 1] = '\0';
 
+        if (is_dir)
+            *is_dir = (d->fib->fib_DirEntryType > 0) ? 1 : 0;
+
         return d->name;
     }
+
+    return NULL;
+}
+
+const char *pf_dir_next(PfDir *d)
+{
+    int is_dir;
+    const char *name = NULL;
+
+    while ((name = pf_dir_next_entry(d, &is_dir)) != NULL)
+    {
+        if (!is_dir)
+            return name;
+    }
+
     return NULL;
 }
 
@@ -760,9 +852,9 @@ PfDir *pf_dir_open(const char *path)
     return d;
 }
 
-const char *pf_dir_next(PfDir *d)
+const char *pf_dir_next_entry(PfDir *d, int *is_dir)
 {
-    struct dirent *e;
+    struct dirent *e = NULL;
     struct stat st;
     char full[600];
     size_t bl;
@@ -794,13 +886,27 @@ const char *pf_dir_next(PfDir *d)
         if (stat(full, &st) != 0)
             continue;
 
-        if (!S_ISREG(st.st_mode))
-            continue;
+        if (is_dir)
+            *is_dir = S_ISDIR(st.st_mode) ? 1 : 0;
 
         strncpy(d->name, e->d_name, sizeof(d->name) - 1);
         d->name[sizeof(d->name) - 1] = '\0';
 
         return d->name;
+    }
+
+    return NULL;
+}
+
+const char *pf_dir_next(PfDir *d)
+{
+    int is_dir;
+    const char *name = NULL;
+
+    while ((name = pf_dir_next_entry(d, &is_dir)) != NULL)
+    {
+        if (!is_dir)
+            return name;
     }
 
     return NULL;
@@ -826,19 +932,29 @@ PfLockFile *pf_lock_create(const char *path)
     char buf[32];
     DWORD wrote;
     int n;
+    wchar_t *wpath = NULL;
 
     if (!path)
+        return NULL;
+
+    wpath = pf_utf8_to_utf16(path);
+
+    if (!wpath)
         return NULL;
 
     lk = (PfLockFile *)malloc(sizeof(*lk));
 
     if (!lk)
+    {
+        free(wpath);
         return NULL;
+    }
 
     strncpy(lk->path, path, sizeof(lk->path) - 1);
     lk->path[sizeof(lk->path) - 1] = '\0';
 
-    lk->handle = CreateFileA(path, GENERIC_WRITE, 0, NULL, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, NULL);
+    lk->handle = CreateFileW(wpath, GENERIC_WRITE, 0, NULL, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, NULL);
+    free(wpath);
 
     if (lk->handle == INVALID_HANDLE_VALUE)
     {
@@ -857,13 +973,22 @@ PfLockFile *pf_lock_create(const char *path)
 
 void pf_lock_release(PfLockFile *lk)
 {
+    wchar_t *wpath = NULL;
+
     if (!lk)
         return;
 
     if (lk->handle != INVALID_HANDLE_VALUE)
         CloseHandle(lk->handle);
 
-    DeleteFileA(lk->path);
+    wpath = pf_utf8_to_utf16(lk->path);
+
+    if (wpath)
+    {
+        DeleteFileW(wpath);
+        free(wpath);
+    }
+
     free(lk);
 }
 
@@ -990,7 +1115,17 @@ int pf_atomic_rename(const char *from, const char *to)
     if (!from || !to)
         return -1;
 
-    return MoveFileExA(from, to, MOVEFILE_REPLACE_EXISTING) ? 0 : -1;
+    wchar_t *wfrom = pf_utf8_to_utf16(from);
+    wchar_t *wto = pf_utf8_to_utf16(to);
+    int rc = -1;
+
+    if (wfrom && wto)
+        rc = MoveFileExW(wfrom, wto, MOVEFILE_REPLACE_EXISTING) ? 0 : -1;
+
+    free(wfrom);
+    free(wto);
+
+    return rc;
 }
 #elif defined(PLATFORM_AMIGA)
 
@@ -1016,7 +1151,21 @@ int pf_atomic_rename(const char *from, const char *to)
 #if defined(PLATFORM_WIN32)
 int pf_remove_file(const char *path)
 {
-    return (path && DeleteFileA(path)) ? 0 : -1;
+    wchar_t *wpath = NULL;
+    int rc;
+
+    if (!path)
+        return -1;
+
+    wpath = pf_utf8_to_utf16(path);
+
+    if (!wpath)
+        return -1;
+
+    rc = DeleteFileW(wpath) ? 0 : -1;
+
+    free(wpath);
+    return rc;
 }
 #elif defined(PLATFORM_AMIGA)
 
@@ -1036,11 +1185,19 @@ int pf_remove_file(const char *path)
 int pf_is_directory(const char *path)
 {
     DWORD attr;
+    wchar_t *wpath = NULL;
 
     if (!path || !path[0])
         return 0;
 
-    attr = GetFileAttributesA(path);
+    wpath = pf_utf8_to_utf16(path);
+
+    if (!wpath)
+        return 0;
+
+    attr = GetFileAttributesW(wpath);
+
+    free(wpath);
 
     if (attr == INVALID_FILE_ATTRIBUTES)
         return 0;
@@ -1059,6 +1216,7 @@ int pf_is_directory(const char *path)
         return 0;
 
     lock = Lock((STRPTR)path, ACCESS_READ);
+
     if (!lock)
         return 0;
 
@@ -1098,6 +1256,50 @@ int pf_is_directory(const char *path)
 
 #if defined(PLATFORM_WIN32)
 void pf_sleep_ms(unsigned ms) { Sleep((DWORD)ms); }
+
+wchar_t *pf_utf8_to_utf16(const char *s)
+{
+    int len = MultiByteToWideChar(CP_UTF8, 0, s, -1, NULL, 0);
+    wchar_t *w = NULL;
+
+    if (len <= 0)
+        return NULL;
+
+    w = (wchar_t *)malloc((size_t)len * sizeof(wchar_t));
+
+    if (!w)
+        return NULL;
+
+    if (MultiByteToWideChar(CP_UTF8, 0, s, -1, w, len) == 0)
+    {
+        free(w);
+        return NULL;
+    }
+
+    return w;
+}
+
+char *pf_utf16_to_utf8(const wchar_t *w)
+{
+    int len = WideCharToMultiByte(CP_UTF8, 0, w, -1, NULL, 0, NULL, NULL);
+    char *s = NULL;
+
+    if (len <= 0)
+        return NULL;
+
+    s = (char *)malloc((size_t)len);
+
+    if (!s)
+        return NULL;
+
+    if (WideCharToMultiByte(CP_UTF8, 0, w, -1, s, len, NULL, NULL) == 0)
+    {
+        free(s);
+        return NULL;
+    }
+
+    return s;
+}
 
 #elif defined(PLATFORM_AMIGA)
 void pf_sleep_ms(unsigned ms)
@@ -1272,3 +1474,137 @@ char *port_sanitize_filename(const char *utf8_name)
     return ascii_buf;
 }
 #endif
+
+static int pf_is_word_sep_wc(wchar_t c)
+{
+    if (c == L' ' || c == L'\t' || c == L'\n' || c == L'\r' || c == L'\f' || c == L'\v')
+        return 1;
+
+    /* ASCII punctuation */
+    if (c == L'.' || c == L',' || c == L';' || c == L':' || c == L'!' ||
+        c == L'?' || c == L'(' || c == L')' || c == L'[' || c == L']' ||
+        c == L'{' || c == L'}' || c == L'"' || c == L'\'' || c == L'<' ||
+        c == L'>' || c == L'/' || c == L'\\' || c == L'|' || c == L'`' ||
+        c == L'@' || c == L'#' || c == L'%' || c == L'^' || c == L'&' ||
+        c == L'*' || c == L'+' || c == L'=' || c == L'~')
+        return 1;
+
+    /* Unicode dashes / spaces commonly seen */
+    if (c == 0x00A0 || c == 0x2013 || c == 0x2014 || c == 0x2018 ||
+        c == 0x2019 || c == 0x201C || c == 0x201D)
+        return 1;
+
+    return 0;
+}
+
+int pf_count_words_wcs(const wchar_t *s, int n)
+{
+    int count = 0;
+    int in_word = 0;
+    int i;
+
+    if (!s || n <= 0)
+        return 0;
+
+    for (i = 0; i < n; i++)
+    {
+        if (pf_is_word_sep_wc(s[i]))
+        {
+            in_word = 0;
+        }
+        else if (!in_word)
+        {
+            in_word = 1;
+            count++;
+        }
+    }
+
+    return count;
+}
+
+int pf_count_words_utf8(const char *s)
+{
+    int count = 0;
+    int in_word = 0;
+
+    if (!s)
+        return 0;
+
+    while (*s)
+    {
+        unsigned char c = (unsigned char)*s;
+
+        /* Approximate UTF-8 word counting (high-bit bytes = word chars) */
+        if (c < 0x80)
+        {
+            if (c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\f' || c == '\v' ||
+                c == '.' || c == ',' || c == ';' || c == ':' || c == '!' || c == '?' ||
+                c == '(' || c == ')' || c == '[' || c == ']' || c == '{' || c == '}' ||
+                c == '"' || c == '\'' || c == '<' || c == '>' || c == '/' || c == '\\' ||
+                c == '|' || c == '`' || c == '@' || c == '#' || c == '%' || c == '^' ||
+                c == '&' || c == '*' || c == '+' || c == '=' || c == '~')
+            {
+                in_word = 0;
+                s++;
+                continue;
+            }
+        }
+
+        if (!in_word)
+        {
+            in_word = 1;
+            count++;
+        }
+
+        s++;
+    }
+
+    return count;
+}
+
+int pf_atomic_write(const char *path, const void *data, long len)
+{
+    char tmp[1024];
+    FILE *f = NULL;
+    size_t plen;
+
+    if (!path || !data || len < 0)
+        return -1;
+
+    plen = strlen(path);
+
+    if (plen + 5 >= sizeof(tmp))
+        return -1;
+
+    memcpy(tmp, path, plen);
+    memcpy(tmp + plen, ".tmp", 5); /* includes NUL */
+
+    f = fopen(tmp, "wb");
+
+    if (!f)
+        return -1;
+
+    if (len > 0)
+    {
+        if (fwrite(data, 1, (size_t)len, f) != (size_t)len)
+        {
+            fclose(f);
+            pf_remove_file(tmp);
+            return -1;
+        }
+    }
+
+    if (fclose(f) != 0)
+    {
+        pf_remove_file(tmp);
+        return -1;
+    }
+
+    if (pf_atomic_rename(tmp, path) != 0)
+    {
+        pf_remove_file(tmp);
+        return -1;
+    }
+
+    return 0;
+}

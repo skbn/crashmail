@@ -38,6 +38,7 @@ int s_soft_desired_vcol = -1;
 int s_soft_last_width = 80;
 
 int s_soft_vtop = 0;
+int s_tab_width = 4; /* visual tab stop width, copied from config */
 
 void soft_reset_desired(void)
 {
@@ -73,24 +74,37 @@ void soft_reset_desired(void)
 int wrap_next(const wchar_t *line, int len, int width, int start)
 {
     int vcol = 0;
+    int col = 0;
     int k = start;
     int hard_end;
+    int tab_width = s_tab_width > 0 ? s_tab_width : 4;
 
     if (width < 1)
         width = 1;
 
+    /* col = absolute visual column; vcol = width within this segment */
+    if (start > 0 && start <= len)
+        col = wcs_vwidth_ex(line, start, 0, tab_width);
+
     /* Walk forward from start, accumulating visual width with wcswidth */
     while (k < len)
     {
-        int w = wcswidth(&line[k], 1);
+        int w = 1;
 
-        if (w <= 0)
-            w = 1; /* control/zero-width -> 1 */
+        if (line[k] == L'\t')
+            w = tab_width - (col % tab_width);
+        else
+        {
+            w = wcswidth(&line[k], 1);
+            if (w <= 0)
+                w = 1; /* control/zero-width -> 1 */
+        }
 
         if (vcol + w > width)
             break;
 
         vcol += w;
+        col += w;
         k++;
     }
 
@@ -379,7 +393,8 @@ int soft_cursor_vcol(Ed *ed, int width)
     if (n > len - seg_start)
         n = len - seg_start;
 
-    return wcs_vwidth(&l[seg_start], n);
+    /* start_col must be 0 for soft-wrap sub-row consistency */
+    return wcs_vwidth_ex(&l[seg_start], n, 0, s_tab_width);
 }
 
 /* Number of visual rows between (a_line, a_sub) and (b_line, b_sub), returns positive if b is after a, negative if before */
@@ -569,7 +584,7 @@ static void soft_set_cursor_at(Ed *ed, int width, int line, int sub, int desired
     {
         for (i = seg_start; i < seg_end; i++)
         {
-            int w = 1; /* crashedit's wrap uses 1-col-per-wchar model */
+            int w = wcs_vwidth_ex(&l[i], 1, v, s_tab_width);
 
             if (v + w > desired_vcol)
                 break;
@@ -848,7 +863,7 @@ int ui_editor_screen_to_logical(UiApp *app, int width, int screen_y, int screen_
 
         for (j = 0; j < len; j++)
         {
-            cw = wcs_vwidth(&l[j], 1);
+            cw = wcs_vwidth_ex(&l[j], 1, acc_w, s_tab_width);
 
             if (acc_w + cw > screen_x)
                 break;
@@ -887,7 +902,7 @@ int ui_editor_screen_to_logical(UiApp *app, int width, int screen_y, int screen_
             /* Walk char by char, summing visual width until we exceed screen_x */
             for (j = seg_start; j < seg_end; j++)
             {
-                cw = wcs_vwidth(&l[j], 1);
+                cw = wcs_vwidth_ex(&l[j], 1, acc_w, s_tab_width);
 
                 if (acc_w + cw > screen_x)
                     break;

@@ -53,8 +53,67 @@
 #include <ncurses.h>
 #endif
 
+/* Describes the two halves of a hyphen-split word across two lines */
+typedef struct
+{
+    int first_row;
+    int first_start;
+    int first_hyphen; /* column of the '-' on first_row */
+    int second_row;
+    int second_start;
+    int second_end;
+    wchar_t joined[512];
+    int joined_len;
+} HyphenSplit;
+
 /* Sentinel: add word to custom dictionary instead of replace */
 #define UI_SPELL_ADD_TO_DICT (-2)
+
+/* Truncate UTF-8 string to max_cols display columns, appending "..." if needed */
+static char *truncate_utf8_cols(const char *s, int max_cols)
+{
+    wchar_t *w = NULL;
+    char *out = NULL;
+    int wlen;
+    int width;
+    int i;
+
+    if (!s || !*s || max_cols <= 0)
+        return NULL;
+
+    w = utf8_to_wcs(s, &wlen);
+
+    if (!w)
+        return NULL;
+
+    width = wcswidth(w, wlen);
+
+    if (width <= max_cols)
+    {
+        out = wcs_to_utf8(w, wlen);
+        free(w);
+        return out;
+    }
+
+    if (max_cols < 3)
+        max_cols = 3;
+
+    for (i = wlen; i > 0; i--)
+    {
+        if (wcswidth(w, i) <= max_cols - 3)
+            break;
+    }
+
+    w[i] = L'.';
+    w[i + 1] = L'.';
+    w[i + 2] = L'.';
+    w[i + 3] = L'\0';
+
+    out = wcs_to_utf8(w, (int)wcslen(w));
+
+    free(w);
+    return out;
+}
 
 static void spell_panel_geometry(int *x, int *y, int *w, int *h)
 {
@@ -78,15 +137,15 @@ void ui_spell_draw_panel(UiApp *app)
 {
     int x, y, w, h;
     int j;
+    int row;
 
     if (!app || !app->show_spell)
         return;
 
     spell_panel_geometry(&x, &y, &w, &h);
 
+    /* Title bar in popup color */
     standend();
-
-    /* Background */
     attron(COLOR_PAIR(COL_POPUP));
 
     for (j = 0; j < w; j++)
@@ -97,19 +156,45 @@ void ui_spell_draw_panel(UiApp *app)
     if (!app->spell_handle)
     {
         mvprintw(y, x + 2, "[ Spell ] Dictionary not loaded. Configure in setup.");
+
+        /* Content area in normal colors */
+        standend();
+
+        for (row = 1; row < h; row++)
+        {
+            for (j = 0; j < w; j++)
+                mvaddch(y + row, x + j, ' ');
+        }
     }
     else if (app->spell_current_word[0])
     {
         char *u8 = NULL;
+        char *u8_disp = NULL;
         const char *status_txt;
         int status_col;
+        int word_max = w - 19;
+
+        if (word_max < 1)
+            word_max = 1;
 
         u8 = wcs_to_utf8(app->spell_current_word, (int)wcslen(app->spell_current_word));
 
         if (u8)
         {
-            mvprintw(y, x + 2, "[ Spell ] Word: %s", u8);
+            u8_disp = truncate_utf8_cols(u8, word_max);
+            mvprintw(y, x + 2, "[ Spell ] Word: %s", u8_disp ? u8_disp : u8);
+
+            free(u8_disp);
             free(u8);
+        }
+
+        /* Content area in normal colors */
+        standend();
+
+        for (row = 1; row < h; row++)
+        {
+            for (j = 0; j < w; j++)
+                mvaddch(y + row, x + j, ' ');
         }
 
         if (app->spell_word_status == 1)
@@ -128,32 +213,49 @@ void ui_spell_draw_panel(UiApp *app)
             status_col = COL_NORMAL;
         }
 
-        attroff(COLOR_PAIR(COL_POPUP));
         attron(COLOR_PAIR(status_col));
-
         mvprintw(y + 1, x + 2, "Status: %s", status_txt);
-
         attroff(COLOR_PAIR(status_col));
-        attron(COLOR_PAIR(COL_POPUP));
 
         if (app->spell_word_status == 2)
         {
+            attron(COLOR_PAIR(COL_NORMAL));
             mvprintw(y + 2, x + 2, "Suggestions: %d (Alt+W to choose)", app->spell_suggestion_count);
 
             if (app->spell_suggestion_count == 0)
                 mvprintw(y + 3, x + 2, "Not in database?");
+
+            attroff(COLOR_PAIR(COL_NORMAL));
         }
     }
     else
     {
         mvprintw(y, x + 2, "[ Spell ] Move cursor to a word and press Alt+W to check it.");
+
+        /* Content area in normal colors */
+        standend();
+
+        for (row = 1; row < h; row++)
+        {
+            for (j = 0; j < w; j++)
+                mvaddch(y + row, x + j, ' ');
+        }
     }
 
 #else
     mvprintw(y, x + 2, "[ Spell ] Built without Hunspell support.");
+
+    /* Content area in normal colors */
+    standend();
+
+    for (row = 1; row < h; row++)
+    {
+        for (j = 0; j < w; j++)
+            mvaddch(y + row, x + j, ' ');
+    }
 #endif
 
-    attroff(COLOR_PAIR(COL_POPUP));
+    standend();
 }
 
 #ifdef HAVE_HUNSPELL
@@ -310,18 +412,150 @@ static int ui_spell_suggest_popup(const char *word, char **suggestions, int coun
     return -1;
 }
 
+/* Detect if the word under the cursor is one half of a hyphen-split word */
+static int hyphen_split_find_cm(UiApp *app, Ed *ed, EdInfo *info, const wchar_t *line, int line_len, int word_start, int word_end, HyphenSplit *hs)
+{
+    int word_len = word_end - word_start;
+    int i;
+
+    if (!app || !app->spell_handle || !ed || !info || !line || !hs)
+        return 0;
+
+    if (word_len <= 0 || word_len >= 256)
+        return 0;
+
+    memset(hs, 0, sizeof(*hs));
+
+    /* Hyphen at EOL followed by lowercase word */
+    if (word_end < line_len && line[word_end] == L'-' && word_end + 1 == line_len && info->row + 1 < info->line_count)
+    {
+        const wchar_t *next_line = ed_line_wcs(ed, info->row + 1);
+
+        if (next_line)
+        {
+            int next_len = ed_line_len(ed, info->row + 1);
+            int next_end = 0;
+            int j;
+
+            while (next_end < next_len && te_is_word_char_ex(app->spell_handle, next_line[next_end]))
+                next_end++;
+
+            /* Continuation must start lowercase */
+            if (next_end > 0 && iswlower((wint_t)next_line[0]))
+            {
+                hs->first_row = info->row;
+                hs->first_start = word_start;
+                hs->first_hyphen = word_end;
+                hs->second_row = info->row + 1;
+                hs->second_start = 0;
+                hs->second_end = next_end;
+
+                for (i = 0; i < word_len && hs->joined_len < 510; i++)
+                    hs->joined[hs->joined_len++] = line[word_start + i];
+
+                for (j = 0; j < next_end && hs->joined_len < 510; j++)
+                    hs->joined[hs->joined_len++] = next_line[j];
+
+                hs->joined[hs->joined_len] = L'\0';
+
+                return 1;
+            }
+        }
+
+        return 0;
+    }
+
+    /* Word at column 0 preceded by "word-" on previous line */
+    if (word_start == 0 && info->row > 0 && word_end > 0 && iswlower((wint_t)line[0]))
+    {
+        const wchar_t *prev_line = ed_line_wcs(ed, info->row - 1);
+
+        if (prev_line)
+        {
+            int prev_len = ed_line_len(ed, info->row - 1);
+
+            if (prev_len >= 2 && prev_line[prev_len - 1] == L'-')
+            {
+                int prev_word_end = prev_len - 1;
+                int prev_word_start = prev_word_end;
+                int j;
+
+                while (prev_word_start > 0 && te_is_word_char_ex(app->spell_handle, prev_line[prev_word_start - 1]))
+                    prev_word_start--;
+
+                if (prev_word_end > prev_word_start)
+                {
+                    hs->first_row = info->row - 1;
+                    hs->first_start = prev_word_start;
+                    hs->first_hyphen = prev_len - 1;
+                    hs->second_row = info->row;
+                    hs->second_start = word_start;
+                    hs->second_end = word_end;
+
+                    for (j = prev_word_start; j < prev_word_end && hs->joined_len < 510; j++)
+                        hs->joined[hs->joined_len++] = prev_line[j];
+
+                    for (i = 0; i < word_len && hs->joined_len < 510; i++)
+                        hs->joined[hs->joined_len++] = line[word_start + i];
+
+                    hs->joined[hs->joined_len] = L'\0';
+
+                    return 1;
+                }
+            }
+        }
+    }
+
+    return 0;
+}
+
+/* Replace hyphen-split word with suggestion */
+static void hyphen_split_replace_cm(Ed *ed, const HyphenSplit *hs, const wchar_t *suggestion, int suggestion_len)
+{
+    int i;
+
+    if (!ed || !hs || !suggestion || suggestion_len <= 0)
+        return;
+
+    ed_save_undo(ed);
+
+    /* Delete second half on second_row */
+    ed_set_pos(ed, hs->second_row, hs->second_start);
+
+    for (i = 0; i < hs->second_end - hs->second_start; i++)
+        ed_delete(ed);
+
+    /* Delete first half and hyphen on first_row */
+    ed_set_pos(ed, hs->first_row, hs->first_start);
+
+    for (i = 0; i < hs->first_hyphen + 1 - hs->first_start; i++)
+        ed_delete(ed);
+
+    /* Insert suggestion at first_row, first_start */
+    for (i = 0; i < suggestion_len; i++)
+        ed_insert_char(ed, suggestion[i]);
+
+    /* Join first_row with the following line (which now holds the remainder) */
+    ed_set_pos(ed, hs->first_row, hs->first_start + suggestion_len);
+    ed_delete(ed);
+}
+
 int ui_spell_check_word_at_cursor(UiApp *app)
 {
     Ed *ed = NULL;
     EdInfo info;
-    const wchar_t *line;
+    const wchar_t *line = NULL;
     int line_len, ws, we, i;
     wchar_t wbuf[256];
     char *u8 = NULL;
+    char *joined_buf = NULL;
+    char *check_buf = NULL;
     int correct;
     char **sugs = NULL;
     int n_sugs, sel, sug_len;
     wchar_t *sug_wcs = NULL;
+    HyphenSplit hs;
+    int is_hyphen_split = 0;
 
     if (!app || !app->editor || !app->spell_handle)
         return 0;
@@ -361,21 +595,48 @@ int ui_spell_check_word_at_cursor(UiApp *app)
 
     wbuf[we - ws] = L'\0';
 
-    /* Stash for panel */
-    if ((we - ws) < (int)(sizeof(app->spell_current_word) / sizeof(app->spell_current_word[0])))
-    {
-        wcsncpy(app->spell_current_word, wbuf, sizeof(app->spell_current_word) / sizeof(app->spell_current_word[0]) - 1);
-        app->spell_current_word[sizeof(app->spell_current_word) / sizeof(app->spell_current_word[0]) - 1] = L'\0';
-    }
-
-    app->show_spell = 1;
-
     u8 = wcs_to_utf8(wbuf, we - ws);
 
     if (!u8)
         return 0;
 
-    correct = spell_check(app->spell_handle, u8);
+    check_buf = u8;
+
+    /* Join hyphen-split halves for spell checking */
+    if (hyphen_split_find_cm(app, ed, &info, line, line_len, ws, we, &hs))
+    {
+        joined_buf = wcs_to_utf8(hs.joined, hs.joined_len);
+
+        if (joined_buf)
+        {
+            is_hyphen_split = 1;
+            check_buf = joined_buf;
+        }
+    }
+
+    /* Stash for panel */
+    if (is_hyphen_split)
+    {
+        if (hs.joined_len < (int)(sizeof(app->spell_current_word) / sizeof(app->spell_current_word[0])))
+        {
+            for (i = 0; i < hs.joined_len; i++)
+                app->spell_current_word[i] = hs.joined[i];
+
+            app->spell_current_word[hs.joined_len] = L'\0';
+        }
+    }
+    else
+    {
+        if ((we - ws) < (int)(sizeof(app->spell_current_word) / sizeof(app->spell_current_word[0])))
+        {
+            wcsncpy(app->spell_current_word, wbuf, sizeof(app->spell_current_word) / sizeof(app->spell_current_word[0]) - 1);
+            app->spell_current_word[sizeof(app->spell_current_word) / sizeof(app->spell_current_word[0]) - 1] = L'\0';
+        }
+    }
+
+    app->show_spell = 1;
+
+    correct = spell_check(app->spell_handle, check_buf);
 
     if (correct)
     {
@@ -389,9 +650,10 @@ int ui_spell_check_word_at_cursor(UiApp *app)
             app->spell_suggestion_count = 0;
         }
 
-        ui_status(app, "'%s' is correct", u8);
+        ui_status(app, "'%s' is correct", check_buf);
 
         free(u8);
+        free(joined_buf);
         return 1;
     }
 
@@ -406,7 +668,7 @@ int ui_spell_check_word_at_cursor(UiApp *app)
         app->spell_suggestion_count = 0;
     }
 
-    sugs = spell_suggest(app->spell_handle, u8, &n_sugs);
+    sugs = spell_suggest(app->spell_handle, check_buf, &n_sugs);
 
     /* No suggestions: offer Add directly */
     if (!sugs || n_sugs == 0)
@@ -416,44 +678,45 @@ int ui_spell_check_word_at_cursor(UiApp *app)
         if (sugs)
             spell_free_suggestions(app->spell_handle, sugs, n_sugs);
 
-        snprintf(prompt, sizeof(prompt), "Add \"%s\" to your custom dictionary?", u8);
+        snprintf(prompt, sizeof(prompt), "Add \"%s\" to your custom dictionary?", check_buf);
 
         if (ui_popup_confirm("Unknown word", prompt) == 1)
         {
-            if (spell_add_to_custom_dict(app->spell_handle, u8, app->cfg->spell_custom_dict) == 0)
+            if (spell_add_to_custom_dict(app->spell_handle, check_buf, app->cfg->spell_custom_dict) == 0)
             {
                 app->spell_word_status = 1;
-                ui_status(app, "Added '%s' to dictionary", u8);
+                ui_status(app, "Added '%s' to dictionary", check_buf);
             }
             else
             {
-                ui_status(app, "Failed to add '%s'", u8);
+                ui_status(app, "Failed to add '%s'", check_buf);
             }
         }
         else
         {
-            ui_status(app, "No suggestions for '%s'", u8);
+            ui_status(app, "No suggestions for '%s'", check_buf);
         }
 
         free(u8);
+        free(joined_buf);
         return 1;
     }
 
     app->spell_suggestions = sugs;
     app->spell_suggestion_count = n_sugs;
 
-    sel = ui_spell_suggest_popup(u8, sugs, n_sugs);
+    sel = ui_spell_suggest_popup(check_buf, sugs, n_sugs);
 
     if (sel == UI_SPELL_ADD_TO_DICT)
     {
-        if (spell_add_to_custom_dict(app->spell_handle, u8, app->cfg->spell_custom_dict) == 0)
+        if (spell_add_to_custom_dict(app->spell_handle, check_buf, app->cfg->spell_custom_dict) == 0)
         {
             app->spell_word_status = 1;
-            ui_status(app, "Added '%s' to dictionary", u8);
+            ui_status(app, "Added '%s' to dictionary", check_buf);
         }
         else
         {
-            ui_status(app, "Failed to add '%s'", u8);
+            ui_status(app, "Failed to add '%s'", check_buf);
         }
     }
     else if (sel >= 0 && sel < n_sugs)
@@ -462,16 +725,25 @@ int ui_spell_check_word_at_cursor(UiApp *app)
 
         if (sug_wcs)
         {
-            ed_save_undo(ed);
-            ed_set_pos(ed, info.row, ws);
+            if (is_hyphen_split)
+            {
+                hyphen_split_replace_cm(ed, &hs, sug_wcs, sug_len);
+                ui_status(app, "Replaced hyphenated word with '%s'", sugs[sel]);
+            }
+            else
+            {
+                ed_save_undo(ed);
+                ed_set_pos(ed, info.row, ws);
 
-            for (i = 0; i < (we - ws); i++)
-                ed_delete(ed);
+                for (i = 0; i < (we - ws); i++)
+                    ed_delete(ed);
 
-            for (i = 0; i < sug_len; i++)
-                ed_insert_char(ed, sug_wcs[i]);
+                for (i = 0; i < sug_len; i++)
+                    ed_insert_char(ed, sug_wcs[i]);
 
-            ui_status(app, "Replaced with '%s'", sugs[sel]);
+                ui_status(app, "Replaced with '%s'", sugs[sel]);
+            }
+
             free(sug_wcs);
 
             app->spell_word_status = 1;
@@ -479,6 +751,7 @@ int ui_spell_check_word_at_cursor(UiApp *app)
     }
 
     free(u8);
+    free(joined_buf);
 
     /* Release suggestions */
     spell_free_suggestions(app->spell_handle, app->spell_suggestions, app->spell_suggestion_count);

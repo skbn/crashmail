@@ -163,6 +163,7 @@ static int search_params_popup(UiApp *app, char *pattern, int patternsz, int *op
         int i, j;
         int row;
         wint_t wch;
+        int is_key;
         const char *t;
         int tl, tx;
         int fieldx, fieldw;
@@ -315,6 +316,7 @@ static int search_params_popup(UiApp *app, char *pattern, int patternsz, int *op
         refresh();
 
         rc = wrapper_read_key(&wch);
+        is_key = (rc == KEY_CODE_YES);
 
         if (rc == ERR)
             continue;
@@ -362,7 +364,7 @@ static int search_params_popup(UiApp *app, char *pattern, int patternsz, int *op
         switch (field)
         {
         case 0:
-            input_handle_key(&pat_state, (int)wch);
+            input_handle_key(&pat_state, (int)wch, is_key);
             break;
 
         case 4:

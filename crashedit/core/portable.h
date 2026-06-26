@@ -33,6 +33,7 @@ typedef struct PfLockFile PfLockFile;
 
 PfDir *pf_dir_open(const char *path);
 const char *pf_dir_next(PfDir *d);
+const char *pf_dir_next_entry(PfDir *d, int *is_dir);
 void pf_dir_close(PfDir *d);
 
 PfLockFile *pf_lock_create(const char *path);
@@ -65,9 +66,22 @@ int pf_is_wildcard(const char *s);
 
 void pf_sleep_ms(unsigned ms);
 
+/* Word counting helpers */
+int pf_count_words_wcs(const wchar_t *s, int n);
+int pf_count_words_utf8(const char *s);
+
+/* Atomic write (tmp + rename) */
+int pf_atomic_write(const char *path, const void *data, long len);
+
 #ifdef PLATFORM_AMIGA
 /* Sanitize UTF-8 filename to ASCII for AmigaOS filesystem */
 char *port_sanitize_filename(const char *utf8_name);
+#endif
+
+#ifdef PLATFORM_WIN32
+/* Convert UTF-8 <-> UTF-16 for Windows Unicode API calls (caller frees result) */
+wchar_t *pf_utf8_to_utf16(const char *s);
+char *pf_utf16_to_utf8(const wchar_t *w);
 #endif
 
 #endif

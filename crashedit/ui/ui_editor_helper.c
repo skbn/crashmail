@@ -55,6 +55,87 @@ int wcs_vwidth(const wchar_t *s, int n)
     return v;
 }
 
+/* Draw wide string with tab expansion */
+void ui_draw_wcs_line_with_tabs(int y, int x, const wchar_t *s, int n, int tab_width)
+{
+    int i;
+    int col = 0;
+    int out_len = 0;
+    wchar_t buf[4096];
+    int max_len = (int)(sizeof(buf) / sizeof(buf[0]));
+
+    if (!s || n <= 0 || tab_width < 1)
+        return;
+
+    if (n > max_len / 2)
+        n = max_len / 2;
+
+    for (i = 0; i < n && out_len < max_len - 1; i++)
+    {
+        if (s[i] == L'\t')
+        {
+            int w = tab_width - (col % tab_width);
+            int j;
+
+            for (j = 0; j < w && out_len < max_len - 1; j++)
+            {
+                buf[out_len] = L' ';
+                out_len++;
+            }
+
+            col += w;
+        }
+        else
+        {
+            int w = wcswidth(&s[i], 1);
+
+            if (w <= 0)
+                w = 1;
+
+            buf[out_len] = s[i];
+
+            out_len++;
+            col += w;
+        }
+    }
+
+    mvaddnwstr(y, x, buf, out_len);
+}
+
+/* Visual width with tab-stop support */
+int wcs_vwidth_ex(const wchar_t *s, int n, int start_col, int tab_width)
+{
+    int v = 0;
+    int col = start_col;
+    int i;
+
+    if (!s || n <= 0 || tab_width < 1)
+        return 0;
+
+    for (i = 0; i < n; i++)
+    {
+        if (s[i] == L'\t')
+        {
+            int w = tab_width - (col % tab_width);
+
+            v += w;
+            col += w;
+        }
+        else
+        {
+            int w = wcswidth(&s[i], 1);
+
+            if (w <= 0)
+                w = 1;
+
+            v += w;
+            col += w;
+        }
+    }
+
+    return v;
+}
+
 /* Effective wrap column, clamp AUTOWRAP to COLS-1, 0=disabled */
 int editor_eff_wrap(const UiApp *app)
 {
@@ -71,4 +152,32 @@ int editor_eff_wrap(const UiApp *app)
         return limit; /* Clamp to screen width */
 
     return cfgw;
+}
+
+/* Left margin for editor body with line numbers */
+int editor_body_offset(const UiApp *app, int line_count)
+{
+    int margin = 1;
+    int tab_width;
+
+    if (!app || !app->cfg || !app->cfg->show_line_numbers)
+        return 0;
+
+    if (line_count <= 0)
+        line_count = 1;
+
+    while (line_count >= 10)
+    {
+        line_count /= 10;
+        margin++;
+    }
+
+    margin += 1; /* space after the number */
+
+    tab_width = app->cfg->tab_width > 0 ? app->cfg->tab_width : 4;
+
+    /* Round up to the next multiple of tab_width */
+    margin = ((margin + tab_width - 1) / tab_width) * tab_width;
+
+    return margin;
 }

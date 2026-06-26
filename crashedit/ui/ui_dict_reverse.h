@@ -22,31 +22,20 @@
  * General Public License v2.1. See src/jamlib/LICENSE for details.
  */
 
-#ifndef UI_EDITOR_PASTE_H
-#define UI_EDITOR_PASTE_H
+#ifndef UI_DICT_REVERSE_H
+#define UI_DICT_REVERSE_H
 
 #include "ui.h"
 
-/* Word-wrap UTF-8 paste to col columns */
-int paste_char_width(wchar_t c);
+#ifdef __cplusplus
+extern "C"
+{
+#endif
 
-/* Hyphenation callback for wrap_paste_text_ex */
-typedef int (*PasteHyphFn)(void *user_data, const char *word_utf8, int word_byte_len, int *out_byte_pos, int *out_count);
+    int ui_dict_reverse(UiApp *app);
 
-/* Word-wrap UTF-8 paste to col columns (space-only) */
-char *wrap_paste_text(const char *utf8, int col, int tab_width);
-char *wrap_paste_text_ex(const char *utf8, int col, int tab_width, PasteHyphFn hyph, void *hyph_data);
+#ifdef __cplusplus
+}
+#endif
 
-/* Mouse SGR sequence parser for SSH terminals */
-int parse_sgr_mouse(int *out_type, int *out_x, int *out_y);
-
-/* Read characters until KEY_PASTE_END */
-char *collect_bracketed_paste(void);
-
-/* Detect rapid paste (fallback for no bracketed paste) */
-char *collect_rapid_paste(wint_t first_wch);
-
-/* Paste UTF-8 buffer at cursor */
-void deliver_paste(UiApp *app, const char *utf8);
-
-#endif /* UI_EDITOR_PASTE_H */
+#endif /* UI_DICT_REVERSE_H */

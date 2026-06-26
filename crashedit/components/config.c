@@ -41,6 +41,40 @@ typedef struct
     int done; /* set once written, so the append pass skips it */
 } CfgKV;
 
+/* Append one key/value pair to a dynamically-growing CfgKV array */
+static int kv_append(CfgKV **kv, int *nkv, int *cap, const char *key, const char *val)
+{
+    size_t _n;
+
+    if (*nkv >= *cap)
+    {
+        int new_cap = *cap ? *cap * 2 : 64;
+        CfgKV *new_kv = (CfgKV *)realloc(*kv, (size_t)new_cap * sizeof(CfgKV));
+
+        if (!new_kv)
+            return -1;
+
+        *kv = new_kv;
+        *cap = new_cap;
+    }
+
+    _n = strlen(val);
+
+    if (_n >= CFG_STR_MAX)
+        _n = CFG_STR_MAX - 1;
+
+    (*kv)[*nkv].key = key;
+
+    memcpy((*kv)[*nkv].val, val, _n);
+
+    (*kv)[*nkv].val[_n] = '\0';
+    (*kv)[*nkv].done = 0;
+
+    (*nkv)++;
+
+    return 0;
+}
+
 static void strip_trailing(char *s)
 {
     int len = (int)strlen(s);
@@ -392,6 +426,15 @@ static int pair_by_name(const char *s)
     if (strcasecmp(s, "SPELLCURRENT") == 0)
         return 24;
 
+    if (strcasecmp(s, "BRACKETMATCH") == 0)
+        return 25;
+
+    if (strcasecmp(s, "CURRENTLINE") == 0)
+        return 26;
+
+    if (strcasecmp(s, "GUIDES") == 0)
+        return 27;
+
     return -1;
 }
 
@@ -448,12 +491,25 @@ void cfg_defaults(CrashEditCfg *cfg)
     cfg->quotemargin = 75;
     cfg->hard_wrap = 0;
     cfg->show_line_numbers = 0;
+    cfg->show_whitespace = 0;
+    cfg->show_brackets = 0;
+    cfg->tab_width = 4;
+    cfg->highlight_line = 0;
+    cfg->word_count = 0;
+    cfg->autoclose = 0;
+    cfg->smart_indent = 0;
+    cfg->ruler_col = 0;
+    cfg->indent_guides = 0;
+    cfg->wrap_indicator = 0;
     cfg->mouse_enabled = 1;
 
     /* Editor assists default OFF -- user opts in via setup */
     cfg->assist_smart_quotes = 0;
     cfg->assist_auto_cap = 0;
     cfg->assist_repeat_check = 0;
+
+    /* Word movement: 0=standard, 1=vim-like (non-space blocks) */
+    cfg->word_move_mode = 0;
 
     /* OFF by default */
     cfg->greeting = 0;
@@ -471,8 +527,6 @@ void cfg_defaults(CrashEditCfg *cfg)
     strncpy(cfg->signature_text, "%f", sizeof(cfg->signature_text) - 1);
     cfg->signature_text[sizeof(cfg->signature_text) - 1] = '\0';
 
-    /* Color defaults: mirror original hardcoded init_pair() calls
-     * ncurses: 0=black 1=red 2=green 3=yellow 4=blue 5=magenta 6=cyan 7=white */
     for (i = 0; i < CFG_COLOR_MAX; i++)
     {
         cfg->color_fg[i] = 7; /* white on black fallback */
@@ -576,8 +630,19 @@ void cfg_defaults(CrashEditCfg *cfg)
     cfg->color_fg[24] = 7;
     cfg->color_bg[24] = 5;
 
-    /* Cursor color: -1 = don't override (use terminal default on Linux,
-     * pen 1 on Amiga). User can set CURSORCOLOR in config */
+    /*25 COL_BRACKET_MATCH */
+    cfg->color_fg[25] = 0;
+    cfg->color_bg[25] = 3;
+
+    /*26 COL_CURRENT_LINE */
+    cfg->color_fg[26] = 7;
+    cfg->color_bg[26] = 4;
+
+    /*27 COL_GUIDE */
+    cfg->color_fg[27] = 6;
+    cfg->color_bg[27] = 0;
+
+    /* Cursor color: -1 = don't override (use terminal default on Linux, pen 1 on Amiga). User can set CURSORCOLOR in config */
     cfg->cursor_color = -1;
     cfg->cursor_color_rgb[0] = '\0';
 
@@ -831,6 +896,58 @@ int cfg_load(CrashEditCfg *cfg, const char *path)
             /* YES=show line numbers, NO=hide */
             cfg->show_line_numbers = parse_yesno(rest);
         }
+        else if (strcasecmp(word, "SHOWWHITESPACE") == 0)
+        {
+            cfg->show_whitespace = parse_yesno(rest);
+        }
+        else if (strcasecmp(word, "SHOWBRACKETS") == 0)
+        {
+            cfg->show_brackets = parse_yesno(rest);
+        }
+        else if (strcasecmp(word, "HIGHLIGHTLINE") == 0)
+        {
+            cfg->highlight_line = parse_yesno(rest);
+        }
+        else if (strcasecmp(word, "WORDCOUNT") == 0)
+        {
+            cfg->word_count = parse_yesno(rest);
+        }
+        else if (strcasecmp(word, "AUTOCLOSE") == 0)
+        {
+            cfg->autoclose = parse_yesno(rest);
+        }
+        else if (strcasecmp(word, "SMARTINDENT") == 0)
+        {
+            cfg->smart_indent = parse_yesno(rest);
+        }
+        else if (strcasecmp(word, "RULERCOL") == 0)
+        {
+            cfg->ruler_col = atoi(rest);
+
+            if (cfg->ruler_col < 0)
+                cfg->ruler_col = 0;
+
+            if (cfg->ruler_col > 500)
+                cfg->ruler_col = 500;
+        }
+        else if (strcasecmp(word, "INDENTGUIDES") == 0)
+        {
+            cfg->indent_guides = parse_yesno(rest);
+        }
+        else if (strcasecmp(word, "WRAPINDICATOR") == 0)
+        {
+            cfg->wrap_indicator = parse_yesno(rest);
+        }
+        else if (strcasecmp(word, "TABWIDTH") == 0)
+        {
+            cfg->tab_width = atoi(rest);
+
+            if (cfg->tab_width < 1)
+                cfg->tab_width = 1;
+
+            if (cfg->tab_width > 16)
+                cfg->tab_width = 16;
+        }
         else if (strcasecmp(word, "ASSIST_SMART_QUOTES") == 0)
         {
             cfg->assist_smart_quotes = parse_yesno(rest);
@@ -842,6 +959,10 @@ int cfg_load(CrashEditCfg *cfg, const char *path)
         else if (strcasecmp(word, "ASSIST_REPEAT_CHECK") == 0)
         {
             cfg->assist_repeat_check = parse_yesno(rest);
+        }
+        else if (strcasecmp(word, "WORD_MOVE_MODE") == 0)
+        {
+            cfg->word_move_mode = atoi(rest);
         }
         /* GoldED+ extended keywords */
         else if (strcasecmp(word, "VIEWHIDDEN") == 0)
@@ -1558,47 +1679,51 @@ static void cfg_emit(FILE *f, const char *key, const char *val)
 
 int cfg_save(const CrashEditCfg *cfg, const char *path)
 {
-    /* IMPORTANT: this array must hold every KV_STR/KV_INT/KV_YN call below
-     * Count with ALL features active (HUNSPELL+HYPHEN+MYTHES+TRANSLATE)
-     * for safety margin if more keys get added. Overflowing
-     * this array used to corrupt the stack and crash on save */
-    CfgKV kv[256];
+    CfgKV *kv = NULL;
     int nkv = 0;
+    int kv_cap = 0;
     FILE *in = NULL;
     FILE *out = NULL;
     char tmp_path[CFG_STR_MAX + 8];
     char line[1024];
     int i;
-    const char *aa_str;
+    const char *aa_str = NULL;
     int fi;
 
-#define KV_STR(k, s)                  \
-    do                                \
-    {                                 \
-        size_t _n = strlen(s);        \
-        if (_n >= CFG_STR_MAX)        \
-            _n = CFG_STR_MAX - 1;     \
-        kv[nkv].key = (k);            \
-        memcpy(kv[nkv].val, (s), _n); \
-        kv[nkv].val[_n] = '\0';       \
-        kv[nkv].done = 0;             \
-        nkv++;                        \
+#define KV_STR(k, s)                                       \
+    do                                                     \
+    {                                                      \
+        size_t _n = strlen(s);                             \
+        char _buf[CFG_STR_MAX];                            \
+        if (_n >= CFG_STR_MAX)                             \
+            _n = CFG_STR_MAX - 1;                          \
+        memcpy(_buf, (s), _n);                             \
+        _buf[_n] = '\0';                                   \
+        if (kv_append(&kv, &nkv, &kv_cap, (k), _buf) != 0) \
+        {                                                  \
+            free(kv);                                      \
+            return -1;                                     \
+        }                                                  \
     } while (0)
-#define KV_INT(k, v)                                   \
-    do                                                 \
-    {                                                  \
-        kv[nkv].key = (k);                             \
-        snprintf(kv[nkv].val, CFG_STR_MAX, "%d", (v)); \
-        kv[nkv].done = 0;                              \
-        nkv++;                                         \
+#define KV_INT(k, v)                                       \
+    do                                                     \
+    {                                                      \
+        char _buf[CFG_STR_MAX];                            \
+        snprintf(_buf, CFG_STR_MAX, "%d", (v));            \
+        if (kv_append(&kv, &nkv, &kv_cap, (k), _buf) != 0) \
+        {                                                  \
+            free(kv);                                      \
+            return -1;                                     \
+        }                                                  \
     } while (0)
-#define KV_YN(k, v)                              \
-    do                                           \
-    {                                            \
-        kv[nkv].key = (k);                       \
-        strcpy(kv[nkv].val, (v) ? "yes" : "no"); \
-        kv[nkv].done = 0;                        \
-        nkv++;                                   \
+#define KV_YN(k, v)                                                      \
+    do                                                                   \
+    {                                                                    \
+        if (kv_append(&kv, &nkv, &kv_cap, (k), (v) ? "yes" : "no") != 0) \
+        {                                                                \
+            free(kv);                                                    \
+            return -1;                                                   \
+        }                                                                \
     } while (0)
 
     if (!cfg || !path || !path[0])
@@ -1641,6 +1766,16 @@ int cfg_save(const CrashEditCfg *cfg, const char *path)
     KV_INT("UNDOLEVELS", cfg->undo_levels);
     KV_YN("HARDWRAP", cfg->hard_wrap);
     KV_YN("LINENUMBERS", cfg->show_line_numbers);
+    KV_YN("SHOWWHITESPACE", cfg->show_whitespace);
+    KV_YN("SHOWBRACKETS", cfg->show_brackets);
+    KV_YN("HIGHLIGHTLINE", cfg->highlight_line);
+    KV_YN("WORDCOUNT", cfg->word_count);
+    KV_YN("AUTOCLOSE", cfg->autoclose);
+    KV_YN("SMARTINDENT", cfg->smart_indent);
+    KV_INT("RULERCOL", cfg->ruler_col);
+    KV_YN("INDENTGUIDES", cfg->indent_guides);
+    KV_YN("WRAPINDICATOR", cfg->wrap_indicator);
+    KV_INT("TABWIDTH", cfg->tab_width);
     KV_STR("FONT", cfg->font);
     KV_STR("ANSIFONT", cfg->ansifont);
 
@@ -1674,6 +1809,7 @@ int cfg_save(const CrashEditCfg *cfg, const char *path)
     KV_YN("ASSIST_SMART_QUOTES", cfg->assist_smart_quotes);
     KV_YN("ASSIST_AUTO_CAP", cfg->assist_auto_cap);
     KV_YN("ASSIST_REPEAT_CHECK", cfg->assist_repeat_check);
+    KV_INT("WORD_MOVE_MODE", cfg->word_move_mode);
 
     /* Message framing */
     KV_YN("GREETING", cfg->greeting);
@@ -1735,7 +1871,10 @@ int cfg_save(const CrashEditCfg *cfg, const char *path)
     out = fopen(tmp_path, "w");
 
     if (!out)
+    {
+        free(kv);
         return -1;
+    }
 
     /* Stream original, rewriting managed keywords in place */
     in = fopen(path, "r");
@@ -1816,10 +1955,7 @@ int cfg_save(const CrashEditCfg *cfg, const char *path)
         int ci;
 
         for (ci = 0; ci < 16; ci++)
-        {
-            fprintf(out, "COLORMAP %s %d\n", cmap_names[ci],
-                    cfg->color_map[ci]);
-        }
+            fprintf(out, "COLORMAP %s %d\n", cmap_names[ci], cfg->color_map[ci]);
     }
 
     /* TTF fallbacks: write directly with fprintf to avoid KV system bugs */
@@ -1913,6 +2049,15 @@ int cfg_save(const CrashEditCfg *cfg, const char *path)
         case 24:
             name = "SPELLCURRENT";
             break;
+        case 25:
+            name = "BRACKETMATCH";
+            break;
+        case 26:
+            name = "CURRENTLINE";
+            break;
+        case 27:
+            name = "GUIDES";
+            break;
         }
 
         if (name)
@@ -1922,13 +2067,18 @@ int cfg_save(const CrashEditCfg *cfg, const char *path)
     if (fclose(out) != 0)
     {
         pf_remove_file(tmp_path);
+        free(kv);
         return -1;
     }
 
     /* Atomic replace */
     if (pf_atomic_rename(tmp_path, path) != 0)
+    {
+        free(kv);
         return -1;
+    }
 
+    free(kv);
     return 0;
 
 #undef KV_STR

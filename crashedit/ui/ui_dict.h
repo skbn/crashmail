@@ -32,6 +32,9 @@ extern "C"
 {
 #endif
 
+#define DICT_PANEL_HEIGHT 6
+#define DICT_PANEL_ROWS (DICT_PANEL_HEIGHT - 1)
+
     /* Draw dict panel when app->show_dict is on */
     void ui_dict_draw_panel(UiApp *app);
 

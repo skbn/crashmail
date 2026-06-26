@@ -176,9 +176,11 @@ static void setup_colors(const CrashEditCfg *cfg)
         init_pair(COL_TAGLINE, COLOR_CYAN, COLOR_BLACK);
         init_pair(COL_SEARCH_MATCH, COLOR_YELLOW, COLOR_BLACK);
         init_pair(COL_SPELL_CURRENT, COLOR_WHITE, COLOR_MAGENTA);
+        init_pair(COL_BRACKET_MATCH, COLOR_BLACK, COLOR_YELLOW);
+        init_pair(COL_CURRENT_LINE, COLOR_WHITE, COLOR_BLUE);
+        init_pair(COL_GUIDE, COLOR_CYAN, COLOR_BLACK);
     }
 
-    /* ANSI colour pairs: 64 entries (fg,bg), ANSI_PAIR_BASE + bg*8 + fg */
     if (cfg && cfg->color_map_initialized)
     {
         ansi_col[0] = cfg->color_map[0];
@@ -236,6 +238,7 @@ static void ui_configure_mouse(int enabled)
     {
         mousemask(ALL_MOUSE_EVENTS | REPORT_MOUSE_POSITION, NULL);
         mouseinterval(0);
+
         printf("\033[?1002h");
         printf("\033[?1006h");
         fflush(stdout);
@@ -243,6 +246,7 @@ static void ui_configure_mouse(int enabled)
     else
     {
         mousemask(0, NULL);
+
         printf("\033[?1002l");
         printf("\033[?1006l");
         fflush(stdout);
@@ -268,7 +272,6 @@ void ui_reapply_config(UiApp *app)
         amiga_reload_ttf(app->cfg->ttf_font, app->cfg->ttf_size);
 
         /* Reload fallback fonts */
-#ifdef AMIGA_TTF_TE
         amiga_clear_ttf_fallbacks();
 
         for (fi = 0; fi < CFG_TTF_FALLBACKS; fi++)
@@ -279,7 +282,6 @@ void ui_reapply_config(UiApp *app)
                 amiga_add_ttf_fallback(app->cfg->ttf_fallback[fi], sz);
             }
         }
-#endif
     }
 
     amiga_set_default_bg_color(app->cfg->default_bg_color);
@@ -326,6 +328,10 @@ void ui_reapply_config(UiApp *app)
         amiga_force_redraw();
     }
 #endif
+
+    /* Propagate word move mode to editor */
+    if (app->editor)
+        ed_set_word_move_mode(app->editor, app->cfg->word_move_mode);
 }
 
 /* Status bar */
@@ -424,8 +430,13 @@ static void build_status_center(const UiApp *app, char *out, int outsz)
         if (app->editor)
         {
             EdInfo info;
+
             ed_get_info(app->editor, &info);
-            snprintf(out, (size_t)outsz, "Ln %d/%d Col %d", info.row + 1, info.line_count, info.col + 1);
+
+            if (app->cfg && app->cfg->word_count)
+                snprintf(out, (size_t)outsz, "Ln %d/%d Col %d W:%d", info.row + 1, info.line_count, info.col + 1, ed_word_count(app->editor));
+            else
+                snprintf(out, (size_t)outsz, "Ln %d/%d Col %d", info.row + 1, info.line_count, info.col + 1);
         }
         break;
     default:
@@ -711,7 +722,6 @@ UiApp *ui_init(CrashEditCfg *cfg, AreaList *areas)
     UiApp *app = NULL;
     char *s = NULL;
     int k;
-    int fi;
     const char *default_net;
 
     if (!cfg || !areas)
@@ -721,44 +731,86 @@ UiApp *ui_init(CrashEditCfg *cfg, AreaList *areas)
     ui_init_locale();
 
 #ifdef PLATFORM_AMIGA
-    /* Amiga setup (before initscr) */
-    amiga_set_default_bg_color(cfg->default_bg_color);
-    amiga_set_font_name(cfg->font);
-    amiga_set_ansi_font_name(cfg->ansifont);
-
-    /* Optional TrueType (ignored if disabled) */
-    if (cfg->ttf_enabled)
     {
-        amiga_set_ttf(cfg->ttf_font, cfg->ttf_size, cfg->ttf_antialias);
-        amiga_set_ttf_encoding(cfg->ttf_use_utf8);
+        int fi;
 
-        /* Pass TTF_FALLBACK<N> entries to engine */
-#ifdef AMIGA_TTF_TE
-        amiga_clear_ttf_fallbacks();
+        /* Amiga setup (before initscr) */
+        amiga_set_default_bg_color(cfg->default_bg_color);
+        amiga_set_font_name(cfg->font);
+        amiga_set_ansi_font_name(cfg->ansifont);
 
-        for (fi = 0; fi < CFG_TTF_FALLBACKS; fi++)
+        /* Optional TrueType (ignored if disabled) */
+        if (cfg->ttf_enabled)
         {
-            if (cfg->ttf_fallback[fi][0])
+            amiga_set_ttf(cfg->ttf_font, cfg->ttf_size, cfg->ttf_antialias);
+            amiga_set_ttf_encoding(cfg->ttf_use_utf8);
+
+            /* Pass TTF_FALLBACK<N> entries to engine */
+            amiga_clear_ttf_fallbacks();
+
+            for (fi = 0; fi < CFG_TTF_FALLBACKS; fi++)
             {
-                int sz = cfg->ttf_fallback_size[fi] > 0 ? cfg->ttf_fallback_size[fi] : cfg->ttf_size;
-                amiga_add_ttf_fallback(cfg->ttf_fallback[fi], sz);
+                if (cfg->ttf_fallback[fi][0])
+                {
+                    int sz = cfg->ttf_fallback_size[fi] > 0 ? cfg->ttf_fallback_size[fi] : cfg->ttf_size;
+                    amiga_add_ttf_fallback(cfg->ttf_fallback[fi], sz);
+                }
             }
         }
-#endif
-    }
-    else
-    {
-        /* Explicitly disable TTF when disabled */
-        amiga_set_ttf(NULL, 0, 0);
-#ifdef AMIGA_TTF_TE
-        amiga_clear_ttf_fallbacks();
-#endif
+        else
+        {
+            /* Explicitly disable TTF when disabled */
+            amiga_set_ttf(NULL, 0, 0);
+            amiga_clear_ttf_fallbacks();
+        }
     }
 #endif
 
 #ifdef PLATFORM_WIN32
     /* Windows setup (before initscr) */
+    if (cfg->font[0] && (strchr(cfg->font, '\\') || strchr(cfg->font, '/') || strchr(cfg->font, ':')))
+    {
+        /* FONT holds a TTF path: split into family name and TTF slot */
+        char family[256];
+        char path[CFG_STR_MAX];
+
+        strncpy(path, cfg->font, sizeof(path) - 1);
+        path[sizeof(path) - 1] = '\0';
+
+        if (win32_get_font_family_name(path, family, sizeof(family)) == 0)
+        {
+            strncpy(cfg->font, family, CFG_STR_MAX - 1);
+            cfg->font[CFG_STR_MAX - 1] = '\0';
+        }
+        else
+        {
+            cfg->font[0] = '\0';
+        }
+
+        if (!cfg->ttf_enabled || !cfg->ttf_font[0])
+        {
+            strncpy(cfg->ttf_font, path, CFG_STR_MAX - 1);
+            cfg->ttf_font[CFG_STR_MAX - 1] = '\0';
+            cfg->ttf_enabled = 1;
+        }
+    }
+
     win32_set_font_name(cfg->font);
+
+    /* Load optional TTF files; FONT must be the family name */
+    if (cfg->ttf_enabled)
+    {
+        int fi;
+
+        win32_set_font_size(cfg->ttf_size);
+        win32_add_font_file(cfg->ttf_font);
+
+        for (fi = 0; fi < CFG_TTF_FALLBACKS; fi++)
+        {
+            if (cfg->ttf_fallback[fi][0])
+                win32_add_font_file(cfg->ttf_fallback[fi]);
+        }
+    }
 #endif
 
     if (!initscr())
@@ -776,6 +828,8 @@ UiApp *ui_init(CrashEditCfg *cfg, AreaList *areas)
     keypad(stdscr, TRUE);
     curs_set(0);
     setup_colors(cfg);
+
+    set_tabsize(cfg->tab_width > 0 ? cfg->tab_width : 4);
 
 #if !defined(PLATFORM_AMIGA) && !defined(PLATFORM_WIN32)
     /* Enable mouse if configured */
@@ -865,56 +919,64 @@ UiApp *ui_init(CrashEditCfg *cfg, AreaList *areas)
     define_key("\033[1;7D", KEY_ALEFT);  /* Some terminals */
     define_key("\033[1;7C", KEY_ARIGHT); /* Some terminals */
 
-    define_key("\033c", KEY_ALT('C')); /* Alt+C */
-    define_key("\033C", KEY_ALT('C')); /* Alt+Shift+C */
-    define_key("\033f", KEY_ALT('F')); /* Alt+F */
-    define_key("\033F", KEY_ALT('F')); /* Alt+Shift+F */
-    define_key("\033s", KEY_ALT('S')); /* Alt+S */
-    define_key("\033S", KEY_ALT('S')); /* Alt+Shift+S */
-    define_key("\033l", KEY_ALT('L')); /* Alt+L */
-    define_key("\033L", KEY_ALT('L')); /* Alt+Shift+L */
-    define_key("\033i", KEY_ALT('I')); /* Alt+I */
-    define_key("\033I", KEY_ALT('I')); /* Alt+Shift+I */
-    define_key("\033v", KEY_ALT('V')); /* Alt+V nodelist view */
-    define_key("\033V", KEY_ALT('V')); /* Alt+Shift+V */
-    define_key("\033t", KEY_ALT('T')); /* Alt+T nodelist picker */
-    define_key("\033T", KEY_ALT('T')); /* Alt+Shift+T */
-    define_key("\033y", KEY_ALT('Y')); /* Alt+Y help */
-    define_key("\033Y", KEY_ALT('Y')); /* Alt+Shift+Y */
-    define_key("\033d", KEY_ALT('D')); /* Alt+D line numbers */
-    define_key("\033D", KEY_ALT('D')); /* Alt+Shift+D */
-    define_key("\033a", KEY_ALT('A')); /* Alt+A add attachment */
-    define_key("\033A", KEY_ALT('A')); /* Alt+Shift+A */
-    define_key("\033x", KEY_ALT('X')); /* Alt+X remove attachment */
-    define_key("\033X", KEY_ALT('X')); /* Alt+Shift+X */
-    define_key("\033g", KEY_ALT('G')); /* Alt+G goto line */
-    define_key("\033G", KEY_ALT('G')); /* Alt+Shift+G */
-    define_key("\033h", KEY_ALT('H')); /* Alt+H charset */
-    define_key("\033H", KEY_ALT('H')); /* Alt+Shift+H */
-    define_key("\033r", KEY_ALT('R')); /* Alt+R translate */
-    define_key("\033R", KEY_ALT('R')); /* Alt+Shift+R */
-    define_key("\033p", KEY_ALT('P')); /* Alt+P nodelist picker */
-    define_key("\033P", KEY_ALT('P')); /* Alt+Shift+P */
-    define_key("\033q", KEY_ALT('Q')); /* Alt+Q toggle wrap */
-    define_key("\033Q", KEY_ALT('Q')); /* Alt+Shift+Q */
-    define_key("\033b", KEY_ALT('B')); /* Alt+B toggle block */
-    define_key("\033B", KEY_ALT('B')); /* Alt+Shift+B */
-    define_key("\033n", KEY_ALT('N')); /* Alt+N next match */
-    define_key("\033N", KEY_ALT('N')); /* Alt+Shift+N */
-    define_key("\033o", KEY_ALT('O')); /* Alt+O insert file */
-    define_key("\033O", KEY_ALT('O')); /* Alt+Shift+O */
-    define_key("\033k", KEY_ALT('K')); /* Alt+K kludges */
-    define_key("\033K", KEY_ALT('K')); /* Alt+Shift+K */
-    define_key("\033m", KEY_ALT('M')); /* Alt+M list attachments */
-    define_key("\033M", KEY_ALT('M')); /* Alt+Shift+M */
-    define_key("\033e", KEY_ALT('E')); /* Alt+E spell panel */
-    define_key("\033E", KEY_ALT('E')); /* Alt+Shift+E */
-    define_key("\033w", KEY_ALT('W')); /* Alt+W spell word */
-    define_key("\033W", KEY_ALT('W')); /* Alt+Shift+W */
-    define_key("\033j", KEY_ALT('J')); /* Alt+J thesaurus */
-    define_key("\033J", KEY_ALT('J')); /* Alt+Shift+J */
-    define_key("\033z", KEY_ALT('Z')); /* Alt+Z redo */
-    define_key("\033Z", KEY_ALT('Z')); /* Alt+Shift+Z */
+    /* Alt+Up/Down: move line up/down */
+    define_key("\033[1;3A", KEY_ALT_UP);
+    define_key("\033[1;3B", KEY_ALT_DOWN);
+    define_key("\033\033[A", KEY_ALT_UP);   /* rxvt */
+    define_key("\033\033[B", KEY_ALT_DOWN); /* rxvt */
+
+    define_key("\033c", KEY_ALT('C'));       /* Alt+C */
+    define_key("\033C", KEY_ALT('C'));       /* Alt+Shift+C */
+    define_key("\033f", KEY_ALT('F'));       /* Alt+F */
+    define_key("\033F", KEY_ALT('F'));       /* Alt+Shift+F */
+    define_key("\033s", KEY_ALT('S'));       /* Alt+S */
+    define_key("\033S", KEY_ALT('S'));       /* Alt+Shift+S */
+    define_key("\033l", KEY_ALT('L'));       /* Alt+L */
+    define_key("\033L", KEY_ALT('L'));       /* Alt+Shift+L */
+    define_key("\033i", KEY_ALT('I'));       /* Alt+I */
+    define_key("\033I", KEY_ALT('I'));       /* Alt+Shift+I */
+    define_key("\033v", KEY_ALT('V'));       /* Alt+V nodelist view */
+    define_key("\033V", KEY_SHIFT('V'));     /* Shift+Alt+V sort lines */
+    define_key("\033[1;4V", KEY_SHIFT('V')); /* xterm Shift+Alt+V */
+    define_key("\033t", KEY_ALT('T'));       /* Alt+T nodelist picker */
+    define_key("\033T", KEY_ALT('T'));       /* Alt+Shift+T */
+    define_key("\033y", KEY_ALT('Y'));       /* Alt+Y help */
+    define_key("\033Y", KEY_ALT('Y'));       /* Alt+Shift+Y */
+    define_key("\033d", KEY_ALT('D'));       /* Alt+D line numbers */
+    define_key("\033D", KEY_ALT('D'));       /* Alt+Shift+D */
+    define_key("\033a", KEY_ALT('A'));       /* Alt+A add attachment */
+    define_key("\033A", KEY_ALT('A'));       /* Alt+Shift+A */
+    define_key("\033x", KEY_ALT('X'));       /* Alt+X remove attachment */
+    define_key("\033X", KEY_SHIFT('X'));     /* Shift+Alt+X convert case */
+    define_key("\033[1;4X", KEY_SHIFT('X')); /* xterm Shift+Alt+X */
+    define_key("\033g", KEY_ALT('G'));       /* Alt+G goto line */
+    define_key("\033G", KEY_ALT('G'));       /* Alt+Shift+G */
+    define_key("\033h", KEY_ALT('H'));       /* Alt+H charset */
+    define_key("\033H", KEY_ALT('H'));       /* Alt+Shift+H */
+    define_key("\033r", KEY_ALT('R'));       /* Alt+R translate */
+    define_key("\033R", KEY_ALT('R'));       /* Alt+Shift+R */
+    define_key("\033p", KEY_ALT('P'));       /* Alt+P nodelist picker */
+    define_key("\033P", KEY_ALT('P'));       /* Alt+Shift+P */
+    define_key("\033q", KEY_ALT('Q'));       /* Alt+Q toggle wrap */
+    define_key("\033Q", KEY_ALT('Q'));       /* Alt+Shift+Q */
+    define_key("\033b", KEY_ALT('B'));       /* Alt+B toggle block */
+    define_key("\033B", KEY_ALT('B'));       /* Alt+Shift+B */
+    define_key("\033n", KEY_ALT('N'));       /* Alt+N next match */
+    define_key("\033N", KEY_ALT('N'));       /* Alt+Shift+N */
+    define_key("\033o", KEY_ALT('O'));       /* Alt+O insert file */
+    define_key("\033O", KEY_ALT('O'));       /* Alt+Shift+O */
+    define_key("\033k", KEY_ALT('K'));       /* Alt+K kludges */
+    define_key("\033K", KEY_ALT('K'));       /* Alt+Shift+K */
+    define_key("\033m", KEY_ALT('M'));       /* Alt+M list attachments */
+    define_key("\033M", KEY_ALT('M'));       /* Alt+Shift+M */
+    define_key("\033e", KEY_ALT('E'));       /* Alt+E spell panel */
+    define_key("\033E", KEY_ALT('E'));       /* Alt+Shift+E */
+    define_key("\033w", KEY_ALT('W'));       /* Alt+W spell word */
+    define_key("\033W", KEY_ALT('W'));       /* Alt+Shift+W */
+    define_key("\033j", KEY_ALT('J'));       /* Alt+J thesaurus */
+    define_key("\033J", KEY_ALT('J'));       /* Alt+Shift+J */
+    define_key("\033z", KEY_ALT('Z'));       /* Alt+Z redo */
+    define_key("\033Z", KEY_ALT('Z'));       /* Alt+Shift+Z */
 #endif
 
     app = (UiApp *)calloc(1, sizeof(UiApp));
@@ -961,6 +1023,10 @@ UiApp *ui_init(CrashEditCfg *cfg, AreaList *areas)
     /* Initialize translator state */
     app->translate_enabled = app->cfg->translate_enabled;
     app->translate_active = app->cfg->translate_enabled;
+
+    /* Load translator if enabled in config */
+    if (app->translate_active)
+        ui_translate_load_from_config(app);
 #endif
 
     app->reader = rd_new(cfg->viewkludge, cfg->viewhidden);
@@ -968,7 +1034,10 @@ UiApp *ui_init(CrashEditCfg *cfg, AreaList *areas)
     app->editor = ed_new();
 
     if (app->editor)
+    {
         ed_set_hard_wrap(app->editor, cfg->hard_wrap);
+        ed_set_word_move_mode(app->editor, cfg->word_move_mode);
+    }
 
     app->edit_hdr = msghdr_new();
     app->attach_list = attach_new();

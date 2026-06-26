@@ -30,9 +30,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#ifndef DICT_PANEL_H
-#define DICT_PANEL_H SPELL_PANEL_H
-#endif
+#include "../core/utf8.h"
 
 static int count_lines(const char *text)
 {
@@ -102,13 +100,60 @@ static int copy_line(const char *src, char *out, int max_bytes)
     return n;
 }
 
+/* Truncate UTF-8 string to max_cols display columns, appending "..." if needed */
+static char *truncate_utf8_cols(const char *s, int max_cols)
+{
+    wchar_t *w = NULL;
+    char *out = NULL;
+    int wlen;
+    int width;
+    int i;
+
+    if (!s || !*s || max_cols <= 0)
+        return NULL;
+
+    w = utf8_to_wcs(s, &wlen);
+
+    if (!w)
+        return NULL;
+
+    width = wcswidth(w, wlen);
+
+    if (width <= max_cols)
+    {
+        out = wcs_to_utf8(w, wlen);
+        free(w);
+        return out;
+    }
+
+    if (max_cols < 3)
+        max_cols = 3;
+
+    for (i = wlen; i > 0; i--)
+    {
+        if (wcswidth(w, i) <= max_cols - 3)
+            break;
+    }
+
+    w[i] = L'.';
+    w[i + 1] = L'.';
+    w[i + 2] = L'.';
+    w[i + 3] = L'\0';
+
+    out = wcs_to_utf8(w, (int)wcslen(w));
+
+    free(w);
+
+    return out;
+}
+
 static void dict_panel_geometry(int *x, int *y, int *w, int *h)
 {
     int W = COLS;
     int H = LINES;
 
     *w = W;
-    *h = DICT_PANEL_H;
+    *h = DICT_PANEL_HEIGHT;
     *x = 0;
     *y = H - *h - 1; /* same area as spell panel: above status bar */
 
@@ -129,8 +174,12 @@ void ui_dict_draw_panel(UiApp *app)
     char line_buf[512];
     int row;
     char title[160];
+    char ind[40];
     int total;
     int x_pos;
+    int title_max;
+    char *title_disp = NULL;
+    const char *prefix = "[ Dictionary ]";
 
     if (!app || !app->show_dict)
         return;
@@ -140,9 +189,91 @@ void ui_dict_draw_panel(UiApp *app)
     standend();
     attron(COLOR_PAIR(COL_POPUP));
 
-    /* Clear panel */
+    /* Title bar in popup colors */
     for (j = 0; j < w; j++)
         mvaddch(y, x + j, ' ');
+
+    /* Prepare indicator first so we know how much room the title has */
+    content_rows = DICT_PANEL_ROWS;
+    ind[0] = '\0';
+
+    if (content_rows > 0 && app->dict_result && app->dict_result[0])
+    {
+        total = count_lines(app->dict_result);
+
+        if (total > content_rows)
+        {
+            int below = (app->dict_scroll + content_rows < total);
+            int above = (app->dict_scroll > 0);
+
+            if (above && below)
+                snprintf(ind, sizeof(ind), "[%d/%d] PgUp/PgDn", app->dict_scroll + 1, total);
+            else if (above)
+                snprintf(ind, sizeof(ind), "[%d/%d] PgUp", app->dict_scroll + 1, total);
+            else
+                snprintf(ind, sizeof(ind), "[%d/%d] PgDn", app->dict_scroll + 1, total);
+        }
+    }
+
+    /* Title: keep the prefix, truncate only the word part */
+    title_max = w - DICT_PANEL_ROWS;
+
+    if (ind[0])
+        title_max = w - (int)strlen(ind) - DICT_PANEL_ROWS;
+
+    if (title_max < 14)
+        title_max = 14;
+
+    if (app->dict_word[0] && title_max > 14 + 1 + 3)
+    {
+        int word_max = title_max - 14 - 1;
+        char *trunc_word = truncate_utf8_cols(app->dict_word, word_max);
+
+        if (trunc_word)
+        {
+            snprintf(title, sizeof(title), "%s %s", prefix, trunc_word);
+
+            free(trunc_word);
+        }
+        else
+        {
+            snprintf(title, sizeof(title), "%s %s", prefix, app->dict_word);
+        }
+    }
+    else
+    {
+        snprintf(title, sizeof(title), "%s", prefix);
+    }
+
+    title_disp = truncate_utf8_cols(title, title_max);
+
+    if (title_disp)
+    {
+        mvprintw(y, x + 2, "%s", title_disp);
+        free(title_disp);
+    }
+    else
+    {
+        mvprintw(y, x + 2, "%s", title);
+    }
+
+    /* Scroll indicator on the title bar (popup color) */
+    if (ind[0])
+    {
+        x_pos = x + w - (int)strlen(ind) - 2;
+
+        if (x_pos > x + 2)
+            mvprintw(y, x_pos, "%s", ind);
+    }
+
+    if (content_rows <= 0)
+    {
+        standend();
+        return;
+    }
+
+    /* Content area in normal colors */
+    standend();
 
     for (row = 1; row < h; row++)
     {
@@ -150,22 +281,10 @@ void ui_dict_draw_panel(UiApp *app)
             mvaddch(y + row, x + j, ' ');
     }
 
-    /* Title */
-    if (app->dict_word[0])
-        snprintf(title, sizeof(title), "[ Dictionary ] %s", app->dict_word);
-    else
-        snprintf(title, sizeof(title), "[ Dictionary ]");
-
-    mvprintw(y, x + 2, "%s", title);
-
-    content_rows = h - 1;
-
-    if (content_rows <= 0)
-        return;
-
     if (!app->dict_result || !app->dict_result[0])
     {
         mvprintw(y + 1, x + 2, "Select text and press Alt+R (translator backend must be STARDICT)");
+        standend();
         return;
     }
 
@@ -176,7 +295,7 @@ void ui_dict_draw_panel(UiApp *app)
 
     for (line_idx = 0; line_idx < content_rows && *p; line_idx++)
     {
-        int limit = w - 4;
+        int limit = w - DICT_PANEL_ROWS;
 
         if (limit < 1)
             limit = 1;
@@ -194,27 +313,7 @@ void ui_dict_draw_panel(UiApp *app)
             p++;
     }
 
-    /* Scroll indicator on the title bar */
-    total = count_lines(app->dict_result);
-
-    if (total > content_rows)
-    {
-        char ind[40];
-        int below = (app->dict_scroll + content_rows < total);
-        int above = (app->dict_scroll > 0);
-
-        if (above && below)
-            snprintf(ind, sizeof(ind), "[%d/%d] PgUp/PgDn", app->dict_scroll + 1, total);
-        else if (above)
-            snprintf(ind, sizeof(ind), "[%d/%d] PgUp", app->dict_scroll + 1, total);
-        else
-            snprintf(ind, sizeof(ind), "[%d/%d] PgDn", app->dict_scroll + 1, total);
-
-        x_pos = x + w - (int)strlen(ind) - 2;
-
-        if (x_pos > x + 2)
-            mvprintw(y, x_pos, "%s", ind);
-    }
+    standend();
 }
 
 int ui_dict_toggle_panel(UiApp *app)
@@ -308,7 +407,7 @@ int ui_dict_scroll_down(UiApp *app)
     if (!app->dict_result || !app->dict_result[0])
         return 0;
 
-    content_rows = DICT_PANEL_H - 1;
+    content_rows = DICT_PANEL_ROWS;
 
     if (content_rows <= 0)
         return 0;

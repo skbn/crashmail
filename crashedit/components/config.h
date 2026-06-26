@@ -35,7 +35,7 @@
 /* GoldED+ extended config field sizes */
 #define CFG_SORT_MAX 32
 #define CFG_FORMAT_MAX 64
-#define CFG_COLOR_MAX 32
+#define CFG_COLOR_MAX 64
 
 typedef struct
 {
@@ -73,6 +73,30 @@ typedef struct
     int quotemargin;       /* quote wrap column; 0 disables */
     int hard_wrap;         /* 0=soft-wrap (no CR), 1=hard-wrap (CR at column) */
     int show_line_numbers; /* 0=hide line numbers, 1=show line numbers */
+    int show_whitespace;   /* 0=off, 1=mark tabs as → and trailing spaces as · */
+    int show_brackets;     /* 0=off, 1=highlight matching bracket under cursor */
+    int tab_width;         /* visual tab stop width; default 4, range 1..16 */
+
+    /* Highlight current line: 0 = off, 1 = subtle background on the line where the cursor sits */
+    int highlight_line;
+
+    /* Word count in status bar: 0 = off, 1 = show compact "W:N" */
+    int word_count;
+
+    /* Bracket auto-close: 0 = off, 1 = typing ( [ { " ' also inserts the matching close and leaves cursor between */
+    int autoclose;
+
+    /* Smart indent on Enter: 0 = off, 1 = new line copies leading whitespace (and FidoNet quote prefix) from previous line */
+    int smart_indent;
+
+    /* Column ruler: 0 = off, N > 0 = '|' at column N */
+    int ruler_col;
+
+    /* Indent guides: 0 = off, 1 = '|' every tab_width spaces */
+    int indent_guides;
+
+    /* Soft-wrap indicator: 0 = off, 1 = marker at end of continued sub-rows */
+    int wrap_indicator;
 
     /* Message body framing with printf templates (%t=to, %f=from, %o=orig, %d=date) */
     int greeting;                     /* 0=off, 1=emit greeting line */
@@ -100,6 +124,9 @@ typedef struct
     int assist_smart_quotes;
     int assist_auto_cap;
     int assist_repeat_check;
+
+    /* Word movement style: 0=standard (alnum+underscore), 1=vim-like (non-space blocks) */
+    int word_move_mode;
 
     /* Default background color for COLOR_PAIR(0). On Amiga: COLOR_RED for black pen */
     int default_bg_color;

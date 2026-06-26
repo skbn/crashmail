@@ -472,7 +472,10 @@ int ui_translate_action(UiApp *app)
     {
         /* Replace lines */
         if (replace_lines(app, first, last, result) == 0)
+        {
             ui_status(app, "Replaced %d line(s) with translation", last - first + 1);
+            ed_block_clear(app->editor);
+        }
         else
             ui_status(app, "Replace failed");
     }
@@ -492,7 +495,10 @@ int ui_translate_action(UiApp *app)
             ed_enter(ed); /* line break */
 
             if (ed_paste_text(ed, result) == 0)
+            {
                 ui_status(app, "Inserted translation below paragraph");
+                ed_block_clear(ed);
+            }
             else
                 ui_status(app, "Insert failed");
         }

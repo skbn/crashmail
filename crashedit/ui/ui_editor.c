@@ -39,6 +39,7 @@
 #include "ui_spell.h"
 #include "ui_dict.h"
 #include "ui_dict_picker.h"
+#include "ui_dict_reverse.h"
 #ifdef HAVE_TRANSLATE
 #include "ui_translate.h"
 #endif
@@ -92,13 +93,15 @@ static const char *EDITOR_HELP[] =
         "    Ctrl+Left/Right Word movement",
         "    Ctrl-W          Rewrap paragraph",
         "    Alt+Q           Toggle wrap mode",
-        "    Alt+D           Toggle line numbers / dict panel",
+        "    Alt+D           Hide dict panel / toggle line numbers",
         "",
         "  Block (selection):",
         "    Ctrl-C          Copy block",
         "    Ctrl-X          Cut block",
         "    BS Del          Delete block (no clipboard)",
         "    Ctrl-O          Export block",
+        "    Shift+Alt+V     Sort selected lines",
+        "    Shift+Alt+X     Convert case of selected block",
 #ifdef PLATFORM_AMIGA
         "    Ctrl-V          Paste from system clipboard",
         "    RAmiga-V        Paste from system clipboard",
@@ -119,7 +122,7 @@ static const char *EDITOR_HELP[] =
         "    F8 Alt+K        Kludges (Enter del)",
         "",
         "  Spell checker:",
-        "    Alt+E           Toggle spell panel",
+        "    Alt+E           Cycle spell/dict panel",
         "    Alt+T           Toggle spell active",
         "    Alt+W           Spell check word",
 #ifdef HAVE_MYTHES
@@ -149,6 +152,7 @@ static const char *EDITOR_HELP[] =
 #ifdef HAVE_TRANSLATE
         "    Alt+R           Translate selected text",
         "    Alt+M           Dictionary popup (pick translation)",
+        "    Alt+N           Reverse lookup (scan dict)",
         "    Ctrl+T          Toggle translator",
         "    Alt+B           Exchange languages",
 #endif
@@ -253,8 +257,8 @@ static int handle_function_keys(UiApp *app, int ch, int is_key)
         return 1;
     }
 
-    /* F4 / Ctrl+A / Alt+N : AKA picker OR Next match in search mode */
-    if ((is_key && ch == KEY_F(4)) || (!is_key && ch == CTRL('A')) || (is_key && ch == KEY_ALT('N')))
+    /* F4/Ctrl+A/Alt+N: AKA picker (Alt+N with dict panel is reverse lookup) */
+    if ((is_key && ch == KEY_F(4)) || (!is_key && ch == CTRL('A')) || (is_key && ch == KEY_ALT('N') && !app->show_dict))
     {
         if (((is_key && ch == KEY_ALT('N')) || (is_key && ch == KEY_F(4))) && (app->edit_search.is_mode || app->edit_search.only_mode))
         {
@@ -668,6 +672,7 @@ static int handle_control_keys(UiApp *app, int ch, int is_key)
         return 1;
     }
 
+    /* Alt+M : List attachments */
     if (ch == KEY_ALT('M'))
     {
 #if defined(HAVE_TRANSLATE) && defined(HAVE_TRANSLATE_STARDICT)
@@ -816,20 +821,55 @@ static int handle_alt_keys(UiApp *app, int ch, int is_key)
     /* Alt+E : toggle spell-check overlay panel */
     if (ch == KEY_ALT('E'))
     {
+        /* Cycle: hidden -> spell -> dict -> hidden */
+        if (app->show_dict)
+        {
+            app->show_dict = 0;
+            ui_status(app, "Panel hidden");
+            return 1;
+        }
+
 #ifdef HAVE_HUNSPELL
-        return ui_spell_toggle_panel(app);
+        if (app->show_spell)
+        {
+            app->show_spell = 0;
+#ifdef HAVE_TRANSLATE_STARDICT
+            app->show_dict = 1;
+            ui_status(app, "Dictionary panel");
+            return 1;
 #else
+            ui_status(app, "Panel hidden");
+            return 1;
+#endif
+        }
+
+        app->show_spell = 1;
+        ui_status(app, "Spell panel");
+        return 1;
+#else
+#ifdef HAVE_TRANSLATE_STARDICT
+        if (!app->show_spell)
+        {
+            app->show_dict = 1;
+            ui_status(app, "Dictionary panel");
+            return 1;
+        }
+#endif
         ui_status(app, "Spell support not built in");
         return 1;
 #endif
     }
 
-    /* Alt+D : toggle dictionary overlay panel (StarDict result) */
+    /* Alt+D : hide dictionary panel if visible, otherwise toggle line numbers */
     if (ch == KEY_ALT('D'))
     {
 #ifdef HAVE_TRANSLATE_STARDICT
-        if (app->translate_active)
-            return ui_dict_toggle_panel(app);
+        if (app->show_dict)
+        {
+            app->show_dict = 0;
+            ui_status(app, "Dictionary panel hidden");
+            return 1;
+        }
 #endif
         if (app->cfg)
         {
@@ -900,6 +940,13 @@ static int handle_alt_keys(UiApp *app, int ch, int is_key)
     if (ch == KEY_ALT('M'))
     {
         ui_dict_picker(app);
+        return 1;
+    }
+
+    /* Alt+N: reverse dictionary lookup */
+    if (ch == KEY_ALT('N'))
+    {
+        ui_dict_reverse(app);
         return 1;
     }
 #endif
@@ -1012,6 +1059,69 @@ static int handle_alt_keys(UiApp *app, int ch, int is_key)
     }
 #endif
 
+    /* Shift+Alt+V : sort selected lines alphabetically (case-insensitive) */
+    if (ch == KEY_SHIFT('V'))
+    {
+        if (app->edit_active_field != EF_BODY)
+        {
+            ui_status(app, "Sort: only available in body");
+            return 1;
+        }
+
+        if (!app->editor || !app->editor->block.active)
+        {
+            ui_status(app, "Sort: no block selected (use Shift+arrows)");
+            return 1;
+        }
+
+        if (ed_sort_block_lines(app->editor) == 0)
+        {
+            ui_status(app, "Lines sorted");
+            ed_block_clear(app->editor);
+        }
+        else
+        {
+            ui_status(app, "Sort: needs 2+ lines in the block");
+        }
+
+        return 1;
+    }
+
+    /* Shift+Alt+X : convert case (popup: U=UPPER / L=lower / T=Title) */
+    if (ch == KEY_SHIFT('X'))
+    {
+        const char *items[3];
+        int choice;
+
+        if (app->edit_active_field != EF_BODY)
+        {
+            ui_status(app, "Convert case: only available in body");
+            return 1;
+        }
+
+        if (!app->editor || !app->editor->block.active)
+        {
+            ui_status(app, "Convert case: no block selected");
+            return 1;
+        }
+
+        items[0] = "UPPER CASE";
+        items[1] = "lower case";
+        items[2] = "Title Case";
+
+        choice = ui_popup_list("Convert case", items, 3, 0);
+
+        if (choice < 0 || choice > 2)
+            return 1;
+
+        if (ed_convert_block_case(app->editor, choice) == 0)
+            ui_status(app, "Case converted");
+        else
+            ui_status(app, "Convert case: error");
+
+        return 1;
+    }
+
     return 0;
 }
 
@@ -1020,6 +1130,20 @@ static int handle_navigation_keys(UiApp *app, int ch, int is_key, int soft_activ
 {
     switch (ch)
     {
+    case KEY_ALT_UP:
+        if (ed_move_line_up(app->editor) == 0)
+            ui_status(app, "Line moved up");
+        else
+            ui_status(app, "Cannot move line up");
+        return 1;
+
+    case KEY_ALT_DOWN:
+        if (ed_move_line_down(app->editor) == 0)
+            ui_status(app, "Line moved down");
+        else
+            ui_status(app, "Cannot move line down");
+        return 1;
+
     case KEY_UP:
         ed_block_clear(app->editor);
 
@@ -1327,7 +1451,62 @@ static int handle_body_input(UiApp *app, int ch, int is_key, wint_t wch, int sof
 
         case KEY_ENTER:
             ed_block_clear(app->editor);
-            ed_enter(app->editor);
+
+            /* Smart indent: copy leading whitespace and continue quote prefix */
+            if (app->cfg && app->cfg->smart_indent)
+            {
+                EdInfo si_info;
+                const wchar_t *si_line = NULL;
+                int si_llen;
+                wchar_t indent[80];
+                int indent_n = 0;
+                int k;
+
+                ed_get_info(app->editor, &si_info);
+                si_line = ed_line_wcs(app->editor, si_info.row);
+                si_llen = ed_line_len(app->editor, si_info.row);
+
+                if (si_line)
+                {
+                    /* Leading whitespace */
+                    for (k = 0; k < si_llen && k < (int)(sizeof(indent) / sizeof(wchar_t)) - 4; k++)
+                    {
+                        if (si_line[k] == L' ' || si_line[k] == L'\t')
+                            indent[indent_n++] = si_line[k];
+                        else
+                            break;
+                    }
+
+                    /* If the line starts with "> " or "X> " (FidoNet quote prefix), keep that prefix on the next line */
+                    if (k < si_llen)
+                    {
+                        if (si_line[k] == L'>' && k + 1 < si_llen && si_line[k + 1] == L' ')
+                        {
+                            indent[indent_n++] = L'>';
+                            indent[indent_n++] = L' ';
+                        }
+                        else if (k + 2 < si_llen && ((si_line[k] >= L'A' && si_line[k] <= L'Z') || (si_line[k] >= L'a' && si_line[k] <= L'z')) && si_line[k + 1] == L'>' && si_line[k + 2] == L' ')
+                        {
+                            indent[indent_n++] = si_line[k];
+                            indent[indent_n++] = L'>';
+                            indent[indent_n++] = L' ';
+                        }
+                    }
+                }
+
+                ed_enter(app->editor);
+
+                if (indent_n > 0)
+                {
+                    for (k = 0; k < indent_n; k++)
+                        ed_insert_char(app->editor, indent[k]);
+                }
+            }
+            else
+            {
+                ed_enter(app->editor);
+            }
+
             reset_search(app);
 
             return 1;
@@ -1393,6 +1572,14 @@ static int handle_body_input(UiApp *app, int ch, int is_key, wint_t wch, int sof
         case KEY_CRIGHT: /* Control+Right: word right */
             ed_block_clear(app->editor);
             ed_word_right(app->editor);
+            return 1;
+
+        case KEY_CUP: /* Control+Up: move up one line */
+            ed_move_up(app->editor);
+            return 1;
+
+        case KEY_CDOWN: /* Control+Down: move down one line */
+            ed_move_down(app->editor);
             return 1;
 
         /* Shift+Arrow: extended selection */
@@ -1871,6 +2058,49 @@ static int handle_body_input(UiApp *app, int ch, int is_key, wint_t wch, int sof
 
                 ed_block_clear(app->editor);
                 ed_insert_char(app->editor, (wchar_t)wch);
+
+                /* Auto-close open brackets */
+                if (app->cfg && app->cfg->autoclose && (wch == L'(' || wch == L'[' || wch == L'{' || wch == L'"' || wch == L'\''))
+                {
+                    EdInfo ac_info;
+                    const wchar_t *ac_line = NULL;
+                    wchar_t next = L'\0';
+                    wchar_t close = L'\0';
+                    int ac_llen;
+
+                    ed_get_info(app->editor, &ac_info);
+
+                    ac_line = ed_line_wcs(app->editor, ac_info.row);
+                    ac_llen = ed_line_len(app->editor, ac_info.row);
+
+                    if (ac_line && ac_info.col < ac_llen)
+                        next = ac_line[ac_info.col];
+
+                    if (wch == L'(')
+                        close = L')';
+                    else if (wch == L'[')
+                        close = L']';
+                    else if (wch == L'{')
+                        close = L'}';
+                    else if (wch == L'"')
+                        close = L'"';
+                    else if (wch == L'\'')
+                        close = L'\'';
+
+                    if (close &&
+                        (next == L'\0' || next == L' ' || next == L'\t' ||
+                         next == L')' || next == L']' || next == L'}' ||
+                         next == L'"' || next == L'\'' || next == L',' ||
+                         next == L';' || next == L'.' || next == L':' ||
+                         next == L'!' || next == L'?'))
+                    {
+                        ed_insert_char(app->editor, close);
+
+                        /* Step cursor back so it sits between the pair */
+                        ed_set_pos(app->editor, ac_info.row, ac_info.col);
+                    }
+                }
+
                 ui_assist_on_char(app, (wchar_t)wch);
                 reset_search(app);
 
@@ -1907,7 +2137,7 @@ static int handle_body_input(UiApp *app, int ch, int is_key, wint_t wch, int sof
                             }
 
                             word_len = wi.col - word_start;
-                            space_available = eff_wrap - word_start;
+                            space_available = eff_wrap - wcs_vwidth_ex(line, word_start, 0, app->cfg->tab_width);
 
 #ifdef HAVE_HYPHEN
                             /* If line ends with wrap-hyphen and user edits within word merge next line delete */
@@ -1957,7 +2187,7 @@ static int handle_body_input(UiApp *app, int ch, int is_key, wint_t wch, int sof
                                         ed_get_info(app->editor, &wi);
 
                                         word_len = wi.col - word_start;
-                                        space_available = eff_wrap - word_start;
+                                        space_available = eff_wrap - wcs_vwidth_ex(line, word_start, 0, app->cfg->tab_width);
 
                                         reset_search(app);
                                     }
@@ -1965,7 +2195,7 @@ static int handle_body_input(UiApp *app, int ch, int is_key, wint_t wch, int sof
                             }
 
                             /* If word doesn't fit in available space, try hyphen */
-                            if (word_len > space_available && space_available >= 0 && app->hyph_wrap_enabled && app->hyph_handle)
+                            if (wcs_vwidth_ex(line, wi.col, 0, app->cfg->tab_width) - wcs_vwidth_ex(line, word_start, 0, app->cfg->tab_width) > space_available && space_available >= 0 && app->hyph_wrap_enabled && app->hyph_handle)
                             {
                                 int hyph_break = ui_hyph_find_break(app, &line[word_start], word_len, space_available);
 
@@ -2006,21 +2236,18 @@ static int handle_body_input(UiApp *app, int ch, int is_key, wint_t wch, int sof
 #endif
 
                             /* If line exceeds limit, try to break at space (but not if hyphen already handled it) */
-                            if (wi.col > eff_wrap && !hyphen_performed)
+                            if (wcs_vwidth_ex(line, wi.col, 0, app->cfg->tab_width) > eff_wrap && !hyphen_performed)
                             {
                                 int brk = -1;
-                                int limit = eff_wrap;
+                                int k;
+                                int vcol = 0;
 
-                                if (limit > linelen)
-                                    limit = linelen;
-
-                                for (k = limit; k > 0; k--)
+                                for (k = 0; k < linelen; k++)
                                 {
-                                    if (line[k - 1] == L' ')
-                                    {
-                                        brk = k - 1;
-                                        break;
-                                    }
+                                    if (line[k] == L' ' && vcol <= eff_wrap)
+                                        brk = k;
+
+                                    vcol += wcs_vwidth_ex(&line[k], 1, vcol, app->cfg->tab_width);
                                 }
 
                                 if (wch == L' ')
@@ -2036,6 +2263,7 @@ static int handle_body_input(UiApp *app, int ch, int is_key, wint_t wch, int sof
                                     ed_set_pos(app->editor, wi.row, brk);
                                     ed_delete(app->editor);
                                     ed_enter(app->editor);
+
                                     reset_search(app);
                                     ed_set_pos(app->editor, wi.row + 1, tail);
                                 }
@@ -2055,6 +2283,7 @@ static int handle_body_input(UiApp *app, int ch, int is_key, wint_t wch, int sof
 UiView ui_editor_run(UiApp *app)
 {
     int eff_wrap;
+    int tab_width;
 
     if (!app)
         return VIEW_QUIT;
@@ -2068,7 +2297,16 @@ UiView ui_editor_run(UiApp *app)
     s_soft_desired_vcol = -1;
     s_soft_last_width = COLS;
 
+    tab_width = app->cfg && app->cfg->tab_width > 0 ? app->cfg->tab_width : 4;
+
+    extern int s_tab_width;
+
+    s_tab_width = tab_width;
+    ed_set_tab_width(tab_width);
+
     BRACKET_PASTE_ON();
+
+    timeout(-1);
 
     for (;;)
     {
@@ -2096,7 +2334,7 @@ UiView ui_editor_run(UiApp *app)
             EdInfo info;
 
             ed_get_info(app->editor, &info);
-            width = COLS - lineno_width(info.line_count);
+            width = COLS - editor_body_offset(app, info.line_count);
 
             if (width < 1)
                 width = 1;
@@ -2170,8 +2408,10 @@ UiView ui_editor_run(UiApp *app)
                 /* Calculate body_rows for mouse dispatch */
                 body_rows = LINES - srow - 1;
 
-                if (app->show_spell || app->show_dict)
+                if (app->show_spell)
                     body_rows -= SPELL_PANEL_H;
+                else if (app->show_dict)
+                    body_rows -= DICT_PANEL_HEIGHT;
 
                 if (body_rows < 1)
                     body_rows = 1;
@@ -2243,8 +2483,10 @@ UiView ui_editor_run(UiApp *app)
             /* Calculate body_rows for mouse dispatch */
             body_rows = LINES - srow - 1;
 
-            if (app->show_spell || app->show_dict)
+            if (app->show_spell)
                 body_rows -= SPELL_PANEL_H;
+            else if (app->show_dict)
+                body_rows -= DICT_PANEL_HEIGHT;
 
             if (body_rows < 1)
                 body_rows = 1;
@@ -2337,31 +2579,32 @@ UiView ui_editor_run(UiApp *app)
             continue;
         }
 
-        /* Paste: internal block buffer first, then system clipboard */
+        /* Paste: system clipboard first, then internal block */
         if ((!is_key && ch == CTRL('V')) || (is_key && ch == KEY_SIC))
         {
-            /* Fall back to system clipboard */
-            char *clip = clipboard_paste();
+            if (clipboard_use_external())
+            {
+                char *clip = clipboard_paste();
 
-            /* Try internal block (filled by Ctrl+C/X) first */
+                if (clip && clip[0])
+                {
+                    deliver_paste(app, clip);
+                    free(clip);
+                    continue;
+                }
+
+                free(clip);
+            }
+
+            /* Try internal block (filled by Ctrl+C/X) */
             if (app->edit_active_field == EF_BODY && ed_block_paste(app->editor) == 0)
             {
                 reset_search(app);
-                ui_status(app, "Pasted");
+                ui_status(app, "Pasted (internal block)");
                 continue;
             }
 
-            if (!clip || !clip[0])
-            {
-                ui_status(app, "Clipboard: empty or no backend (install xclip/wl-clipboard, or check clipboard.device)");
-                free(clip);
-
-                continue;
-            }
-
-            deliver_paste(app, clip);
-            free(clip);
-
+            ui_status(app, "Clipboard: empty or no backend (install xclip/wl-clipboard, or check clipboard.device)");
             continue;
         }
 
@@ -2436,8 +2679,10 @@ UiView ui_editor_run(UiApp *app)
         body_rows = LINES - srow - 1;
 
         /* Reserve space for spell/dict panel at bottom when active */
-        if (app->show_spell || app->show_dict)
+        if (app->show_spell)
             body_rows -= SPELL_PANEL_H;
+        else if (app->show_dict)
+            body_rows -= DICT_PANEL_HEIGHT;
 
         if (body_rows < 1)
             body_rows = 1;

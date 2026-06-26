@@ -23,6 +23,7 @@
  */
 
 #include "hyph.h"
+#include "../core/portable.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -460,9 +461,10 @@ char **hyph_list_dictionaries(const char *dir_path, int *n_dicts)
     char **new_dicts = NULL;
 
 #ifdef PLATFORM_WIN32
-    WIN32_FIND_DATAA fd;
+    WIN32_FIND_DATAW fd;
     HANDLE h;
-    char pattern[300];
+    wchar_t *wdir = NULL;
+    wchar_t wpattern[512];
 #elif defined(PLATFORM_AMIGA)
     BPTR lock;
     struct FileInfoBlock *fib = NULL;
@@ -487,8 +489,19 @@ char **hyph_list_dictionaries(const char *dir_path, int *n_dicts)
         return NULL;
 
 #ifdef PLATFORM_WIN32
-    snprintf(pattern, sizeof(pattern), "%s\\*.dic", dir_path);
-    h = FindFirstFileA(pattern, &fd);
+    wdir = pf_utf8_to_utf16(dir_path);
+
+    if (!wdir)
+    {
+        free(dicts);
+        return NULL;
+    }
+
+    swprintf(wpattern, sizeof(wpattern) / sizeof(wchar_t), L"%s\\*.dic", wdir);
+
+    free(wdir);
+
+    h = FindFirstFileW(wpattern, &fd);
 
     if (h == INVALID_HANDLE_VALUE)
     {
@@ -498,10 +511,19 @@ char **hyph_list_dictionaries(const char *dir_path, int *n_dicts)
 
     do
     {
+        char *name_utf8 = NULL;
+
         if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
             continue;
 
-        name = hyph_extract_name(fd.cFileName);
+        name_utf8 = pf_utf16_to_utf8(fd.cFileName);
+
+        if (!name_utf8)
+            continue;
+
+        name = hyph_extract_name(name_utf8);
+
+        free(name_utf8);
 
         if (!name)
             continue;
@@ -535,7 +557,7 @@ char **hyph_list_dictionaries(const char *dir_path, int *n_dicts)
         {
             free(name);
         }
-    } while (FindNextFileA(h, &fd));
+    } while (FindNextFileW(h, &fd));
 
     FindClose(h);
 

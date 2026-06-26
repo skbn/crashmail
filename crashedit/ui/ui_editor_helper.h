@@ -30,7 +30,16 @@
 /* Effective wrap column. Clamp AUTOWRAP to COLS-1; 0=disabled */
 int editor_eff_wrap(const UiApp *app);
 
+/* Left margin for editor body with line numbers */
+int editor_body_offset(const UiApp *app, int line_count);
+
 /* Visual width in display columns of n wchars starting at s, wide chars count 2, narrow 1, used by ui_editor.c for positioning */
 int wcs_vwidth(const wchar_t *s, int n);
+
+/* Visual width with tab-stop support */
+int wcs_vwidth_ex(const wchar_t *s, int n, int start_col, int tab_width);
+
+/* Draw wide string with tab expansion */
+void ui_draw_wcs_line_with_tabs(int y, int x, const wchar_t *s, int n, int tab_width);
 
 #endif /* UI_EDITOR_HELPER_H */

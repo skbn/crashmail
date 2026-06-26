@@ -39,6 +39,19 @@
 #include <wchar.h>
 #include <wctype.h>
 
+/* Popup cursor visibility: save on entry, restore on exit */
+static int popup_saved_cursor = 1;
+
+static void popup_hide_cursor(void)
+{
+    popup_saved_cursor = curs_set(0);
+}
+
+static void popup_restore_cursor(void)
+{
+    curs_set(popup_saved_cursor);
+}
+
 /* Collect AKA pointers (no strdup; owned by AreaList/cfg) */
 typedef struct
 {
@@ -79,7 +92,7 @@ void ui_draw_popup_frame(int y, int x, int h, int w, const char *title)
 {
     int i, j;
 
-    attron(COLOR_PAIR(COL_POPUP));
+    attrset(COLOR_PAIR(COL_POPUP));
 
     for (i = 0; i < h; i++)
     {
@@ -104,7 +117,7 @@ void ui_draw_popup_frame(int y, int x, int h, int w, const char *title)
         mvaddch(y, tx + tl, ' ');
     }
 
-    attroff(COLOR_PAIR(COL_POPUP));
+    standend();
 }
 
 void ui_popup_center(int want_h, int want_w, int *y, int *x, int *h, int *w)
@@ -270,7 +283,6 @@ int ui_popup_list(const char *title, const char **items, int count, int initial)
     int want_h, want_w = 30;
     int sel = initial, top = 0;
     int i, ch;
-    int saved_cursor;
 
     if (count <= 0)
         return -1;
@@ -279,7 +291,7 @@ int ui_popup_list(const char *title, const char **items, int count, int initial)
         sel = 0;
 
     /* Hide cursor for list selection */
-    saved_cursor = curs_set(0);
+    popup_hide_cursor();
 
     /* Compute width from longest item */
     for (i = 0; i < count; i++)
@@ -373,13 +385,13 @@ int ui_popup_list(const char *title, const char **items, int count, int initial)
 
         if (ch == 27 || ch == 'q' || ch == 'Q')
         {
-            curs_set(saved_cursor);
+            popup_restore_cursor();
             return -1;
         }
 
         if (ch == '\n' || ch == '\r' || ch == KEY_ENTER)
         {
-            curs_set(saved_cursor);
+            popup_restore_cursor();
             return sel;
         }
 
@@ -685,11 +697,8 @@ void input_draw(InputState *state, int y, int x, int width, int is_active)
     if (!state || !state->buf)
         return;
 
-    /* Set background color for the input field */
-    if (is_active)
-        attron(COLOR_PAIR(COL_POPUP_SEL));
-    else
-        attron(COLOR_PAIR(COL_POPUP));
+    /* Use selected color for active field, popup color otherwise */
+    attrset(COLOR_PAIR(is_active ? COL_POPUP_SEL : COL_POPUP));
 
     mvaddch(y, x, '[');
 
@@ -718,10 +727,7 @@ void input_draw(InputState *state, int y, int x, int width, int is_active)
 
     mvaddch(y, x + 1 + avail, ']');
 
-    if (is_active)
-        attroff(COLOR_PAIR(COL_POPUP_SEL));
-    else
-        attroff(COLOR_PAIR(COL_POPUP));
+    standend();
 }
 
 /* Move cursor to correct position based on scroll offset */
@@ -754,51 +760,85 @@ void input_move_cursor(InputState *state, int y, int x, int width)
 }
 
 /* Modular input handling: returns 1 if key handled, 0 if not */
-int input_handle_key(InputState *state, int ch)
+int input_handle_key(InputState *state, int ch, int is_key)
 {
     if (!state || !state->buf)
         return -1;
 
-    if (ch == KEY_LEFT)
+    if (is_key)
     {
-        if (state->cursor > 0)
-            state->cursor--;
+        /* KEY_* codes: handle the editing keys we understand, ignore the rest */
+        if (ch == KEY_LEFT)
+        {
+            if (state->cursor > 0)
+                state->cursor--;
+        }
+        else if (ch == KEY_RIGHT)
+        {
+            if (state->cursor < state->len)
+                state->cursor++;
+        }
+        else if (ch == KEY_HOME)
+        {
+            state->cursor = 0;
+        }
+        else if (ch == KEY_END)
+        {
+            state->cursor = state->len;
+        }
+        else if (ch == KEY_BACKSPACE)
+        {
+            if (state->cursor > 0)
+            {
+                wmemmove(&state->buf[state->cursor - 1], &state->buf[state->cursor], (size_t)(state->len - state->cursor + 1));
+
+                state->cursor--;
+                state->len--;
+                state->buf[state->len] = L'\0';
+            }
+        }
+        else if (ch == KEY_DC)
+        {
+            if (state->cursor < state->len)
+            {
+                wmemmove(&state->buf[state->cursor], &state->buf[state->cursor + 1], (size_t)(state->len - state->cursor));
+
+                state->len--;
+                state->buf[state->len] = L'\0';
+            }
+        }
+        else
+        {
+            return 0;
+        }
+
+        return 1;
     }
-    else if (ch == KEY_RIGHT)
-    {
-        if (state->cursor < state->len)
-            state->cursor++;
-    }
-    else if (ch == KEY_HOME || ch == CTRL('B'))
-    {
-        state->cursor = 0;
-    }
-    else if (ch == KEY_END || ch == CTRL('E'))
-    {
-        state->cursor = state->len;
-    }
-    else if (ch == KEY_BACKSPACE || ch == 127 || ch == 8)
+
+    /* Plain character input */
+    if (ch == 8 || ch == 127)
     {
         if (state->cursor > 0)
         {
             wmemmove(&state->buf[state->cursor - 1], &state->buf[state->cursor], (size_t)(state->len - state->cursor + 1));
+
             state->cursor--;
             state->len--;
             state->buf[state->len] = L'\0';
         }
     }
-    else if (ch == KEY_DC)
+    else if (ch == CTRL('B'))
     {
-        if (state->cursor < state->len)
-        {
-            wmemmove(&state->buf[state->cursor], &state->buf[state->cursor + 1], (size_t)(state->len - state->cursor));
-            state->len--;
-            state->buf[state->len] = L'\0';
-        }
+        state->cursor = 0;
+    }
+    else if (ch == CTRL('E'))
+    {
+        state->cursor = state->len;
     }
     else if (ch >= 0x20 && ch != 127 && state->len + 1 < state->bufsz)
     {
         wmemmove(&state->buf[state->cursor + 1], &state->buf[state->cursor], (size_t)(state->len - state->cursor + 1));
+
         state->buf[state->cursor++] = (wchar_t)ch;
         state->len++;
         state->buf[state->len] = L'\0';
@@ -818,6 +858,7 @@ static int popup_input_core(const char *title, const char *prompt, wchar_t *wbuf
     int want_w;
     wint_t wch;
     int rc;
+    int is_key;
     InputState state;
     WINDOW *saved = NULL;
 
@@ -853,58 +894,63 @@ static int popup_input_core(const char *title, const char *prompt, wchar_t *wbuf
         state.cursor = state.len;
     }
 
+    popup_hide_cursor();
     curs_set(1);
 
     for (;;)
     {
         ui_draw_popup_frame(y, x, h, w, title ? title : "Input");
-        attron(COLOR_PAIR(COL_POPUP));
+        attrset(COLOR_PAIR(COL_POPUP));
 
         if (prompt)
             mvaddnstr(y + 2, x + 2, prompt, w - 4);
 
+        standend();
+
         /* Use modular input_draw */
         input_draw(&state, y + 3, x + 2, w - 4, 1);
-        standend(); /* Clear attributes after input_draw */
-
-        attroff(COLOR_PAIR(COL_POPUP));
 
         /* Use modular input_move_cursor */
         input_move_cursor(&state, y + 3, x + 2, w - 4);
         refresh();
 
         rc = wrapper_read_key(&wch);
+        is_key = (rc == KEY_CODE_YES);
 
         if (rc == ERR)
             continue;
 
         if (wch == 27)
         {
-            curs_set(0);
+            popup_restore_cursor();
+
             if (saved)
             {
                 copywin(saved, stdscr, 0, 0, y, x, h - 1, w - 1, 0);
                 delwin(saved);
                 refresh();
             }
+
             return -1;
         }
 
         if (wch == L'\n' || wch == L'\r' || wch == KEY_ENTER)
         {
             wbuf[state.len] = L'\0';
-            curs_set(0);
+            popup_restore_cursor();
+
             if (saved)
             {
                 copywin(saved, stdscr, 0, 0, y, x, h - 1, w - 1, 0);
                 delwin(saved);
                 refresh();
             }
+
             return 0;
         }
 
         /* Use modular input_handle_key */
-        if (input_handle_key(&state, (int)wch) == 1)
+        if (input_handle_key(&state, (int)wch, is_key) == 1)
             continue;
     }
 
@@ -987,6 +1033,7 @@ int ui_popup_sort(char *spec, int specsz, const char *cfg_default)
         {
             wcsncpy(wtmp, w_initial, (size_t)(CFG_SORT_MAX - 1));
             wtmp[CFG_SORT_MAX - 1] = L'\0';
+
             free(w_initial);
         }
 
@@ -998,6 +1045,7 @@ int ui_popup_sort(char *spec, int specsz, const char *cfg_default)
         {
             strncpy(spec, u, (size_t)(specsz - 1));
             spec[specsz - 1] = '\0';
+
             free(u);
         }
     }
@@ -1030,7 +1078,6 @@ int ui_popup_search_results(const char *title, const int *line_nums, const char 
     int want_h, want_w = 60;
     int sel = initial, top = 0;
     int i, ch;
-    int saved_cursor;
     int visible;
     int maxtop;
 
@@ -1041,7 +1088,7 @@ int ui_popup_search_results(const char *title, const int *line_nums, const char 
         sel = 0;
 
     /* Hide cursor for list selection */
-    saved_cursor = curs_set(0);
+    popup_hide_cursor();
 
     /* Compute width from longest context + line number prefix */
     for (i = 0; i < count; i++)
@@ -1151,13 +1198,13 @@ int ui_popup_search_results(const char *title, const int *line_nums, const char 
 
         if (ch == 27 || ch == 'q' || ch == 'Q')
         {
-            curs_set(saved_cursor);
+            popup_restore_cursor();
             return -1;
         }
 
         if (ch == '\n' || ch == '\r' || ch == KEY_ENTER)
         {
-            curs_set(saved_cursor);
+            popup_restore_cursor();
             return sel;
         }
 
@@ -1219,7 +1266,6 @@ void ui_popup_help(const char *title, const char *const *lines, int n)
     int top = 0;
     int visible;
     int maxtop;
-    int saved_cursor;
 
     for (i = 0; i < n; i++)
     {
@@ -1247,7 +1293,7 @@ void ui_popup_help(const char *title, const char *const *lines, int n)
         maxtop = 0;
 
     /* Hide cursor for help display */
-    saved_cursor = curs_set(0);
+    popup_hide_cursor();
 
     for (;;)
     {
@@ -1284,14 +1330,14 @@ void ui_popup_help(const char *title, const char *const *lines, int n)
         if (maxtop == 0)
         {
             standend();
-            curs_set(saved_cursor);
+            popup_restore_cursor();
             break; /* everything fits: any key closes (old behaviour) */
         }
 
         if (ch == 27 || ch == 'q' || ch == 'Q' || ch == '\n' || ch == '\r' || ch == KEY_ENTER)
         {
             standend();
-            curs_set(saved_cursor);
+            popup_restore_cursor();
             break;
         }
         else if (ch == KEY_UP || ch == 'k')
@@ -1335,6 +1381,9 @@ int ui_popup_replace(const wchar_t *search_in, const wchar_t *replace_in, wchar_
     int y, x, h, w;
     int field = 0; /* 0=search, 1=replace, 2=case, 3=whole */
     int ch;
+    wint_t wch;
+    int rc;
+    int is_key;
     wchar_t search_buf[64], replace_buf[64];
     InputState search_state, replace_state;
     int case_flag = case_sensitive ? *case_sensitive : 0;
@@ -1361,6 +1410,7 @@ int ui_popup_replace(const wchar_t *search_in, const wchar_t *replace_in, wchar_
 
     ui_popup_center(8, 70, &y, &x, &h, &w);
 
+    popup_hide_cursor();
     curs_set(1);
 
     for (;;)
@@ -1371,86 +1421,69 @@ int ui_popup_replace(const wchar_t *search_in, const wchar_t *replace_in, wchar_
 
         standend(); /* Clear any residual attributes from previous iteration */
         ui_draw_popup_frame(y, x, h, w, "Find & Replace");
-        attron(COLOR_PAIR(COL_POPUP));
 
         /* Draw search field */
-        attron(COLOR_PAIR(COL_POPUP));
-
+        attrset(COLOR_PAIR(COL_POPUP));
         for (i = 0; i < w - 4; i++)
             mvaddch(y + 2, x + 2 + i, ' ');
+        standend();
 
-        if (field == 0)
-            attron(COLOR_PAIR(COL_POPUP_SEL));
-
+        attrset(COLOR_PAIR(field == 0 ? COL_POPUP_SEL : COL_POPUP));
         mvaddnstr(y + 2, x + 2, labels[0], 14);
-
-        if (field == 0)
-            attroff(COLOR_PAIR(COL_POPUP_SEL));
+        standend();
 
         input_draw(&search_state, y + 2, x + field_start, w - field_start - 3, field == 0);
-        standend(); /* Clear attributes after input_draw */
 
         /* Draw replace field */
-        attron(COLOR_PAIR(COL_POPUP));
-
+        attrset(COLOR_PAIR(COL_POPUP));
         for (i = 0; i < w - 4; i++)
             mvaddch(y + 3, x + 2 + i, ' ');
+        standend();
 
-        if (field == 1)
-            attron(COLOR_PAIR(COL_POPUP_SEL));
-
+        attrset(COLOR_PAIR(field == 1 ? COL_POPUP_SEL : COL_POPUP));
         mvaddnstr(y + 3, x + 2, labels[1], 14);
-
-        if (field == 1)
-            attroff(COLOR_PAIR(COL_POPUP_SEL));
+        standend();
 
         input_draw(&replace_state, y + 3, x + field_start, w - field_start - 3, field == 1);
-        standend(); /* Clear attributes after input_draw */
 
         /* Draw checkboxes */
-        attron(COLOR_PAIR(COL_POPUP));
-
+        attrset(COLOR_PAIR(COL_POPUP));
         for (i = 0; i < w - 4; i++)
             mvaddch(y + 4, x + 2 + i, ' ');
+        standend();
 
+        attrset(COLOR_PAIR(COL_POPUP));
         mvaddnstr(y + 4, x + 2, labels[2], 14);
+        standend();
 
-        if (field == 2)
-            attron(COLOR_PAIR(COL_POPUP_SEL));
-
+        attrset(COLOR_PAIR(field == 2 ? COL_POPUP_SEL : COL_POPUP));
         mvaddnstr(y + 4, x + field_start, case_flag ? "<Yes>" : "<No>", -1);
-
-        if (field == 2)
-            attroff(COLOR_PAIR(COL_POPUP_SEL));
-
         standend();
 
         /* Clear the whole word row with popup background */
-        attron(COLOR_PAIR(COL_POPUP));
+        attrset(COLOR_PAIR(COL_POPUP));
 
         for (i = 0; i < w - 4; i++)
             mvaddch(y + 5, x + 2 + i, ' ');
 
+        standend();
+
+        attrset(COLOR_PAIR(COL_POPUP));
         mvaddnstr(y + 5, x + 2, labels[3], 14);
+        standend();
 
-        if (field == 3)
-            attron(COLOR_PAIR(COL_POPUP_SEL));
-
+        attrset(COLOR_PAIR(field == 3 ? COL_POPUP_SEL : COL_POPUP));
         mvaddnstr(y + 5, x + field_start, whole_flag ? "<Yes>" : "<No>", -1);
-
-        if (field == 3)
-            attroff(COLOR_PAIR(COL_POPUP_SEL));
-
         standend();
 
         /* Status bar */
-        attron(COLOR_PAIR(COL_STATUS));
+        attrset(COLOR_PAIR(COL_STATUS));
 
         for (i = 0; i < w - 4; i++)
             mvaddch(y + h - 2, x + 2 + i, ' ');
 
         mvaddnstr(y + h - 2, x + 2, "TAB: field  Enter=OK  ESC=Cancel", w - 4);
-        attroff(COLOR_PAIR(COL_STATUS));
+        standend();
 
         /* Position cursor */
         if (field == 0)
@@ -1464,15 +1497,18 @@ int ui_popup_replace(const wchar_t *search_in, const wchar_t *replace_in, wchar_
 
         refresh();
 
-        ch = getch();
+        rc = wrapper_read_key(&wch);
+        is_key = (rc == KEY_CODE_YES);
 
-        if (ch == ERR)
+        if (rc == ERR)
             continue;
+
+        ch = (int)wch;
 
         if (ch == 27)
         {
             standend();
-            curs_set(0);
+            popup_restore_cursor();
             refresh();
             return -1;
         }
@@ -1480,7 +1516,7 @@ int ui_popup_replace(const wchar_t *search_in, const wchar_t *replace_in, wchar_
         if (ch == '\n' || ch == '\r' || ch == KEY_ENTER)
         {
             standend();
-            curs_set(0);
+            popup_restore_cursor();
             refresh();
 
             /* Copy results */
@@ -1526,13 +1562,13 @@ int ui_popup_replace(const wchar_t *search_in, const wchar_t *replace_in, wchar_
         /* Handle text input for search/replace fields */
         if (field == 0)
         {
-            if (input_handle_key(&search_state, ch) == 1)
+            if (input_handle_key(&search_state, ch, is_key) == 1)
                 continue;
         }
 
         if (field == 1)
         {
-            if (input_handle_key(&replace_state, ch) == 1)
+            if (input_handle_key(&replace_state, ch, is_key) == 1)
                 continue;
         }
     }
