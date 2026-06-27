@@ -120,6 +120,7 @@ static const char *EDITOR_HELP[] =
         "    Ctrl-K          Go to end of document",
         "    F7 Alt+O        Insert file",
         "    F8 Alt+K        Kludges (Enter del)",
+#ifdef HAVE_HUNSPELL
         "",
         "  Spell checker:",
         "    Alt+E           Cycle spell/dict panel",
@@ -128,8 +129,21 @@ static const char *EDITOR_HELP[] =
 #ifdef HAVE_MYTHES
         "    Alt+J           Thesaurus / synonyms",
 #endif
+
 #ifdef HAVE_HYPHEN
         "    Alt+L           Toggle hyph-wrap (hard-wrap only)",
+#endif
+
+#endif /* HAVE_HUNSPELL*/
+
+#ifdef HAVE_TRANSLATE
+        "",
+        "  Translate:",
+        "    Alt+R           Translate selected text",
+        "    Alt+M           Dictionary popup (pick translation)",
+        "    Alt+N           Reverse lookup (scan dict)",
+        "    Ctrl+T          Toggle translator",
+        "    Alt+B           Exchange languages",
 #endif
         "",
         "  Attachments:",
@@ -149,13 +163,7 @@ static const char *EDITOR_HELP[] =
 #else
         "    F11 Alt+V       Nodelist browser",
 #endif
-#ifdef HAVE_TRANSLATE
-        "    Alt+R           Translate selected text",
-        "    Alt+M           Dictionary popup (pick translation)",
-        "    Alt+N           Reverse lookup (scan dict)",
-        "    Ctrl+T          Toggle translator",
-        "    Alt+B           Exchange languages",
-#endif
+        "",
         "    Alt+U           Glyph Picker",
         "    ESC             Cancel (confirm)",
         "    F1 Alt+Y        This help"};
