@@ -521,8 +521,8 @@ static int cp_to_utf8(const uint16_t *map, const char *src, int sl, char *dst, i
 
 static int utf8_to_cp(const uint16_t *map, const char *src, int sl, char *dst, int dm)
 {
-    const char *p;
-    const char *end;
+    const char *p = NULL;
+    const char *end = NULL;
     int di = 0, i;
 
     if (!src || !dst || dm <= 0)
@@ -651,8 +651,8 @@ int utf8_to_charset(const char *cs, const char *src, int sl, char *dst, int dm)
 
 wchar_t *utf8_to_wcs(const char *utf8, int *out_len)
 {
-    const char *p;
-    wchar_t *wcs, *tmp;
+    const char *p = NULL;
+    wchar_t *wcs = NULL, *tmp = NULL;
     int cap, len;
     uint32_t cp;
 
@@ -821,6 +821,7 @@ int wcswidth(const wchar_t *wcs, size_t n)
 
     for (i = 0; i < n && wcs[i] != L'\0'; i++)
     {
+        /* East Asian Width: wide/full-width/emoji = 2 columns, others = 1 */
         if ((wcs[i] >= 0x1100 && wcs[i] <= 0x115F) ||   /* Hangul Jamo */
             (wcs[i] >= 0x2190 && wcs[i] <= 0x21FF) ||   /* Arrows */
             (wcs[i] >= 0x2600 && wcs[i] <= 0x26FF) ||   /* Miscellaneous Symbols */

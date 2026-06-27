@@ -305,8 +305,8 @@ char *clipboard_paste(void)
 
 int clipboard_copy(const char *utf8)
 {
-    struct IFFHandle *iff;
-    struct ClipboardHandle *clip;
+    struct IFFHandle *iff = NULL;
+    struct ClipboardHandle *clip = NULL;
     LONG len;
     int result = -1;
 

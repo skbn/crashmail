@@ -27,6 +27,7 @@
 #define WRAPPER_EDITOR_H
 
 #include <stdint.h>
+#include <stdio.h>
 #include <wchar.h>
 
 typedef struct Ed Ed;
@@ -136,6 +137,7 @@ Ed *ed_new(void);
 void ed_free(Ed *ed);
 void ed_clear_undo_redo(Ed *ed);                                              /* Clear undo/redo stacks to free memory */
 void ed_load(Ed *ed, const char *utf8_text);                                  /* UTF-8 in */
+int ed_load_stream(Ed *ed, FILE *fp);                                          /* Streaming variant, less peak RAM */
 char *ed_to_string(const Ed *ed);                                             /* UTF-8 out (caller frees) */
 char *ed_range_to_string(const Ed *ed, int start, int end);                   /* serialise only [start, end) */
 int ed_save_to_file(const Ed *ed, const char *path, const char *charset_out); /* streaming save */
@@ -231,10 +233,12 @@ int ed_load_file_at_cursor(Ed *ed, const char *path, const char *charset_in);
 /* Export the current block selection to a text file */
 int ed_export_block_to_file(Ed *ed, const char *path, const char *charset_out);
 
-/* Sort selected lines alphabetically (case-insensitive) */
+/* Sort selected lines alphabetically (case-insensitive). Returns 0 on success,
+ * -1 if no active block or fewer than 2 lines selected. */
 int ed_sort_block_lines(Ed *ed);
 
-/* Convert case of the selected block. mode: 0=UPPER, 1=lower, 2=Title */
+/* Convert case of the selected block. mode: 0=UPPER, 1=lower, 2=Title.
+ * Returns 0 on success, -1 if no active block. */
 int ed_convert_block_case(Ed *ed, int mode);
 
 /* Set modified flag */

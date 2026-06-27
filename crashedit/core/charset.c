@@ -84,7 +84,7 @@ const char *charset_resolve(const char *name)
 
 void charset_detect(const char *body, char *out, int outsz)
 {
-    const char *p;
+    const char *p = NULL;
 
     if (!out || outsz <= 0)
         return;

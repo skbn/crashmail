@@ -848,19 +848,30 @@ static AnsiCanvas *render_wcs_stream(const wchar_t *all, int all_len, int max_co
             }
         }
 
-        /* CR: col=0, row++ (JAM uses bare CR as line separator). LF: row++ */
+        /* CR / LF / CRLF all count as ONE line break */
         if (ch == L'\r')
         {
             st.col = 0;
             st.row++;
             canvas_ensure_row(cv, st.row);
+
+            /* Eat trailing \n so CRLF doesn't double-count */
+            if (i + 1 < all_len && all[i + 1] == L'\n')
+                i++;
+
             continue;
         }
 
         if (ch == L'\n')
         {
+            st.col = 0;
             st.row++;
             canvas_ensure_row(cv, st.row);
+
+            /* Symmetric: eat trailing \r if some source emits LFCR */
+            if (i + 1 < all_len && all[i + 1] == L'\r')
+                i++;
+
             continue;
         }
 

@@ -862,11 +862,14 @@ UiView ui_reader_run(UiApp *app)
     if (app->cfg->viewansi != rd_ansi_visible(app->reader))
     {
         rd_toggle_ansi(app->reader);
+    }
 
 #ifdef PLATFORM_AMIGA
-        amiga_change_font(rd_ansi_visible(app->reader));
+    amiga_change_font(rd_ansi_visible(app->reader));
 #endif
-    }
+#ifdef PLATFORM_WIN32
+    win32_set_ansi_mode(rd_ansi_visible(app->reader));
+#endif
 
     for (;;)
     {
@@ -1285,6 +1288,9 @@ UiView ui_reader_run(UiApp *app)
             app->cfg->viewansi = rd_ansi_visible(app->reader);
 #ifdef PLATFORM_AMIGA
             amiga_change_font(rd_ansi_visible(app->reader));
+#endif
+#ifdef PLATFORM_WIN32
+            win32_set_ansi_mode(rd_ansi_visible(app->reader));
 #endif
             /* Reload message to apply/re-apply ANSI parsing with new font */
             load_msg(app, app->cur_msgnum);

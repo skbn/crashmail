@@ -577,6 +577,8 @@ int flash(void);
 
 int getmouse(MEVENT *ev);
 
+int win32_set_ansi_mode(int on);
+
 #endif /* PLATFORM_WIN32 */
 
 #endif /* NCURSESW_WIN32_H */

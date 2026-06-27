@@ -51,7 +51,7 @@ const char *charset_resolve(const char *name);
 /* Count UTF-8 characters lost when converted to out_cs */
 int charset_count_lossy(const char *utf8, const char *out_cs);
 
-/* Get list of unique charset names for popup (returns static array, do not free) */
+/* Get list of unique charset names for popup (It should not be released, it returns a static array) */
 const char **charset_get_list(int *count);
 
 #endif /* WRAPPER_CHARSET_H */

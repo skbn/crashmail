@@ -534,19 +534,32 @@ static int handle_control_keys(UiApp *app, int ch, int is_key)
     if (!is_key && ch == CTRL('C'))
     {
         EdInfo info;
-        ed_get_info(app->editor, &info);
+        Ed *ed = app->editor;
+        ed_get_info(ed, &info);
 
         if (info.block.active)
         {
-            char *block_utf8 = ed_block_get_utf8(app->editor);
+            char *block_utf8 = ed_block_get_utf8(ed);
 
-            if (ed_block_copy(app->editor) == 0)
+            if (ed_block_copy(ed) == 0)
             {
                 /* Copy to external clipboard if available */
                 if (clipboard_use_external() && block_utf8)
                 {
-                    clipboard_copy(block_utf8);
-                    ui_status(app, "Block copied to clipboard");
+                    if (clipboard_copy(block_utf8) == 0)
+                    {
+                        ui_status(app, "Block copied to clipboard");
+                    }
+                    else
+                    {
+                        /* External clipboard failed: free internal killbuf so the large block does not sit unused in memory until exit */
+                        free(ed->killbuf);
+
+                        ed->killbuf = NULL;
+                        ed->killlen = 0;
+
+                        ui_status(app, "Clipboard copy failed; internal block freed");
+                    }
                 }
                 else
                 {

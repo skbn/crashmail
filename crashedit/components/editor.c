@@ -37,6 +37,8 @@
 #include "../core/charset.h"
 #include "../core/portable.h"
 
+static int s_tab_width = 4; /* visual tab stop width for soft-wrap calculations */
+
 #define SAVE_BUF_SIZE (1024 * 1024)
 
 /* Forward declarations for undo record helpers (defined after editing funcs) */
@@ -45,6 +47,8 @@ static void record_delete_back(Ed *ed, int row, int col, wchar_t ch);
 static void record_delete_fwd(Ed *ed, int row, int col, wchar_t ch);
 static void record_split(Ed *ed, int row, int col);
 static void record_join(Ed *ed, int row, int join_col);
+
+static void block_range(const Ed *ed, int *r1, int *c1, int *r2, int *c2);
 
 /* Forward declarations for undo group functions */
 int ed_undo_open_group(Ed *ed);
@@ -78,7 +82,11 @@ static EdLine *line_new(const wchar_t *src, int len)
     if (!ln)
         return NULL;
 
-    ln->cap = len + 16;
+    if (len > 64)
+        ln->cap = len + 1; /* +1 for the NUL terminator */
+    else
+        ln->cap = len + 16;
+
     ln->wcs = (wchar_t *)malloc((size_t)ln->cap * sizeof(wchar_t));
 
     if (!ln->wcs)
@@ -92,7 +100,32 @@ static EdLine *line_new(const wchar_t *src, int len)
 
     ln->wcs[len] = L'\0';
     ln->len = len;
-    ln->word_count = 0; /* lazy: computed when ed_word_count() is first called */
+    ln->word_count = 0;
+
+    return ln;
+}
+
+/* Take ownership of an already-malloc()ed wchar_t buffer. Used by ed_load() and ed_load_stream() to avoid a copy per line */
+static EdLine *line_new_take(wchar_t *wcs, int len)
+{
+    EdLine *ln = NULL;
+
+    if (!wcs)
+        return NULL;
+
+    ln = (EdLine *)malloc(sizeof(EdLine));
+
+    if (!ln)
+    {
+        free(wcs);
+        return NULL;
+    }
+
+    ln->wcs = wcs;
+    ln->cap = len + 1;
+    ln->wcs[len] = L'\0';
+    ln->len = len;
+    ln->word_count = 0;
 
     return ln;
 }
@@ -315,6 +348,7 @@ static EdLine *doc_remove_line(Ed *ed, int at)
     if (ed->word_count_initialized)
         ed->word_count_total -= ln->word_count;
 
+    /* Shift tail left with one memmove (was for-loop) */
     if (at < ed->count - 1)
         memmove(&ed->lines[at], &ed->lines[at + 1], (size_t)(ed->count - at - 1) * sizeof(EdLine *));
 
@@ -435,7 +469,7 @@ int ed_prefix_rebuild_range(Ed *ed, int width, int start_line, int end_line)
     while (need_capacity > ed->prefix_alloc)
     {
         int na;
-        int *t;
+        int *t = NULL;
 
         na = ed->prefix_alloc > 0 ? ed->prefix_alloc * 2 : INIT_ALLOC;
 
@@ -615,7 +649,7 @@ static int prefix_rebuild(Ed *ed, int width, int max_line)
     while (ed->count >= ed->prefix_alloc)
     {
         int na;
-        int *t;
+        int *t = NULL;
 
         na = ed->prefix_alloc > 0 ? ed->prefix_alloc * 2 : INIT_ALLOC;
         t = (int *)realloc(ed->prefix, (size_t)na * sizeof(int));
@@ -641,7 +675,7 @@ static int prefix_rebuild(Ed *ed, int width, int max_line)
     /* Calculate prefix sum from from_line to to_line */
     for (i = from_line; i < to_line; i++)
     {
-        const wchar_t *l;
+        const wchar_t *l = NULL;
         int len;
 
         l = ed_line_wcs(ed, i);
@@ -684,7 +718,7 @@ static int prefix_rebuild_from(Ed *ed, int from_line, int width)
     while (ed->count >= ed->prefix_alloc)
     {
         int na;
-        int *t;
+        int *t = NULL;
 
         na = ed->prefix_alloc > 0 ? ed->prefix_alloc * 2 : INIT_ALLOC;
         t = (int *)realloc(ed->prefix, (size_t)na * sizeof(int));
@@ -710,7 +744,7 @@ static int prefix_rebuild_from(Ed *ed, int from_line, int width)
     /* Recalculate from from_line to end */
     for (i = from_line; i < ed->count; i++)
     {
-        const wchar_t *l;
+        const wchar_t *l = NULL;
         int len;
 
         l = ed_line_wcs(ed, i);
@@ -728,8 +762,6 @@ static int prefix_rebuild_from(Ed *ed, int from_line, int width)
 
     return 0;
 }
-
-static int s_tab_width = 4; /* visual tab stop width for soft-wrap calculations */
 
 void ed_set_tab_width(int n)
 {
@@ -759,7 +791,7 @@ int ed_wrap_next(const wchar_t *line, int len, int width, int start)
     if (width < 1)
         width = 1;
 
-    /* Compute visual width of skipped prefix for tab alignment */
+    /* Track logical column across the skipped prefix so tab stops align */
     for (i = 0; i < start && i < len; i++)
     {
         if (line[i] == L'\t')
@@ -1004,7 +1036,7 @@ void ed_load(Ed *ed, const char *utf8_text)
     {
         wchar_t *wcs = NULL;
         int wlen;
-        char *line_utf8;
+        char *line_utf8 = NULL;
         int blen;
         EdLine *ln = NULL;
 
@@ -1038,9 +1070,7 @@ void ed_load(Ed *ed, const char *utf8_text)
 
         if (wcs)
         {
-            ln = line_new(wcs, wlen);
-
-            free(wcs);
+            ln = line_new_take(wcs, wlen);
 
             if (ln)
                 doc_insert_line(ed, ed->count, ln);
@@ -1060,6 +1090,155 @@ void ed_load(Ed *ed, const char *utf8_text)
         if (ln)
             doc_insert_line(ed, 0, ln);
     }
+}
+
+/* Stream-load UTF-8 from FILE* in 8 KB chunks. Lower peak RAM than ed_load() because we never hold the whole file plus the wchar_t copy at once */
+int ed_load_stream(Ed *ed, FILE *fp)
+{
+    char chunk[8192];
+    char *acc = NULL;
+    size_t acc_len = 0;
+    size_t acc_cap = 0;
+    size_t got;
+    const size_t MAX_LINE = 1024 * 1024;
+
+    if (!ed || !fp)
+        return -1;
+
+    doc_clear(ed);
+
+    ed->row = ed->col = ed->top = 0;
+    ed->modified = 0;
+    ed->block.active = 0;
+    ed->undo_open = 0;
+
+    acc_cap = 4096;
+    acc = (char *)malloc(acc_cap);
+
+    if (!acc)
+        return -1;
+
+    while ((got = fread(chunk, 1, sizeof(chunk), fp)) > 0)
+    {
+        size_t i = 0;
+
+        while (i < got)
+        {
+            size_t segment_start = i;
+            size_t seg;
+            size_t need;
+
+            while (i < got && chunk[i] != '\r' && chunk[i] != '\n')
+                i++;
+
+            seg = i - segment_start;
+            need = acc_len + seg + 1;
+
+            if (need > MAX_LINE)
+            {
+                seg = (MAX_LINE > acc_len + 1) ? (MAX_LINE - acc_len - 1) : 0;
+                need = acc_len + seg + 1;
+            }
+
+            if (need > acc_cap)
+            {
+                size_t nc = acc_cap;
+                char *na = NULL;
+
+                while (nc < need)
+                    nc *= 2;
+
+                if (nc > MAX_LINE + 1)
+                    nc = MAX_LINE + 1;
+
+                na = (char *)realloc(acc, nc);
+
+                if (!na)
+                {
+                    free(acc);
+                    return -1;
+                }
+
+                acc = na;
+                acc_cap = nc;
+            }
+
+            if (seg > 0)
+            {
+                memcpy(acc + acc_len, chunk + segment_start, seg);
+                acc_len += seg;
+            }
+
+            if (i < got && (chunk[i] == '\r' || chunk[i] == '\n'))
+            {
+                wchar_t *wcs = NULL;
+                int wlen;
+                EdLine *ln = NULL;
+
+                acc[acc_len] = '\0';
+                wcs = utf8_to_wcs(acc, &wlen);
+
+                if (wcs)
+                {
+                    ln = line_new_take(wcs, wlen);
+
+                    if (ln)
+                        doc_insert_line(ed, ed->count, ln);
+                }
+
+                acc_len = 0;
+
+                if (chunk[i] == '\r')
+                {
+                    i++;
+
+                    if (i < got && chunk[i] == '\n')
+                        i++;
+                    else if (i == got)
+                    {
+                        int c = fgetc(fp);
+
+                        if (c != '\n' && c != EOF)
+                            ungetc(c, fp);
+                    }
+                }
+                else
+                {
+                    i++;
+                }
+            }
+        }
+    }
+
+    if (acc_len > 0)
+    {
+        wchar_t *wcs = NULL;
+        int wlen;
+        EdLine *ln = NULL;
+
+        acc[acc_len] = '\0';
+        wcs = utf8_to_wcs(acc, &wlen);
+
+        if (wcs)
+        {
+            ln = line_new_take(wcs, wlen);
+
+            if (ln)
+                doc_insert_line(ed, ed->count, ln);
+        }
+    }
+
+    free(acc);
+
+    if (ed->count == 0)
+    {
+        EdLine *ln = line_empty();
+
+        if (ln)
+            doc_insert_line(ed, 0, ln);
+    }
+
+    return 0;
 }
 
 char *ed_to_string(const Ed *ed)
@@ -1132,6 +1311,7 @@ char *ed_to_string(const Ed *ed)
         }
 
         memcpy(out + used, line_buf, (size_t)line_len);
+
         used += (size_t)line_len;
         out[used++] = '\n';
     }
@@ -1261,6 +1441,7 @@ int ed_save_to_file(const Ed *ed, const char *path, const char *charset_out)
             }
 
             used = 0;
+
             memcpy(buf, line_buf, (size_t)line_len);
 
             used = (size_t)line_len;
@@ -1371,6 +1552,7 @@ char *ed_range_to_string(const Ed *ed, int start, int end)
     }
 
     *p = '\0';
+
     free(parts);
 
     return out;
@@ -1596,11 +1778,9 @@ static int is_wordch(Ed *ed, wchar_t ch)
     if (!ed)
         return 0;
 
+    /* Vim-like: every non-space character is a word */
     if (ed->word_move_mode == 1)
-    {
-        /* Vim-like: every non-space character is a word */
         return ch != L' ' && ch != L'\t';
-    }
 
     /* Standard: ASCII alnum + underscore; non-ASCII as word chars */
     if (ch < 0x80)
@@ -1815,6 +1995,7 @@ int ed_delete(Ed *ed)
 
         /* Del at EOL joins lines: record as join from next line's perspective */
         record_join(ed, ed->row, ln->len);
+
         line_append(ed, ln, nxt->wcs, nxt->len);
         line_free(doc_remove_line(ed, ed->row + 1));
 
@@ -2119,17 +2300,18 @@ int ed_duplicate_line(Ed *ed)
     return 0;
 }
 
-/* Forward decl: block_range is defined further down with the block API */
-static void block_range(const Ed *ed, int *r1, int *c1, int *r2, int *c2);
-
-/* Move current line/block up one row */
+/* Move the current line up, or the selected block if active */
 int ed_move_line_up(Ed *ed)
 {
-    int top, bot;
+    int top;
+    int bot;
     EdLine *moved = NULL;
     int had_block = 0;
-    int start, old_count, new_count;
-    int cur_row, cur_col;
+    int start;
+    int old_count;
+    int new_count;
+    int cur_row;
+    int cur_col;
     char *snapshot_before = NULL;
     char *snapshot_after = NULL;
 
@@ -2222,7 +2404,9 @@ int ed_move_line_down(Ed *ed)
     int top, bot;
     EdLine *moved = NULL;
     int had_block = 0;
-    int start, old_count, new_count;
+    int start;
+    int old_count;
+    int new_count;
     int cur_row, cur_col;
     char *snapshot_before = NULL;
     char *snapshot_after = NULL;
@@ -2544,6 +2728,7 @@ int ed_block_cut(Ed *ed)
     if (ed_block_copy(ed) != 0)
     {
         free(cut_text);
+
         ed->undo_open = 0;
         return -1;
     }
@@ -2570,7 +2755,6 @@ int ed_block_cut(Ed *ed)
         int from;
         int upto;
         int k;
-        int j;
 
         /* Record deletion of middle lines */
         for (i = r1 + 1; i < r2; i++)
@@ -2580,6 +2764,7 @@ int ed_block_cut(Ed *ed)
             if (line_text)
             {
                 undo_push_op(ed, OP_DELETE, i, 0, line_text, wcslen(line_text), 0);
+
                 free(line_text);
             }
         }
@@ -2592,6 +2777,7 @@ int ed_block_cut(Ed *ed)
             if (truncated)
             {
                 undo_push_op(ed, OP_DELETE, r1, c1, truncated, wcslen(truncated), 0);
+
                 free(truncated);
             }
         }
@@ -2604,6 +2790,7 @@ int ed_block_cut(Ed *ed)
             if (deleted)
             {
                 undo_push_op(ed, OP_DELETE, r1, c1, deleted, wcslen(deleted), 0);
+
                 free(deleted);
             }
         }
@@ -2616,13 +2803,17 @@ int ed_block_cut(Ed *ed)
         /* Bulk-delete lines r1+1 .. r2 (was K calls to doc_remove_line) */
         from = r1 + 1;
         upto = r2;
-
-        if (upto >= ed->count)
-            upto = ed->count - 1;
         k = upto - from + 1;
 
-        if (k > 0)
+        if (k > 0 && from < ed->count)
         {
+            int j;
+
+            if (upto >= ed->count)
+                upto = ed->count - 1;
+
+            k = upto - from + 1;
+
             for (j = from; j <= upto; j++)
             {
                 if (ed->word_count_initialized)
@@ -2645,6 +2836,7 @@ int ed_block_cut(Ed *ed)
     ed->undo_open = 0;
 
     ed->modified = 1;
+
     ed_prefix_invalidate_from(ed, r1);
     ed_ensure_visible(ed);
 
@@ -2699,7 +2891,6 @@ int ed_block_delete(Ed *ed)
         int from;
         int upto;
         int k;
-        int j;
 
         first = ed->lines[r1];
         last = ed->lines[r2];
@@ -2712,13 +2903,18 @@ int ed_block_delete(Ed *ed)
         /* Bulk-delete lines r1+1 .. r2 (was K calls to doc_remove_line) */
         from = r1 + 1;
         upto = r2;
-
-        if (upto >= ed->count)
-            upto = ed->count - 1;
         k = upto - from + 1;
 
-        if (k > 0)
+        if (k > 0 && from < ed->count)
         {
+            int j;
+
+            if (upto >= ed->count)
+                upto = ed->count - 1;
+
+            k = upto - from + 1;
+
+            /* Free EdLines we are dropping; subtract from word count cache if it's live */
             for (j = from; j <= upto; j++)
             {
                 if (ed->word_count_initialized)
@@ -2727,6 +2923,7 @@ int ed_block_delete(Ed *ed)
                 line_free(ed->lines[j]);
             }
 
+            /* Single memmove to collapse the tail */
             if (upto < ed->count - 1)
                 memmove(&ed->lines[from], &ed->lines[upto + 1], (size_t)(ed->count - upto - 1) * sizeof(EdLine *));
 
@@ -2759,9 +2956,7 @@ int ed_block_delete(Ed *ed)
     /* Push OP_SNAPSHOT_RANGE with both snapshots */
     if (undo_push_snapshot_range(ed, r1, c1, snapshot_before, snapshot_after, old_count, new_count, r1, c1, r1, c1) != 0)
     {
-        free(snapshot_before);
-        free(snapshot_after);
-
+        /* undo_push_snapshot_range freed both snapshots on failure */
         ed_block_clear(ed);
         return -1;
     }
@@ -3071,6 +3266,7 @@ static int undo_coalesce_delete_append(Ed *ed, wchar_t ch)
         return -1;
 
     t = (wchar_t *)realloc(op->text, (size_t)(op->len + 2) * sizeof(wchar_t));
+
     if (!t)
         return -1;
 
@@ -3307,6 +3503,10 @@ static int count_utf8_lines(const char *utf8_text)
         if (*p == '\n')
             p++;
     }
+
+    /* A trailing newline implies an empty final line */
+    if (p > utf8_text && p[-1] == '\n')
+        count++;
 
     return count;
 }
@@ -3777,7 +3977,9 @@ static int apply_group_forward(Ed *ed, UndoGroup *g)
             {
                 doc_clear(ed);
                 ed_load(ed, op->utf8_snapshot);
+
                 ed->hard_wrap = op->hard_wrap_mode;
+
                 ed_set_pos(ed, op->row, op->col);
                 min_row = 0; /* Snapshot affects entire document */
             }
@@ -3836,7 +4038,7 @@ void ed_save_undo(Ed *ed)
 
 int ed_undo(Ed *ed)
 {
-    UndoGroup *src;
+    UndoGroup *src = NULL;
     UndoGroup tmp;
     int min_row;
 
@@ -3886,7 +4088,7 @@ int ed_undo(Ed *ed)
 
 int ed_redo(Ed *ed)
 {
-    UndoGroup *src;
+    UndoGroup *src = NULL;
     UndoGroup tmp;
     int min_row;
 
@@ -4114,7 +4316,7 @@ int ed_line_utf8(const Ed *ed, int line, char *buf, int bufsz)
 
 int ed_paste_text(Ed *ed, const char *utf8_text)
 {
-    const char *p;
+    const char *p = NULL;
     uint32_t cp;
 
     if (!ed || !utf8_text)
@@ -4380,6 +4582,7 @@ int ed_convert_block_case(Ed *ed, int mode)
 
     if (r1 < 0)
         r1 = 0;
+
     if (r2 >= ed->count)
         r2 = ed->count - 1;
 
@@ -4417,11 +4620,13 @@ int ed_convert_block_case(Ed *ed, int mode)
 
         if (li == r1)
             start = c1;
+
         if (li == r2)
             end = c2;
 
         if (start < 0)
             start = 0;
+
         if (end > ln->len)
             end = ln->len;
 

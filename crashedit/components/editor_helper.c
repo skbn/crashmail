@@ -187,7 +187,7 @@ int ed_search_forward(Ed *ed, const wchar_t *needle)
     int col;
     int nlen;
     int i, found, k;
-    const wchar_t *line;
+    const wchar_t *line = NULL;
 
     if (!ed || !needle || !needle[0] || ed->count <= 0)
         return 0;
@@ -248,7 +248,7 @@ int ed_search_all(Ed *ed, const wchar_t *needle, int **out_rows, int **out_cols)
     int count = 0;
     int i, j;
     int nlen;
-    const wchar_t *line;
+    const wchar_t *line = NULL;
     int line_len;
     int *rows = NULL;
     int *cols = NULL;
@@ -444,8 +444,8 @@ int ed_search_all_custom(Ed *ed, const wchar_t *needle, int case_sensitive, int 
                     /* Add match to results */
                     if (count >= capacity)
                     {
-                        int *new_rows;
-                        int *new_cols;
+                        int *new_rows = NULL;
+                        int *new_cols = NULL;
 
                         capacity *= 2;
                         new_rows = realloc(*out_rows, capacity * sizeof(int));
@@ -456,7 +456,8 @@ int ed_search_all_custom(Ed *ed, const wchar_t *needle, int case_sensitive, int 
                             free(*out_rows);
                             free(*out_cols);
 
-                            *out_rows = *out_cols = NULL;
+                            *out_rows = NULL;
+                            *out_cols = NULL;
                             return 0;
                         }
 
@@ -469,7 +470,9 @@ int ed_search_all_custom(Ed *ed, const wchar_t *needle, int case_sensitive, int 
                             /* *out_rows already updated to new_rows above; free it. *out_cols original still valid */
                             free(*out_rows);
                             free(*out_cols);
-                            *out_rows = *out_cols = NULL;
+
+                            *out_rows = NULL;
+                            *out_cols = NULL;
                             return 0;
                         }
 
@@ -521,8 +524,8 @@ int ed_rewrap_paragraph_ex(Ed *ed, int width, EdHyphenFn hyph, void *hyph_data)
     wchar_t prefix[64];
     wchar_t *joined = NULL;
     wchar_t *tmp_joined = NULL;
+    wchar_t *tmp = NULL;
     size_t cap, used;
-
     int avail = 0;
     size_t pos = 0;
     size_t out_cap = 0;
@@ -676,6 +679,7 @@ int ed_rewrap_paragraph_ex(Ed *ed, int width, EdHyphenFn hyph, void *hyph_data)
             joined[used++] = L' ';
 
         copy_len = ll - skip;
+
         if (strip_hyphen)
             copy_len--; /* drop trailing '-' */
 

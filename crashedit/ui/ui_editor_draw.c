@@ -656,7 +656,16 @@ void draw_edit_body(UiApp *app)
                     int col_x = ln_offset + wcs_vwidth_ex(wl, k, 0, tab_width);
 
                     if (ch == L'\t')
+                    {
+#ifdef PLATFORM_AMIGA
+                        if (app->cfg->ttf_enabled)
+                            mvaddnwstr(start_row + i, col_x, L"\u2192", 1);
+                        else
+                            mvaddch(start_row + i, col_x, '>');
+#else
                         mvaddnwstr(start_row + i, col_x, L"\u2192", 1);
+#endif
+                    }
                     else if (ch == L' ' && k >= trail_start)
                         mvaddnwstr(start_row + i, col_x, L"\u00b7", 1);
                 }
@@ -870,7 +879,16 @@ void draw_edit_body(UiApp *app)
                         int col_x = ln_offset + wcs_vwidth_ex(&l[seg_start], k, seg_start_vcol, tab_width);
 
                         if (ch == L'\t')
+                        {
+#ifdef PLATFORM_AMIGA
+                            if (app->cfg->ttf_enabled)
+                                mvaddnwstr(start_row + sr, col_x, L"\u2192", 1);
+                            else
+                                mvaddch(start_row + sr, col_x, '>');
+#else
                             mvaddnwstr(start_row + sr, col_x, L"\u2192", 1);
+#endif
+                        }
                         else if (ch == L' ' &&
                                  (seg_start + k) >= trail_start)
                             mvaddnwstr(start_row + sr, col_x, L"\u00b7", 1);
@@ -1046,8 +1064,13 @@ void draw_edit_body(UiApp *app)
                         if (free_cols >= 2)
                         {
                             int wx = x_screen_end - 2;
-
-                            wchar_t wrap_mark[2] = {L'\x21B5', L'\0'};
+                            wchar_t wrap_mark[2];
+#ifdef PLATFORM_AMIGA
+                            wrap_mark[0] = app->cfg->ttf_enabled ? L'\x21B5' : L'<';
+#else
+                            wrap_mark[0] = L'\x21B5';
+#endif
+                            wrap_mark[1] = L'\0';
 
                             mvaddnwstr(start_row + sr, wx, wrap_mark, 1);
                             mvaddch(start_row + sr, x_screen_end - 1, ' ');
