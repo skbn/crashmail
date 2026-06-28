@@ -30,6 +30,9 @@
 /* Effective wrap column. Clamp AUTOWRAP to COLS-1; 0=disabled */
 int editor_eff_wrap(const UiApp *app);
 
+/* Trigger auto hard-wrap after an editing action */
+void ed_auto_rewrap_after_edit(UiApp *app);
+
 /* Left margin for editor body with line numbers */
 int editor_body_offset(const UiApp *app, int line_count);
 

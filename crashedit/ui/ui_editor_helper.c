@@ -32,7 +32,9 @@
 #include "ui_editor_helper.h"
 #include "ui.h"
 #include "ui_internal.h"
+#include "ui_hyph.h"
 #include "../core/utf8.h"
+#include "../components/editor.h"
 
 int wcs_vwidth(const wchar_t *s, int n)
 {
@@ -180,4 +182,42 @@ int editor_body_offset(const UiApp *app, int line_count)
     margin = ((margin + tab_width - 1) / tab_width) * tab_width;
 
     return margin;
+}
+
+#ifdef HAVE_HYPHEN
+static int crashedit_hyph_cb(void *data, const wchar_t *word, int word_len, int col_limit)
+{
+    UiApp *app = (UiApp *)data;
+
+    if (!app || !app->hyph_wrap_enabled || !app->hyph_handle)
+        return 0;
+
+    return ui_hyph_find_break(app, word, word_len, col_limit);
+}
+#endif
+
+/* Trigger auto hard-wrap after an editing action */
+void ed_auto_rewrap_after_edit(UiApp *app)
+{
+    int width;
+    int old_mode;
+
+    if (!app || !app->editor || !app->cfg || !app->cfg->hard_wrap)
+        return;
+
+    width = editor_eff_wrap(app);
+
+    if (width < 4)
+        return;
+
+    old_mode = app->editor->undo_snapshot_mode;
+    app->editor->undo_snapshot_mode = 1;
+
+#ifdef HAVE_HYPHEN
+    ed_rewrap_paragraph_ex(app->editor, width, crashedit_hyph_cb, app);
+#else
+    ed_rewrap_paragraph_ex(app->editor, width, NULL, NULL);
+#endif
+
+    app->editor->undo_snapshot_mode = old_mode;
 }

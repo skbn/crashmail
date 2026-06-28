@@ -25,6 +25,8 @@
 #include "ui_translate.h"
 #include "ui_dict.h"
 #include "ui.h"
+#include "ui_editor_helper.h"
+#include "../components/editor.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -33,7 +35,6 @@
 #include <wctype.h>
 
 #include "../components/config.h"
-#include "../components/editor.h"
 #include "../core/utf8.h"
 
 #ifdef HAVE_TRANSLATE
@@ -471,10 +472,14 @@ int ui_translate_action(UiApp *app)
     if (choice == 1)
     {
         /* Replace lines */
+        ed_auto_rewrap_capture_pre_snapshot(app->editor);
+
         if (replace_lines(app, first, last, result) == 0)
         {
             ui_status(app, "Replaced %d line(s) with translation", last - first + 1);
             ed_block_clear(app->editor);
+            ed_auto_rewrap_after_edit(app);
+            ed_ensure_visible(app->editor);
         }
         else
             ui_status(app, "Replace failed");
@@ -490,14 +495,19 @@ int ui_translate_action(UiApp *app)
         }
         else
         {
+            ed_auto_rewrap_capture_pre_snapshot(ed);
             ed_save_undo(ed);
+
             ed_set_pos(ed, last, ed_line_len(ed, last));
             ed_enter(ed); /* line break */
 
             if (ed_paste_text(ed, result) == 0)
             {
                 ui_status(app, "Inserted translation below paragraph");
+
                 ed_block_clear(ed);
+                ed_auto_rewrap_after_edit(app);
+                ed_ensure_visible(app->editor);
             }
             else
                 ui_status(app, "Insert failed");

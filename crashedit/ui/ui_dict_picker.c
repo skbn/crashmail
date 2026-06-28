@@ -24,6 +24,7 @@
 
 #include "ui_dict_picker.h"
 #include "ui_internal.h"
+#include "ui_editor_helper.h"
 #include "../core/utf8.h"
 #include "../components/editor.h"
 #include "../spellchecker/spell.h"
@@ -383,6 +384,7 @@ int ui_dict_picker(UiApp *app)
 
         if (replace_wcs)
         {
+            ed_auto_rewrap_capture_pre_snapshot(ed);
             ed_save_undo(ed);
             ed_set_pos(ed, info.row, word_start);
 
@@ -393,7 +395,10 @@ int ui_dict_picker(UiApp *app)
                 ed_insert_char(ed, replace_wcs[i]);
 
             ui_status(app, "Replaced with '%s'", items[selected]);
+
             free(replace_wcs);
+            ed_auto_rewrap_after_edit(app);
+            ed_ensure_visible(app->editor);
         }
     }
 

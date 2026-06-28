@@ -385,37 +385,13 @@ void deliver_paste(UiApp *app, const char *utf8)
             }
         }
 
-        if (app->cfg && app->cfg->hard_wrap)
-        {
-            int pw = editor_eff_wrap(app);
-
-            if (pw > 0)
-            {
-                int rc;
-
-#ifdef HAVE_HYPHEN
-                if (app->hyph_wrap_enabled && app->hyph_handle)
-                    rc = ed_paste_and_rewrap(app->editor, to_insert, pw, paste_hyph_thunk, app->hyph_handle);
-                else
-#endif
-                    rc = ed_paste_and_rewrap(app->editor, to_insert, pw, NULL, NULL);
-
-                if (rc != 0)
-                {
-                    ed_paste_text_with_undo(app->editor, to_insert);
-                }
-            }
-            else
-            {
-                ed_paste_text_with_undo(app->editor, to_insert);
-            }
-        }
-        else
-        {
-            ed_paste_text_with_undo(app->editor, to_insert);
-        }
+        ed_auto_rewrap_capture_pre_snapshot(app->editor);
+        ed_paste_text_with_undo(app->editor, to_insert);
 
         reset_search(app);
+        ed_auto_rewrap_after_edit(app);
+        ed_ensure_visible(app->editor);
+
         reported_len = (int)strlen(to_insert);
 
         if (wrapped)

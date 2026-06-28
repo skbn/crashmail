@@ -24,6 +24,7 @@
 
 #include "ui_thes.h"
 #include "ui_internal.h"
+#include "ui_editor_helper.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -493,6 +494,7 @@ int ui_thes_lookup_word(UiApp *app)
 
             if (wsyn)
             {
+                ed_auto_rewrap_capture_pre_snapshot(ed);
                 ed_save_undo(ed);
 
                 if (is_hyphen_split)
@@ -530,6 +532,8 @@ int ui_thes_lookup_word(UiApp *app)
                 free(wsyn);
 
                 ui_status(app, "Replaced with '%s'", chosen);
+                ed_auto_rewrap_after_edit(app);
+                ed_ensure_visible(app->editor);
             }
         }
     }

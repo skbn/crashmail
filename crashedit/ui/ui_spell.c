@@ -30,6 +30,7 @@
 
 #include "ui_spell.h"
 #include "ui_internal.h"
+#include "ui_editor_helper.h"
 #include "../components/editor.h"
 #include "../components/config.h"
 #include "../core/utf8.h"
@@ -725,6 +726,8 @@ int ui_spell_check_word_at_cursor(UiApp *app)
 
         if (sug_wcs)
         {
+            ed_auto_rewrap_capture_pre_snapshot(ed);
+
             if (is_hyphen_split)
             {
                 hyphen_split_replace_cm(ed, &hs, sug_wcs, sug_len);
@@ -747,6 +750,8 @@ int ui_spell_check_word_at_cursor(UiApp *app)
             free(sug_wcs);
 
             app->spell_word_status = 1;
+            ed_auto_rewrap_after_edit(app);
+            ed_ensure_visible(app->editor);
         }
     }
 

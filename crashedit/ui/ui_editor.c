@@ -35,6 +35,7 @@
 #include "ui_editor_softwrap.h"
 #include "ui_editor_search.h"
 #include "ui_editor_paste.h"
+#include "ui_editor_helper.h"
 #include "ui_editor_draw.h"
 #include "ui_spell.h"
 #include "ui_dict.h"
@@ -91,7 +92,7 @@ static const char *EDITOR_HELP[] =
         "    Ins Alt+I       Toggle insert",
 #endif
         "    Ctrl+Left/Right Word movement",
-        "    Ctrl-W          Rewrap paragraph",
+        "    Ctrl-W          Rewrap FTN reply",
         "    Alt+Q           Toggle wrap mode",
         "    Alt+D           Hide dict panel / toggle line numbers",
         "",
@@ -474,27 +475,6 @@ static int handle_function_keys(UiApp *app, int ch, int is_key)
     return 0;
 }
 
-#ifdef HAVE_HYPHEN
-/* Thunk: adapt hyph_breakpoints to EdHyphenFn signature */
-static int rewrap_hyph_thunk(void *user_data, const char *word, int word_len, int *out_pos, int *out_count)
-{
-    HyphDict *h = (HyphDict *)user_data;
-    int n = 0;
-
-    if (!out_count)
-        return 0;
-
-    if (!hyph_breakpoints(h, word, word_len, out_pos, &n) || n == 0)
-    {
-        *out_count = 0;
-        return 0;
-    }
-
-    *out_count = n;
-    return 1;
-}
-#endif
-
 /* Handle control key combinations (Ctrl+...), returns 1 if handled, 0 otherwise */
 static int handle_control_keys(UiApp *app, int ch, int is_key)
 {
@@ -524,17 +504,27 @@ static int handle_control_keys(UiApp *app, int ch, int is_key)
         else
         {
             /* SSH/headless: use internal block only */
-            if (app->edit_active_field == EF_BODY && ed_block_paste(app->editor) == 0)
+            if (app->edit_active_field == EF_BODY)
             {
-                reset_search(app);
-                ui_status(app, "Pasted (internal block)");
-                return 1;
+                ed_auto_rewrap_capture_pre_snapshot(app->editor);
+
+                if (ed_block_paste(app->editor) == 0)
+                {
+                    reset_search(app);
+
+                    ed_auto_rewrap_after_edit(app);
+                    ed_ensure_visible(app->editor);
+
+                    ui_status(app, "Pasted (internal block)");
+                    return 1;
+                }
+
+                free(app->editor->auto_rewrap_pre_snapshot);
+                app->editor->auto_rewrap_pre_snapshot = NULL;
             }
-            else
-            {
-                ui_status(app, "No internal block to paste (external clipboard unavailable in SSH)");
-                return 1;
-            }
+
+            ui_status(app, "No internal block to paste (external clipboard unavailable in SSH)");
+            return 1;
         }
     }
 
@@ -617,7 +607,7 @@ static int handle_control_keys(UiApp *app, int ch, int is_key)
         return 1;
     }
 
-    /* Ctrl+W : rewrap paragraph */
+    /* Ctrl+W : rewrap FTN reply quote block */
     if (!is_key && ch == CTRL('W'))
     {
         int rwrap = app->cfg->autowrap_col > 0 ? app->cfg->autowrap_col : 75;
@@ -630,17 +620,16 @@ static int handle_control_keys(UiApp *app, int ch, int is_key)
         if (rwrap > limit)
             rwrap = limit;
 
-#ifdef HAVE_HYPHEN
-        if (app->hyph_wrap_enabled && app->hyph_handle)
-            rc = ed_rewrap_paragraph_ex(app->editor, rwrap, rewrap_hyph_thunk, app->hyph_handle);
-        else
-#endif
-            rc = ed_rewrap_paragraph(app->editor, rwrap);
+        rc = ed_rewrap_ftn_reply(app->editor, rwrap);
 
         if (rc == 0)
         {
             reset_search(app);
-            ui_status(app, "Paragraph rewrapped");
+            ui_status(app, "FTN reply rewrapped");
+        }
+        else
+        {
+            ui_status(app, "Ctrl+W only works on FTN reply quotes");
         }
 
         return 1;
@@ -1083,6 +1072,7 @@ static int handle_alt_keys(UiApp *app, int ch, int is_key)
 
         app->hyph_wrap_enabled = !app->hyph_wrap_enabled;
         ui_status(app, "Hyphenation wrap: %s", app->hyph_wrap_enabled ? "ON" : "OFF");
+        ed_auto_rewrap_after_edit(app);
         return 1;
     }
 #endif
@@ -1557,7 +1547,11 @@ static int handle_body_input(UiApp *app, int ch, int is_key, wint_t wch, int sof
                 /* Backspace single character */
                 ed_block_clear(app->editor);
                 ed_backspace(app->editor);
+
                 reset_search(app);
+
+                ed_auto_rewrap_after_edit(app);
+                ed_ensure_visible(app->editor);
             }
 
             return 1;
@@ -1581,7 +1575,11 @@ static int handle_body_input(UiApp *app, int ch, int is_key, wint_t wch, int sof
                 /* Delete single character */
                 ed_block_clear(app->editor);
                 ed_delete(app->editor);
+
                 reset_search(app);
+
+                ed_auto_rewrap_after_edit(app);
+                ed_ensure_visible(app->editor);
             }
 
             return 1;
@@ -1857,7 +1855,11 @@ static int handle_body_input(UiApp *app, int ch, int is_key, wint_t wch, int sof
         case 127:
             ed_block_clear(app->editor);
             ed_backspace(app->editor);
+
             reset_search(app);
+
+            ed_auto_rewrap_after_edit(app);
+            ed_ensure_visible(app->editor);
 
             return 1;
 
@@ -2087,8 +2089,8 @@ static int handle_body_input(UiApp *app, int ch, int is_key, wint_t wch, int sof
                 ed_block_clear(app->editor);
                 ed_insert_char(app->editor, (wchar_t)wch);
 
-                /* Auto-close open brackets */
-                if (app->cfg && app->cfg->autoclose && (wch == L'(' || wch == L'[' || wch == L'{' || wch == L'"' || wch == L'\''))
+                /* Auto-close open brackets and Spanish opening marks */
+                if (app->cfg && app->cfg->autoclose && (wch == L'(' || wch == L'[' || wch == L'{' || wch == L'"' || wch == L'\'' || wch == L'¿' || wch == L'¡'))
                 {
                     EdInfo ac_info;
                     const wchar_t *ac_line = NULL;
@@ -2114,6 +2116,10 @@ static int handle_body_input(UiApp *app, int ch, int is_key, wint_t wch, int sof
                         close = L'"';
                     else if (wch == L'\'')
                         close = L'\'';
+                    else if (wch == L'¿')
+                        close = L'?';
+                    else if (wch == L'¡')
+                        close = L'!';
 
                     if (close &&
                         (next == L'\0' || next == L' ' || next == L'\t' ||
@@ -2132,173 +2138,8 @@ static int handle_body_input(UiApp *app, int ch, int is_key, wint_t wch, int sof
                 ui_assist_on_char(app, (wchar_t)wch);
                 reset_search(app);
 
-                /* HARD-WRAP only: insert CR at wrap col; soft-wrap leaves line intact */
-                if (app->cfg && app->cfg->hard_wrap && eff_wrap > 0)
-                {
-                    EdInfo wi;
-                    int linelen;
-
-                    ed_get_info(app->editor, &wi);
-                    linelen = ed_line_len(app->editor, wi.row);
-
-                    /* Activate when cursor is at end of line */
-                    if (wi.col == linelen)
-                    {
-                        const wchar_t *line = ed_line_wcs(app->editor, wi.row);
-
-                        if (line)
-                        {
-                            int word_start = 0;
-                            int word_len;
-                            int space_available;
-                            int k;
-                            int hyphen_performed = 0;
-
-                            /* Identify the current word (from last space to cursor) */
-                            for (k = wi.col; k > 0; k--)
-                            {
-                                if (line[k - 1] == L' ' || line[k - 1] == L'\n' || line[k - 1] == L'\t')
-                                {
-                                    word_start = k;
-                                    break;
-                                }
-                            }
-
-                            word_len = wi.col - word_start;
-                            space_available = eff_wrap - wcs_vwidth_ex(line, word_start, 0, app->cfg->tab_width);
-
-#ifdef HAVE_HYPHEN
-                            /* If line ends with wrap-hyphen and user edits within word merge next line delete */
-                            if (app->hyph_wrap_enabled && app->hyph_handle && word_len >= 2 && line[wi.col - 1] != L'-' && wi.row + 1 < wi.line_count)
-                            {
-                                int hpos = -1;
-                                /* Wrap-hyphen is just before typed char not any hyphen in middle of word */
-                                if (wi.col - 2 >= word_start && line[wi.col - 2] == L'-' && wi.col - 3 >= word_start && line[wi.col - 3] != L' ' && line[wi.col - 3] != L'\t' && line[wi.col - 3] != L'-')
-                                    hpos = wi.col - 2;
-
-                                if (hpos >= 0)
-                                {
-                                    const wchar_t *next_l = ed_line_wcs(app->editor, wi.row + 1);
-
-                                    if (next_l && next_l[0] && next_l[0] != L' ' && next_l[0] != L'\t' && next_l[0] != L'-')
-                                    {
-                                        /* delete the orphan '-' */
-                                        ed_set_pos(app->editor, wi.row, hpos);
-                                        ed_delete(app->editor);
-
-                                        /* go to end of current line and join with next */
-                                        ed_get_info(app->editor, &wi);
-
-                                        linelen = ed_line_len(app->editor, wi.row);
-
-                                        ed_set_pos(app->editor, wi.row, linelen);
-                                        ed_delete(app->editor);
-
-                                        /* re-read state and place cursor at end so the hyphen logic below re-runs on the joined word */
-                                        ed_get_info(app->editor, &wi);
-
-                                        line = ed_line_wcs(app->editor, wi.row);
-                                        linelen = ed_line_len(app->editor, wi.row);
-
-                                        word_start = 0;
-
-                                        for (k = linelen; k > 0; k--)
-                                        {
-                                            if (line[k - 1] == L' ' || line[k - 1] == L'\n' || line[k - 1] == L'\t')
-                                            {
-                                                word_start = k;
-                                                break;
-                                            }
-                                        }
-
-                                        ed_set_pos(app->editor, wi.row, linelen);
-                                        ed_get_info(app->editor, &wi);
-
-                                        word_len = wi.col - word_start;
-                                        space_available = eff_wrap - wcs_vwidth_ex(line, word_start, 0, app->cfg->tab_width);
-
-                                        reset_search(app);
-                                    }
-                                }
-                            }
-
-                            /* If word doesn't fit in available space, try hyphen */
-                            if (wcs_vwidth_ex(line, wi.col, 0, app->cfg->tab_width) - wcs_vwidth_ex(line, word_start, 0, app->cfg->tab_width) > space_available && space_available >= 0 && app->hyph_wrap_enabled && app->hyph_handle)
-                            {
-                                int hyph_break = ui_hyph_find_break(app, &line[word_start], word_len, space_available);
-
-                                /* Validate hyphenation breakpoint: must be valid and leave at least one character after hyphen */
-                                if (hyph_break >= 0 && hyph_break > 0 && hyph_break < word_len - 1)
-                                {
-                                    int break_pos = word_start + hyph_break;
-
-                                    /* Validate that break_pos is within the line */
-                                    if (break_pos < linelen)
-                                    {
-                                        /* Save state for undo */
-                                        ed_save_undo(app->editor);
-
-                                        /* Insert '-' at breakpoint */
-                                        ed_set_pos(app->editor, wi.row, break_pos);
-
-                                        if (ed_insert_char(app->editor, L'-') == 0)
-                                        {
-                                            /* Insert '\n' after '-' using ed_enter to properly split the line */
-                                            if (ed_enter(app->editor) == 0)
-                                            {
-                                                /* Calculate tail: characters remaining after breakpoint in the word */
-                                                int tail = word_len - hyph_break;
-
-                                                if (tail < 0)
-                                                    tail = 0;
-
-                                                ed_set_pos(app->editor, wi.row + 1, tail);
-                                                reset_search(app);
-
-                                                hyphen_performed = 1;
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-#endif
-
-                            /* If line exceeds limit, try to break at space (but not if hyphen already handled it) */
-                            if (wcs_vwidth_ex(line, wi.col, 0, app->cfg->tab_width) > eff_wrap && !hyphen_performed)
-                            {
-                                int brk = -1;
-                                int k;
-                                int vcol = 0;
-
-                                for (k = 0; k < linelen; k++)
-                                {
-                                    if (line[k] == L' ' && vcol <= eff_wrap)
-                                        brk = k;
-
-                                    vcol += wcs_vwidth_ex(&line[k], 1, vcol, app->cfg->tab_width);
-                                }
-
-                                if (wch == L' ')
-                                {
-                                    ed_backspace(app->editor); /* replace trailing space with newline */
-                                    ed_enter(app->editor);
-                                    reset_search(app);
-                                }
-                                else if (brk >= 0)
-                                {
-                                    int tail = linelen - brk - 1;
-
-                                    ed_set_pos(app->editor, wi.row, brk);
-                                    ed_delete(app->editor);
-                                    ed_enter(app->editor);
-
-                                    reset_search(app);
-                                    ed_set_pos(app->editor, wi.row + 1, tail);
-                                }
-                            }
-                        }
-                    }
-                }
+                ed_auto_rewrap_after_edit(app);
+                ed_ensure_visible(app->editor);
 
                 return 1;
             }
@@ -2625,11 +2466,21 @@ UiView ui_editor_run(UiApp *app)
             }
 
             /* Try internal block (filled by Ctrl+C/X) */
-            if (app->edit_active_field == EF_BODY && ed_block_paste(app->editor) == 0)
+            if (app->edit_active_field == EF_BODY)
             {
-                reset_search(app);
-                ui_status(app, "Pasted (internal block)");
-                continue;
+                ed_auto_rewrap_capture_pre_snapshot(app->editor);
+
+                if (ed_block_paste(app->editor) == 0)
+                {
+                    reset_search(app);
+                    ed_auto_rewrap_after_edit(app);
+                    ed_ensure_visible(app->editor);
+                    ui_status(app, "Pasted (internal block)");
+                    continue;
+                }
+
+                free(app->editor->auto_rewrap_pre_snapshot);
+                app->editor->auto_rewrap_pre_snapshot = NULL;
             }
 
             ui_status(app, "Clipboard: empty or no backend (install xclip/wl-clipboard, or check clipboard.device)");

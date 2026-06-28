@@ -84,7 +84,7 @@ static int do_smart_quotes(UiApp *app, wchar_t just_typed)
     return 1;
 }
 
-/* AUTO-CAPITALIZATION: Capitalize letter after sentence enders (. ! ?) with spaces, or at doc start */
+/* AUTO-CAPITALIZATION: Capitalize letter after sentence enders (. ! ?) with spaces, after opening ¿/¡, or at doc start */
 static int do_auto_cap(UiApp *app, wchar_t just_typed)
 {
     Ed *ed;
@@ -111,7 +111,7 @@ static int do_auto_cap(UiApp *app, wchar_t just_typed)
 
     col = info.col - 1; /* position of just_typed */
 
-    /* Start of sentence: doc start, or after space(s) following .!?, or line start after .!?/empty line */
+    /* Start of sentence: doc start, after space(s) following .!?, after opening ¿/¡, or line start after .!?/empty line */
     is_start = 0;
     k = col - 1;
 
@@ -119,7 +119,11 @@ static int do_auto_cap(UiApp *app, wchar_t just_typed)
     while (k >= 0 && (line[k] == L' ' || line[k] == L'\t'))
         k--;
 
-    if (k < 0)
+    if (k >= 0 && (line[k] == L'¿' || line[k] == L'¡'))
+    {
+        is_start = 1;
+    }
+    else if (k < 0)
     {
         /* Col 0 of this line (possibly after spaces). Look at the previous line */
         if (info.row == 0)
@@ -142,7 +146,7 @@ static int do_auto_cap(UiApp *app, wchar_t just_typed)
             {
                 wchar_t lc = prev[pl - 1];
 
-                if (lc == L'.' || lc == L'!' || lc == L'?')
+                if (lc == L'.' || lc == L'!' || lc == L'?' || lc == L'¿' || lc == L'¡')
                     is_start = 1;
             }
         }
@@ -214,7 +218,7 @@ int ui_assist_check_repeat(UiApp *app, int line, int col_start, int word_len)
     if (!l || col_start + word_len > ll)
         return 0;
 
-    /* Skip whitespace backwards from col_start. */
+    /* Skip whitespace backwards from col_start */
     k = col_start - 1;
 
     while (k >= 0 && (l[k] == L' ' || l[k] == L'\t'))
