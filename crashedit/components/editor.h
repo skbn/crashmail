@@ -137,7 +137,7 @@ Ed *ed_new(void);
 void ed_free(Ed *ed);
 void ed_clear_undo_redo(Ed *ed);                                              /* Clear undo/redo stacks to free memory */
 void ed_load(Ed *ed, const char *utf8_text);                                  /* UTF-8 in */
-int ed_load_stream(Ed *ed, FILE *fp);                                          /* Streaming variant, less peak RAM */
+int ed_load_stream(Ed *ed, FILE *fp);                                         /* Streaming variant, less peak RAM */
 char *ed_to_string(const Ed *ed);                                             /* UTF-8 out (caller frees) */
 char *ed_range_to_string(const Ed *ed, int start, int end);                   /* serialise only [start, end) */
 int ed_save_to_file(const Ed *ed, const char *path, const char *charset_out); /* streaming save */
@@ -269,6 +269,7 @@ void ed_clamp(Ed *ed);
 void ed_redo_clear(Ed *ed);
 int ed_undo_open_group(Ed *ed);
 int undo_push_snapshot_range(Ed *ed, int row, int col, char *snapshot_before, char *snapshot_after, int old_count, int new_count, int cur_row, int cur_col, int end_row, int end_col);
+int ed_replace_range_from_utf8(Ed *ed, int start, int count_to_remove, const char *utf8_text);
 void ed_prefix_invalidate(Ed *ed);
 void ed_prefix_invalidate_from(Ed *ed, int from_line);
 int ed_undo_stack_make_room(UndoGroup **stack, int *top, int *cap, int max);
