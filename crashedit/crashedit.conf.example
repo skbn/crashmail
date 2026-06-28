@@ -286,6 +286,10 @@ CHARSET LATIN-1
 # Default: NO
 #HYPH_WRAP_ENABLED YES
 
+# HYPH_DETECT_ON_LOAD -- Detect wrap-hyphens when loading messages using the spell dictionary
+# Default: NO
+#HYPH_DETECT_ON_LOAD YES
+
 # THES_ENABLED -- Enable thesaurus in the editor
 # Default: NO
 #THES_ENABLED YES

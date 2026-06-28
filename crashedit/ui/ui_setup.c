@@ -390,6 +390,7 @@ static const SetupField st_fields[] =
         {TAB_SPELL, "Hyphen Path", FT_STR, offsetof(CrashEditCfg, hyph_dict_path), CFG_STR_MAX},
         {TAB_SPELL, "Hyphen Dictionary", FT_HYPHLIST, offsetof(CrashEditCfg, hyph_dict_name), 0},
         {TAB_SPELL, "Hyphen Wrap", FT_BOOL, offsetof(CrashEditCfg, hyph_wrap_enabled), 0},
+        {TAB_SPELL, "Hyphen Detect on Load", FT_BOOL, offsetof(CrashEditCfg, hyph_detect_on_load), 0},
 #endif             /* HAVE_HYPHEN end (Amiga fields) */
 #ifdef HAVE_MYTHES /* HAVE_MYTHES begin (Amiga fields) */
         {TAB_SPELL, "Thesaurus Enabled", FT_BOOL, offsetof(CrashEditCfg, thes_enabled), 0},
@@ -406,6 +407,7 @@ static const SetupField st_fields[] =
         {TAB_SPELL, "Hyphen Path", FT_STR, offsetof(CrashEditCfg, hyph_dict_path), CFG_STR_MAX},
         {TAB_SPELL, "Hyphen Dictionary", FT_HYPHLIST, offsetof(CrashEditCfg, hyph_dict_name), 0},
         {TAB_SPELL, "Hyphen Wrap", FT_BOOL, offsetof(CrashEditCfg, hyph_wrap_enabled), 0},
+        {TAB_SPELL, "Hyphen Detect on Load", FT_BOOL, offsetof(CrashEditCfg, hyph_detect_on_load), 0},
 #endif             /* HAVE_HYPHEN end (non-Amiga fields) */
 #ifdef HAVE_MYTHES /* HAVE_MYTHES begin (non-Amiga fields) */
         {TAB_SPELL, "Thesaurus Enabled", FT_BOOL, offsetof(CrashEditCfg, thes_enabled), 0},

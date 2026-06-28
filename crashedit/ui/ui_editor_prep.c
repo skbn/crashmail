@@ -27,6 +27,7 @@
 #include "../../src/jamlib/jam.h"
 #include "ui_aka.h"
 #include "ui_editor_internal.h"
+#include "ui_editor_helper.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -554,6 +555,8 @@ void ui_editor_prep_new(UiApp *app)
     free(sig);
 
     load_template_if_any(app->editor, app->cfg->template_file);
+
+    ui_editor_detect_wrap_hyphens(app);
 }
 
 /* Build quote source: keep only visible line categories, returns malloc'd UTF-8 (caller frees) */
@@ -899,6 +902,8 @@ void ui_editor_prep_reply(UiApp *app, uint32_t orig_msgnum)
     app->edit_is_reply = 1;
     app->edit_reply_to_msgnum = orig_msgnum;
     app->edit_active_field = EF_BODY;
+
+    ui_editor_detect_wrap_hyphens(app);
 }
 
 /* Prep for EDIT existing */
@@ -1057,6 +1062,8 @@ void ui_editor_prep_edit(UiApp *app, uint32_t msgnum)
 
     /* Used by ui_editor_save() to delete the old copy */
     app->cur_msgnum = msgnum;
+
+    ui_editor_detect_wrap_hyphens(app);
 }
 
 /* Save helpers: free extracted headers */

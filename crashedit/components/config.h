@@ -169,6 +169,7 @@ typedef struct
     char hyph_dict_path[CFG_STR_MAX]; /* directory containing hyph_*.dic */
     char hyph_dict_name[CFG_STR_MAX]; /* base name, e.g. "es_ES" */
     int hyph_wrap_enabled;            /* 1 = hyphenate at hard-wrap column */
+    int hyph_detect_on_load;          /* 1 = detect wrap-hyphens on file load */
 #endif
 
 #ifdef HAVE_MYTHES

@@ -727,6 +727,7 @@ void cfg_defaults(CrashEditCfg *cfg)
     cfg->hyph_dict_path[sizeof(cfg->hyph_dict_path) - 1] = '\0';
     cfg->hyph_dict_name[0] = '\0';
     cfg->hyph_wrap_enabled = 0;
+    cfg->hyph_detect_on_load = 0;
 #endif /* HAVE_HYPHEN */
 
 #ifdef HAVE_MYTHES
@@ -1089,6 +1090,10 @@ int cfg_load(CrashEditCfg *cfg, const char *path)
         else if (strcasecmp(word, "HYPH_WRAP_ENABLED") == 0)
         {
             cfg->hyph_wrap_enabled = parse_yesno(rest);
+        }
+        else if (strcasecmp(word, "HYPH_DETECT_ON_LOAD") == 0)
+        {
+            cfg->hyph_detect_on_load = parse_yesno(rest);
         }
 #endif /* HAVE_HYPHEN */
 
@@ -1831,6 +1836,7 @@ int cfg_save(const CrashEditCfg *cfg, const char *path)
     KV_STR("HYPH_DICT_PATH", cfg->hyph_dict_path);
     KV_STR("HYPH_DICT_NAME", cfg->hyph_dict_name);
     KV_YN("HYPH_WRAP_ENABLED", cfg->hyph_wrap_enabled);
+    KV_YN("HYPH_DETECT_ON_LOAD", cfg->hyph_detect_on_load);
 #endif
 
 #ifdef HAVE_MYTHES
@@ -1909,8 +1915,11 @@ int cfg_save(const CrashEditCfg *cfg, const char *path)
             if (cfg->color_map_initialized && strcasecmp(word, "COLORMAP") == 0)
                 continue; /* drop; will re-emit below */
 
-            /* Skip TTF_FALLBACK lines - they will be rewritten at the end with fprintf */
+            /* Skip TTF_FALLBACK and COLOR lines - they will be rewritten at the end with fprintf */
             if (strncasecmp(word, "TTF_FALLBACK", 12) == 0)
+                continue;
+
+            if (strcasecmp(word, "COLOR") == 0)
                 continue;
 
             for (i = 0; i < nkv; i++)

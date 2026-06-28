@@ -36,6 +36,9 @@ void ed_auto_rewrap_after_edit(UiApp *app);
 /* Left margin for editor body with line numbers */
 int editor_body_offset(const UiApp *app, int line_count);
 
+/* Detect loaded wrap-hyphens using the active spell checker */
+void ui_editor_detect_wrap_hyphens(UiApp *app);
+
 /* Visual width in display columns of n wchars starting at s, wide chars count 2, narrow 1, used by ui_editor.c for positioning */
 int wcs_vwidth(const wchar_t *s, int n);
 
