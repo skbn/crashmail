@@ -622,6 +622,13 @@ static int handle_control_keys(UiApp *app, int ch, int is_key)
     {
         int rwrap = app->cfg->autowrap_col > 0 ? app->cfg->autowrap_col : 75;
         int rc;
+        int limit = COLS - 1;
+
+        if (limit < 20)
+            limit = 20;
+
+        if (rwrap > limit)
+            rwrap = limit;
 
 #ifdef HAVE_HYPHEN
         if (app->hyph_wrap_enabled && app->hyph_handle)
