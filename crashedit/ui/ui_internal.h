@@ -193,6 +193,30 @@
 #define COL_CURRENT_LINE 26
 #define COL_GUIDE 27
 
+/*
+ * UI-level spell-check result cache, keyed by exact wchar_t word
+ * UI cache hit > return result
+ * UI cache miss > spell_check() > internal cache hit/miss > save result in UI cache
+ *
+ * UI cache (the first layer):
+ * If the word is there, it returns the result without calling Hunspell
+ *
+ * If it's not there, it moves to the next layer
+ * When it's full, it overwrites the oldest entry (it doesn't delegate to the other cache)
+ * Hunspell's internal cache (SPELL_CACHE_N): It's checked inside spell_check(), only when the UI cache fails
+ * If the word was in the internal cache, it avoids the affix/lowercase handling
+ *
+ * If the user edited the custom dictionary file directly, reload it so new words are recognized immediately
+ */
+
+#ifndef UI_SPELL_CACHE_SIZE
+#ifdef PLATFORM_AMIGA
+#define UI_SPELL_CACHE_SIZE 2048
+#else
+#define UI_SPELL_CACHE_SIZE 8192
+#endif
+#endif
+
 /* View states */
 typedef enum
 {
@@ -246,6 +270,18 @@ typedef struct
     int case_sensitive;       /* Search case sensitivity flag */
     int whole_word;           /* Search whole word flag */
 } UiSearch;
+
+typedef struct
+{
+    wchar_t *word; /* NULL = empty slot */
+    int len;
+    int incorrect; /* 1 = misspelled, 0 = correct */
+} UiSpellCacheEntry;
+
+typedef struct
+{
+    UiSpellCacheEntry entries[UI_SPELL_CACHE_SIZE];
+} UiSpellCache;
 
 /* Main app state */
 struct UiApp
@@ -339,6 +375,7 @@ struct UiApp
     int spell_word_status;           /* 0=none, 1=correct, 2=incorrect */
     char **spell_suggestions;        /* most recent suggestions */
     int spell_suggestion_count;
+    UiSpellCache spell_cache; /* Cache for visible-word spell-check results */
 #endif
 
 #ifdef HAVE_HYPHEN

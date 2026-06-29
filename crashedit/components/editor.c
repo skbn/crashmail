@@ -66,6 +66,7 @@ static void prefix_free(Ed *ed);
 void ed_prefix_invalidate(Ed *ed);
 static int prefix_rebuild(Ed *ed, int width, int max_line);
 static int prefix_rebuild_from(Ed *ed, int from_line, int width);
+static int ed_line_wrap_count(EdLine *ln, int width);
 
 static int line_count_words(const EdLine *ln)
 {
@@ -102,6 +103,8 @@ static EdLine *line_new(const wchar_t *src, int len)
     ln->len = len;
     ln->word_count = 0;
     ln->has_wrap_hyphen = 0;
+    ln->wrap_count_cache = -1;
+    ln->wrap_cache_width = 0;
 
     return ln;
 }
@@ -128,6 +131,8 @@ static EdLine *line_new_take(wchar_t *wcs, int len)
     ln->len = len;
     ln->word_count = 0;
     ln->has_wrap_hyphen = 0;
+    ln->wrap_count_cache = -1;
+    ln->wrap_cache_width = 0;
 
     return ln;
 }
@@ -187,6 +192,7 @@ static int line_insert(Ed *ed, EdLine *ln, int pos, wchar_t ch)
 
     ln->wcs[pos] = ch;
     ln->len++;
+    ln->wrap_count_cache = -1;
 
     if (ed->word_count_initialized)
     {
@@ -206,7 +212,9 @@ static int line_delete(Ed *ed, EdLine *ln, int pos)
         return -1;
 
     wmemmove(&ln->wcs[pos], &ln->wcs[pos + 1], (size_t)(ln->len - pos));
+
     ln->len--;
+    ln->wrap_count_cache = -1;
 
     if (ed->word_count_initialized)
     {
@@ -230,6 +238,7 @@ static int line_delete_range(Ed *ed, EdLine *ln, int pos, int n)
 
     wmemmove(&ln->wcs[pos], &ln->wcs[pos + n], (size_t)(ln->len - pos - n + 1));
     ln->len -= n;
+    ln->wrap_count_cache = -1;
 
     if (ed->word_count_initialized)
     {
@@ -253,6 +262,7 @@ static void line_truncate(Ed *ed, EdLine *ln, int pos)
 
     ln->len = pos;
     ln->wcs[pos] = L'\0';
+    ln->wrap_count_cache = -1;
 
     if (ed->word_count_initialized)
     {
@@ -276,6 +286,7 @@ static int line_append(Ed *ed, EdLine *ln, const wchar_t *s, int slen)
 
     ln->len += slen;
     ln->wcs[ln->len] = L'\0';
+    ln->wrap_count_cache = -1;
 
     if (ed->word_count_initialized)
     {
@@ -497,12 +508,7 @@ int ed_prefix_rebuild_range(Ed *ed, int width, int start_line, int end_line)
         ed->prefix_base = 0;
 
         for (i = 0; i < start_line; i++)
-        {
-            const wchar_t *l = ed_line_wcs(ed, i);
-            int len = ed_line_len(ed, i);
-
-            ed->prefix_base += ed_wrap_count(l ? l : L"", l ? len : 0, width);
-        }
+            ed->prefix_base += ed_line_wrap_count(ed->lines[i], width);
     }
     else
     {
@@ -519,7 +525,7 @@ int ed_prefix_rebuild_range(Ed *ed, int width, int start_line, int end_line)
                 const wchar_t *l = ed_line_wcs(ed, i);
                 int len = ed_line_len(ed, i);
 
-                ed->prefix_base += ed_wrap_count(l ? l : L"", l ? len : 0, width);
+                ed->prefix_base += ed_line_wrap_count(ed->lines[i], width);
             }
         }
         else /* start_line < old_start */
@@ -529,12 +535,7 @@ int ed_prefix_rebuild_range(Ed *ed, int width, int start_line, int end_line)
             {
                 /* Close: subtract */
                 for (i = start_line; i < old_start; i++)
-                {
-                    const wchar_t *l = ed_line_wcs(ed, i);
-                    int len = ed_line_len(ed, i);
-
-                    ed->prefix_base -= ed_wrap_count(l ? l : L"", l ? len : 0, width);
-                }
+                    ed->prefix_base -= ed_line_wrap_count(ed->lines[i], width);
 
                 if (ed->prefix_base < 0)
                     ed->prefix_base = 0; /* safety net for corrupted state */
@@ -549,7 +550,7 @@ int ed_prefix_rebuild_range(Ed *ed, int width, int start_line, int end_line)
                     const wchar_t *l = ed_line_wcs(ed, i);
                     int len = ed_line_len(ed, i);
 
-                    ed->prefix_base += ed_wrap_count(l ? l : L"", l ? len : 0, width);
+                    ed->prefix_base += ed_line_wrap_count(ed->lines[i], width);
                 }
             }
         }
@@ -560,10 +561,7 @@ int ed_prefix_rebuild_range(Ed *ed, int width, int start_line, int end_line)
 
     for (i = start_line; i <= end_line; i++)
     {
-        const wchar_t *l = ed_line_wcs(ed, i);
-        int len = ed_line_len(ed, i);
-
-        total += ed_wrap_count(l ? l : L"", l ? len : 0, width);
+        total += ed_line_wrap_count(ed->lines[i], width);
         ed->prefix[i - start_line] = total;
     }
 
@@ -667,23 +665,12 @@ static int prefix_rebuild(Ed *ed, int width, int max_line)
     total = 0;
 
     for (i = 0; i < from_line; i++)
-    {
-        const wchar_t *l = ed_line_wcs(ed, i);
-        int len = ed_line_len(ed, i);
-
-        total += ed_wrap_count(l ? l : L"", l ? len : 0, width);
-    }
+        total += ed_line_wrap_count(ed->lines[i], width);
 
     /* Calculate prefix sum from from_line to to_line */
     for (i = from_line; i < to_line; i++)
     {
-        const wchar_t *l = NULL;
-        int len;
-
-        l = ed_line_wcs(ed, i);
-        len = ed_line_len(ed, i);
-
-        total += ed_wrap_count(l ? l : L"", l ? len : 0, width);
+        total += ed_line_wrap_count(ed->lines[i], width);
         ed->prefix[i] = total;
     }
 
@@ -736,25 +723,13 @@ static int prefix_rebuild_from(Ed *ed, int from_line, int width)
     total = 0;
 
     for (i = 0; i < from_line; i++)
-    {
-        const wchar_t *l = ed_line_wcs(ed, i);
-        int len = ed_line_len(ed, i);
-
-        total += ed_wrap_count(l ? l : L"", l ? len : 0, width);
-    }
+        total += ed_line_wrap_count(ed->lines[i], width);
 
     /* Recalculate from from_line to end */
     for (i = from_line; i < ed->count; i++)
-    {
-        const wchar_t *l = NULL;
-        int len;
+        total += ed_line_wrap_count(ed->lines[i], width);
 
-        l = ed_line_wcs(ed, i);
-        len = ed_line_len(ed, i);
-
-        total += ed_wrap_count(l ? l : L"", l ? len : 0, width);
-        ed->prefix[i] = total;
-    }
+    ed->prefix[i] = total;
 
     ed->prefix_valid = 1;
     ed->prefix_width = width;
@@ -867,6 +842,21 @@ int ed_wrap_count(const wchar_t *line, int len, int width)
     }
 
     return rows;
+}
+
+/* Per-line cached wrap count: recomputes only when content or width changed */
+static int ed_line_wrap_count(EdLine *ln, int width)
+{
+    if (!ln || ln->len <= 0)
+        return 1;
+
+    if (ln->wrap_count_cache < 0 || ln->wrap_cache_width != width)
+    {
+        ln->wrap_count_cache = ed_wrap_count(ln->wcs, ln->len, width);
+        ln->wrap_cache_width = width;
+    }
+
+    return ln->wrap_count_cache;
 }
 
 /* Free all ops inside a group (does not free the group itself) */
@@ -1927,6 +1917,7 @@ int ed_insert_char(Ed *ed, wchar_t ch)
             record_insert(ed, ed->row, ed->col, ch);
 
             ln->wcs[ed->col] = ch;
+            ln->wrap_count_cache = -1;
 
             if (ed->word_count_initialized)
             {
@@ -3252,7 +3243,6 @@ int undo_push_snapshot_range(Ed *ed, int row, int col, char *snapshot_before, ch
     g->ops[g->count].text = NULL;
     g->ops[g->count].utf8_snapshot = snapshot_before;
     g->ops[g->count].utf8_snapshot_new = snapshot_after;
-    g->ops[g->count].hard_wrap_mode = ed->hard_wrap;
     g->ops[g->count].end_row = old_count;
     g->ops[g->count].end_col = new_count;
     g->count++;
@@ -4759,6 +4749,8 @@ int ed_convert_block_case(Ed *ed, int mode)
             ln->word_count = line_count_words(ln);
             ed->word_count_total += ln->word_count - old_count;
         }
+
+        ln->wrap_count_cache = -1;
     }
 
     ed->modified = 1;

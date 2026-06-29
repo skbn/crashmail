@@ -1017,6 +1017,7 @@ UiApp *ui_init(CrashEditCfg *cfg, AreaList *areas)
 #ifdef HAVE_HUNSPELL
     /* Initialize spell checker state */
     app->spell_active = 0; /* Disabled by default */
+    ui_spell_cache_init(&app->spell_cache);
 #endif
 
 #ifdef HAVE_TRANSLATE
@@ -1198,6 +1199,7 @@ void ui_cleanup(UiApp *app)
 #endif
 
 #ifdef HAVE_HUNSPELL
+    ui_spell_cache_clear(&app->spell_cache);
     ui_spell_unload(app);
 #endif
 

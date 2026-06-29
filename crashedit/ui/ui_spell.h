@@ -54,6 +54,12 @@ int spell_is_word_char(wchar_t c);
 /* Toggle the spell-panel visibility (Alt+S in the editor) */
 int ui_spell_toggle_panel(UiApp *app);
 
+/* UI-level spell-check cache */
+void ui_spell_cache_init(UiSpellCache *cache);
+void ui_spell_cache_clear(UiSpellCache *cache);
+int ui_spell_cache_lookup(UiSpellCache *cache, const wchar_t *word, int word_len, int *out_incorrect);
+void ui_spell_cache_put(UiSpellCache *cache, const wchar_t *word, int word_len, int incorrect);
+
 #endif /* HAVE_HUNSPELL */
 
 #endif /* UI_SPELL_H */

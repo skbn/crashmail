@@ -33,6 +33,9 @@ int editor_eff_wrap(const UiApp *app);
 /* Trigger auto hard-wrap after an editing action */
 void ed_auto_rewrap_after_edit(UiApp *app);
 
+/* Manual hard-wrap rewrap for the current paragraph (Ctrl+W fallback) */
+int ed_manual_rewrap_paragraph(UiApp *app, int width);
+
 /* Left margin for editor body with line numbers */
 int editor_body_offset(const UiApp *app, int line_count);
 

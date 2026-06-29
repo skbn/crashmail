@@ -92,7 +92,7 @@ static const char *EDITOR_HELP[] =
         "    Ins Alt+I       Toggle insert",
 #endif
         "    Ctrl+Left/Right Word movement",
-        "    Ctrl-W          Rewrap FTN reply",
+        "    Ctrl-W          Rewrap paragraph",
         "    Alt+Q           Toggle wrap mode",
         "    Alt+D           Hide dict panel / toggle line numbers",
         "",
@@ -169,6 +169,26 @@ static const char *EDITOR_HELP[] =
         "    ESC             Cancel (confirm)",
         "    F1 Alt+Y        This help"};
 #define EDITOR_HELP_N ((int)(sizeof(EDITOR_HELP) / sizeof(EDITOR_HELP[0])))
+
+/* Insert a full Unicode codepoint; on Win32 wchar_t is 16-bit, so split into a surrogate pair */
+static void editor_insert_cp(Ed *ed, unsigned long cp)
+{
+    if (cp < 0x10000)
+    {
+        ed_insert_char(ed, (wchar_t)cp);
+    }
+    else
+    {
+#ifdef PLATFORM_WIN32
+        unsigned long v = cp - 0x10000;
+
+        ed_insert_char(ed, (wchar_t)(0xD800 + (v >> 10)));
+        ed_insert_char(ed, (wchar_t)(0xDC00 + (v & 0x3FF)));
+#else
+        ed_insert_char(ed, (wchar_t)cp);
+#endif
+    }
+}
 
 /* Cycle header field in direction dir (+1=next, -1=prev), skips DADDR for non-netmail */
 static void editor_cycle_field(UiApp *app, int dir)
@@ -607,7 +627,7 @@ static int handle_control_keys(UiApp *app, int ch, int is_key)
         return 1;
     }
 
-    /* Ctrl+W : rewrap FTN reply quote block */
+    /* Ctrl+W : rewrap FTN reply quote block, or hard-wrap current paragraph */
     if (!is_key && ch == CTRL('W'))
     {
         int rwrap = app->cfg->autowrap_col > 0 ? app->cfg->autowrap_col : 75;
@@ -629,7 +649,12 @@ static int handle_control_keys(UiApp *app, int ch, int is_key)
         }
         else
         {
-            ui_status(app, "Ctrl+W only works on FTN reply quotes");
+            rc = ed_manual_rewrap_paragraph(app, rwrap);
+
+            if (rc == 0)
+                ui_status(app, "Paragraph rewrapped");
+            else
+                ui_status(app, "Nothing to rewrap");
         }
 
         return 1;
@@ -1018,7 +1043,7 @@ static int handle_alt_keys(UiApp *app, int ch, int is_key)
 
         if (cp >= 0)
         {
-            ed_insert_char(app->editor, (wchar_t)cp);
+            editor_insert_cp(app->editor, (unsigned long)cp);
             ui_assist_on_char(app, (wchar_t)cp);
             reset_search(app);
         }
@@ -1072,6 +1097,7 @@ static int handle_alt_keys(UiApp *app, int ch, int is_key)
 
         app->hyph_wrap_enabled = !app->hyph_wrap_enabled;
         ui_status(app, "Hyphenation wrap: %s", app->hyph_wrap_enabled ? "ON" : "OFF");
+
         ed_auto_rewrap_after_edit(app);
         return 1;
     }

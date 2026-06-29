@@ -155,7 +155,7 @@ void ui_popup_info(const char *title, const char *msg)
     if (want_w > COLS)
         want_w = COLS;
 
-    curs_set(0);
+    popup_hide_cursor();
     ui_popup_center(5, want_w, &y, &x, &h, &w);
 
     ui_draw_popup_frame(y, x, h, w, title ? title : "Info");
@@ -168,6 +168,8 @@ void ui_popup_info(const char *title, const char *msg)
     move(y + 2, x + 2);
 
     refresh();
+
+    popup_restore_cursor();
 }
 
 /* Confirm Yes/No/Cancel */
@@ -181,6 +183,7 @@ int ui_popup_confirm(const char *title, const char *msg)
     if (want_w < 40)
         want_w = 40;
 
+    popup_hide_cursor();
     ui_popup_center(7, want_w, &y, &x, &h, &w);
 
     ui_draw_popup_frame(y, x, h, w, title ? title : "Confirm");
@@ -200,13 +203,22 @@ int ui_popup_confirm(const char *title, const char *msg)
             continue;
 
         if (ch == 'y' || ch == 'Y' || ch == '\n' || ch == '\r' || ch == KEY_RIGHT)
+        {
+            popup_restore_cursor();
             return 1;
+        }
 
         if (ch == 'n' || ch == 'N' || ch == KEY_LEFT)
+        {
+            popup_restore_cursor();
             return 0;
+        }
 
         if (ch == 27 || ch == 'q' || ch == 'Q')
+        {
+            popup_restore_cursor();
             return -1;
+        }
     }
 }
 
@@ -220,6 +232,7 @@ void ui_popup_message(const char *title, const char *msg)
     if (want_w < 40)
         want_w = 40;
 
+    popup_hide_cursor();
     ui_popup_center(7, want_w, &y, &x, &h, &w);
 
     ui_draw_popup_frame(y, x, h, w, title ? title : "Message");
@@ -232,6 +245,7 @@ void ui_popup_message(const char *title, const char *msg)
     refresh();
 
     wrapper_getch();
+    popup_restore_cursor();
 }
 
 /* Confirm Yes/No/Cancel/All (catch-up style, returns: 1=Yes, 0=No, -1=Cancel, 2=All) */
@@ -244,6 +258,8 @@ int ui_popup_confirm_all(const char *title, const char *msg)
 
     if (want_w < 48)
         want_w = 48;
+
+    popup_hide_cursor();
 
     ui_popup_center(7, want_w, &y, &x, &h, &w);
     ui_draw_popup_frame(y, x, h, w, title ? title : "Confirm");
@@ -263,16 +279,28 @@ int ui_popup_confirm_all(const char *title, const char *msg)
             continue;
 
         if (ch == 'y' || ch == 'Y' || ch == '\n' || ch == '\r')
+        {
+            popup_restore_cursor();
             return 1;
+        }
 
         if (ch == 'n' || ch == 'N')
+        {
+            popup_restore_cursor();
             return 0;
+        }
 
         if (ch == 'a' || ch == 'A')
+        {
+            popup_restore_cursor();
             return 2;
+        }
 
         if (ch == 27 || ch == 'q' || ch == 'Q')
+        {
+            popup_restore_cursor();
             return -1;
+        }
     }
 }
 
@@ -424,6 +452,9 @@ int ui_popup_list(const char *title, const char **items, int count, int initial)
         else if (ch == KEY_END || ch == CTRL('E')) /* Ctrl+E: End (Amiga) */
             sel = count - 1;
     }
+
+    standend();
+    popup_restore_cursor();
 }
 
 /* Charset picker */
@@ -957,6 +988,9 @@ static int popup_input_core(const char *title, const char *prompt, wchar_t *wbuf
     /* Cleanup saved window (should not reach here, but for safety) */
     if (saved)
         delwin(saved);
+
+    standend();
+    popup_restore_cursor();
 
     return -1;
 }

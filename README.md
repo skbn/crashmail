@@ -89,56 +89,135 @@ CrashMail to your platform. The amount of work required mostly depends on whethe
 your C-compiler supports some common POSIX-functions which CrashMail uses.
 
 =========
-Screenshots
+CrashEdit
 =========
 
+CrashEdit is a full-featured FTN (FidoNet) message reader and editor with UTF-8 support, inspired by Golded+. It includes area management, message reading/writing, ANSI art viewer, file requester, spell checker, hyphenation, thesaurus, and translation capabilities.
+
+**Documentation:**
+- English: [crashedit/README.md](crashedit/README.md)
+- Spanish: [crashedit/README_ESP.md](crashedit/README_ESP.md)
+
+**Compilation dependencies:** See [crashedit/compile.txt](crashedit/compile.txt) for platform-specific instructions.
+
+---
+
+### Linux/BSD/macOS
+
+**Option 1: Using system libraries (requires external dependencies)**
+```bash
+cd crashedit
+make -f Makefile.unix
 ```
-For AmigaOS the program use ttengine or freetype with libpng and zlib
-Using bebbo gcc
 
-https://aminet.net/package/util/libs/ttengine-68k
+**Optional features:**
+```bash
+# Spell checker (requires libhunspell-dev)
+make -f Makefile.unix USE_HUNSPELL=1
 
-libpng: https://www.libpng.org/
-zlib: https://zlib.net/
-FreeType: https://freetype.org/
+# Hyphenation (requires libhyphen-dev + USE_HUNSPELL=1)
+make -f Makefile.unix USE_HUNSPELL=1 USE_HYPHEN=1
 
-To compile:
+# Thesaurus (requires libmythes-dev + USE_HUNSPELL=1)
+make -f Makefile.unix USE_HUNSPELL=1 USE_MYTHES=1
 
-In crashmail directory:
-make cleanamiga
-make amiga
+# Translation (requires libcurl4-openssl-dev)
+make -f Makefile.unix USE_TRANSLATE=1
 
-In crashedit directory:
+# StarDict offline dictionary (requires USE_TRANSLATE=1)
+make -f Makefile.unix USE_TRANSLATE=1 USE_STARDICT=1
 
-To ttengine.library: make -f Makefile.amiga
-
-To static freetype with libpng and zlib:
-Extract the files freetype-2.14.3.tar.xz, libpng-1.6.58.tar.xz and, zlib.tar.gz
-into CrashEdit and rename them to freetype, zlib, and libpng.
-
-To prepair headers:
-make -f Makefile.amiga.te unprep
-make -f Makefile.amiga.te prep
-make -f Makefile.amiga.te clean all
-
-Freetype fonts tested:
-
-Symbola.ttf
-unifont_sample-17.0.04.otf
-NotoColorEmoji-emojicompat.ttf
-Symbola_hint.ttf
-NotoSansCJK-Regular.ttf
-NotoColorEmoji.ttf
-DejaVuSansMono.ttf
-LiberationMono-Regular.ttf
-
-With ttengine:
-
-DejaVuSansMono.ttf
-LiberationMono-Regular.ttf
-
-The executable is large, but you don't need any libraries. It's optimized for RTG and also works with OCS, ECS, or AGA.
+# All features
+make -f Makefile.unix USE_HUNSPELL=1 USE_HYPHEN=1 USE_MYTHES=1 USE_TRANSLATE=1 USE_STARDICT=1
 ```
+
+**Option 2: Using built-in spellchecker (no external dependencies)**
+```bash
+cd crashedit
+make -f Makefile.unix.static
+```
+
+This uses the native spellchecker implementation (compatible with hunspell .aff/.dic files) and includes all features by default (spell checker, hyphenation, thesaurus, translation, StarDict). Only requires libcurl for translation support.
+
+### Windows (MinGW/MSYS2)
+
+```bash
+cd crashedit
+make -f Makefile.win32
+```
+
+**Optional features:**
+```bash
+# Translation (requires curl)
+make -f Makefile.win32 USE_TRANSLATE=1
+
+# All features (native spell checker, hyphenation, thesaurus built-in)
+make -f Makefile.win32 USE_HUNSPELL=1 USE_HYPHEN=1 USE_MYTHES=1 USE_TRANSLATE=1
+```
+
+### AmigaOS 3.x
+
+```bash
+cd crashedit
+make -f Makefile.amiga
+```
+
+**Requirements:**
+- bebbo gcc toolchain (m68k-amigaos-gcc)
+- FreeType with libpng and zlib (static, bundled)
+
+**For static FreeType with libpng and zlib:**
+Extract `freetype-2.14.3.tar.xz`, `libpng-1.6.58.tar.xz`, and `zlib.tar.gz` into crashedit directory and rename to `freetype`, `zlib`, and `libpng`.
+
+**Prepare headers (for color emoji support with PNG):**
+```bash
+make -f Makefile.amiga unprep
+make -f Makefile.amiga prep
+make -f Makefile.amiga clean all
+```
+
+**Optional features:**
+```bash
+# Native spell checker (built-in, compatible with hunspell .aff/.dic)
+make -f Makefile.amiga USE_HUNSPELL=1
+
+# Hyphenation (built-in, compatible with hyph_*.dic)
+make -f Makefile.amiga USE_HUNSPELL=1 USE_HYPHEN=1
+
+# Thesaurus (built-in, compatible with mythes th_*.idx/dat)
+make -f Makefile.amiga USE_HUNSPELL=1 USE_MYTHES=1
+
+# Translation (HTTP backends: MyMemory, LibreTranslate, Lingva)
+make -f Makefile.amiga USE_TRANSLATE=1
+
+# StarDict offline dictionary
+make -f Makefile.amiga USE_TRANSLATE=1 USE_STARDICT=1
+
+# Translation with TLS (requires AmiSSL SDK)
+make -f Makefile.amiga USE_TRANSLATE=1 WITH_AMISSL=1 AMISSL_SDK=/path/to/AmiSSL
+```
+
+**Links:**
+- libpng: https://www.libpng.org/
+- zlib: https://zlib.net/
+- FreeType: https://freetype.org/
+
+**Tested fonts:**
+- Symbola.ttf
+- unifont_sample-17.0.04.otf
+- NotoColorEmoji-emojicompat.ttf
+- Symbola_hint.ttf
+- NotoSansCJK-Regular.ttf
+- NotoColorEmoji.ttf
+
+**Monospaced fonts:**
+- DejaVuSansMono.ttf
+- LiberationMono-Regular.ttf
+
+The executable is large but self-contained (no external libraries needed). Optimized for RTG and works with OCS, ECS, or AGA.
+=========
+Screenshots
+=========
 
 ![AmigaOS 3.2](img/amiga.png)
 
