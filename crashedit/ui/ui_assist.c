@@ -46,6 +46,12 @@ static int do_smart_quotes(UiApp *app, wchar_t just_typed)
     if (just_typed != L'\'' && just_typed != L'"')
         return 0;
 
+#ifdef PLATFORM_AMIGA
+    /* Without TTF, keep normal ASCII straight quotes */
+    if (!app->cfg->ttf_enabled)
+        return 0;
+#endif
+
     ed = app->editor;
     ed_get_info(ed, &info);
 
