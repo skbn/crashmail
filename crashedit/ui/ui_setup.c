@@ -906,43 +906,51 @@ static void st_edit_field(CrashEditCfg *w, const SetupField *fld)
                             }
 #endif
                         }
-                        else
+                    }
+                    else
+                    {
+                        /* Memory mode: text input */
+                        wchar_t wtmp[CFG_STR_MAX];
+                        wchar_t *w_initial = utf8_to_wcs(tmp, NULL);
+                        int cap = CFG_STR_MAX;
+
+                        wtmp[0] = L'\0';
+
+                        if (w_initial)
                         {
-                            /* Memory mode: text input */
-                            wchar_t wtmp[CFG_STR_MAX];
-                            wchar_t *w_initial = utf8_to_wcs(tmp, NULL);
-                            int cap = CFG_STR_MAX;
+                            wcsncpy(wtmp, w_initial, (size_t)(cap - 1));
+                            wtmp[cap - 1] = L'\0';
+                            free(w_initial);
+                        }
 
-                            wtmp[0] = L'\0';
+#ifdef PLATFORM_WIN32
+                        win32_drain_messages();
+#endif
 
-                            if (w_initial)
+                        if (ui_popup_input(fld->label, "Font name:", wtmp, cap) == 0)
+                        {
+                            char *u = wcs_to_utf8(wtmp, (int)wcslen(wtmp));
+
+                            if (u)
                             {
-                                wcsncpy(wtmp, w_initial, (size_t)(cap - 1));
-                                wtmp[cap - 1] = L'\0';
-                                free(w_initial);
-                            }
+                                size_t n = strlen(u);
 
-                            if (ui_popup_input(fld->label, "Font name:", wtmp, cap) == 0)
-                            {
-                                char *u = wcs_to_utf8(wtmp, (int)wcslen(wtmp));
+                                if (n >= (size_t)cap)
+                                    n = cap - 1;
 
-                                if (u)
-                                {
-                                    size_t n = strlen(u);
+                                memcpy(s, u, n);
 
-                                    if (n >= (size_t)cap)
-                                        n = cap - 1;
+                                s[n] = '\0';
 
-                                    memcpy(s, u, n);
+                                free(u);
 
-                                    s[n] = '\0';
-
-                                    free(u);
-                                }
+#ifdef PLATFORM_WIN32
+                                *(int *)(base + F_OFF(ttf_enabled)) = 0;
+#endif
                             }
                         }
-                        break;
                     }
+                    break;
                 }
             }
         }
@@ -1598,16 +1606,11 @@ int ui_setup_run(UiApp *app)
     int scroll_offset = 0;
     int key;
     int dirty = 0;
-    char orig_ttf_font[512];
 
     if (!app || !app->cfg)
         return 0;
 
     work = *app->cfg; /* struct copy (shallow, all fields are inline arrays/ints) */
-
-    /* Save original font values to detect changes */
-    strncpy(orig_ttf_font, work.ttf_font, sizeof(orig_ttf_font) - 1);
-    orig_ttf_font[sizeof(orig_ttf_font) - 1] = '\0';
 
     for (;;)
     {
@@ -1735,6 +1738,13 @@ int ui_setup_run(UiApp *app)
 
         if (key == KEY_F(10) || key == 'S' || key == 's')
         {
+#ifdef HAVE_TTF_TAB
+            int fi;
+            int fallbacks_changed = 0;
+            int ttf_details_changed = 0;
+            int font_mode_changed = 0;
+#endif
+
             /* Save working copy back to the file (preserving the rest), then ask the main loop to reload from disk */
             if (!app->cfg_path)
             {
@@ -1748,8 +1758,122 @@ int ui_setup_run(UiApp *app)
                 continue;
             }
 
+#ifdef HAVE_TTF_TAB
+            /* Detect TTF detail changes while staying in TTF mode */
+            if (work.ttf_enabled)
+            {
+                for (fi = 0; fi < CFG_TTF_FALLBACKS; fi++)
+                {
+                    if (strcmp(app->cfg->ttf_fallback[fi], work.ttf_fallback[fi]) != 0 || app->cfg->ttf_fallback_size[fi] != work.ttf_fallback_size[fi])
+                    {
+                        fallbacks_changed = 1;
+                        break;
+                    }
+                }
+
+                if (strcmp(app->cfg->ttf_font, work.ttf_font) != 0 || app->cfg->ttf_size != work.ttf_size || app->cfg->ttf_antialias != work.ttf_antialias || app->cfg->ttf_use_utf8 != work.ttf_use_utf8 || fallbacks_changed)
+                    ttf_details_changed = 1;
+            }
+
+            /* Detect font mode changes that need a full window restart (TTF <-> system font, or size) */
+            font_mode_changed = (app->cfg->ttf_enabled != work.ttf_enabled) || (strcmp(app->cfg->font, work.font) != 0) || (strcmp(app->cfg->ansifont, work.ansifont) != 0) || (app->cfg->ttf_size != work.ttf_size);
+
+#ifdef PLATFORM_AMIGA
+            if (font_mode_changed || ttf_details_changed)
+            {
+                extern int amiga_set_ttf(const char *ttf_file, int size, int antialias);
+                extern int amiga_set_font_name(const char *font_name);
+                extern int amiga_set_ansi_font_name(const char *font_name);
+                extern int amiga_set_ttf_encoding(int use_utf8);
+                extern int amiga_reinit_window(void);
+                extern int amiga_reload_ttf(const char *font_path, int new_size);
+                extern int amiga_add_ttf_fallback(const char *path, int size);
+                extern void amiga_clear_ttf_fallbacks(void);
+                int sz;
+
+                /* Update fallback list for reinit/reload */
+                amiga_clear_ttf_fallbacks();
+
+                for (fi = 0; fi < CFG_TTF_FALLBACKS; fi++)
+                {
+                    if (work.ttf_fallback[fi][0])
+                    {
+                        sz = work.ttf_fallback_size[fi] > 0 ? work.ttf_fallback_size[fi] : work.ttf_size;
+                        amiga_add_ttf_fallback(work.ttf_fallback[fi], sz);
+                    }
+                }
+
+                if (font_mode_changed)
+                {
+                    amiga_set_font_name(work.font[0] ? work.font : NULL);
+                    amiga_set_ansi_font_name(work.ansifont[0] ? work.ansifont : NULL);
+
+                    if (work.ttf_enabled)
+                    {
+                        amiga_set_ttf(work.ttf_font, work.ttf_size, work.ttf_antialias);
+                        amiga_set_ttf_encoding(work.ttf_use_utf8);
+                    }
+                    else
+                    {
+                        amiga_set_ttf(NULL, 0, 0);
+                    }
+
+                    amiga_reinit_window();
+                }
+                else if (ttf_details_changed)
+                {
+                    amiga_set_ttf(work.ttf_font, work.ttf_size, work.ttf_antialias);
+                    amiga_set_ttf_encoding(work.ttf_use_utf8);
+                    amiga_reload_ttf(work.ttf_font, work.ttf_size);
+                }
+            }
+#endif
+#ifdef PLATFORM_WIN32
+            if (font_mode_changed || ttf_details_changed)
+            {
+                extern int win32_set_font_name(const char *font_name);
+                extern int win32_set_font_size(int size);
+                extern int win32_add_font_file(const char *path);
+                extern void win32_clear_font_files(void);
+                extern int win32_reinit_window(void);
+                extern int win32_reload_ttf(const char *font_path, int new_size);
+
+                int win_needs_reinit = (app->cfg->ttf_enabled != work.ttf_enabled) || (strcmp(app->cfg->font, work.font) != 0) || (strcmp(app->cfg->ansifont, work.ansifont) != 0) || (!work.ttf_enabled && (app->cfg->ttf_size != work.ttf_size));
+
+                if (win_needs_reinit)
+                {
+                    win32_clear_font_files();
+                    win32_set_font_name(work.font[0] ? work.font : NULL);
+
+                    if (work.ttf_enabled)
+                    {
+                        win32_set_font_size(work.ttf_size);
+                        win32_add_font_file(work.ttf_font);
+
+                        for (fi = 0; fi < CFG_TTF_FALLBACKS; fi++)
+                        {
+                            if (work.ttf_fallback[fi][0])
+                                win32_add_font_file(work.ttf_fallback[fi]);
+                        }
+                    }
+                    else
+                    {
+                        win32_set_font_size(work.ttf_size > 0 ? work.ttf_size : 16);
+                    }
+
+                    win32_reinit_window();
+                }
+                else
+                {
+                    win32_reload_ttf(work.ttf_font, work.ttf_size);
+                }
+            }
+#endif
+#endif
+
             /* Apply new config in-place: update live struct, reapply colors/font */
             *app->cfg = work;
+
             ui_reapply_config(app);
 
             return 1;

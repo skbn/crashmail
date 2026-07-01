@@ -1286,6 +1286,7 @@ UiView ui_reader_run(UiApp *app)
         case 'A':
             rd_toggle_ansi(app->reader);
             app->cfg->viewansi = rd_ansi_visible(app->reader);
+
 #ifdef PLATFORM_AMIGA
             amiga_change_font(rd_ansi_visible(app->reader));
 #endif

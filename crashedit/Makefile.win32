@@ -43,6 +43,7 @@ CFLAGS = -I$(HERE).. -I$(HERE) -I$(HERE)core -I$(HERE)components -I$(HERE)ui \
          $(ZLIBINC) $(PNGINC) \
          -Wall -Wextra -Wpedantic -Wmissing-prototypes -Wstrict-prototypes -Wdeclaration-after-statement -Wimplicit-function-declaration -Wno-unused-parameter -std=gnu89 -O2
 LFLAGS = -mwindows
+#LFLAGS =
 
 # Platform-specific defines
 CDEFS = -DPLATFORM_WIN32 -DNO_TYPEDEF_BOOL -D_WINDOWS

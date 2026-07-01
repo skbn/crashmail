@@ -37,9 +37,29 @@
 #include "../core/charset.h"
 #include "../core/portable.h"
 
-static int s_tab_width = 4; /* visual tab stop width for soft-wrap calculations */
-
 #define SAVE_BUF_SIZE (1024 * 1024)
+
+/* Line capacity allocation */
+#define ED_LINE_CAP_THRESHOLD 64
+#define ED_LINE_CAP_SMALL 16
+
+/* Stream loading / buffer limits */
+#define ED_MAX_LINE_SIZE (1024 * 1024)
+#define ED_READ_CHUNK_SIZE 8192
+#define ED_BUF_INITIAL_SIZE 4096
+
+/* Line growth / charset conversion padding */
+#define ED_LINE_GROW_PAD 64
+#define ED_CHARSET_CONV_PAD 16
+
+/* Editor defaults */
+#define ED_TAB_WIDTH_DEFAULT 4
+#define ED_TAB_WIDTH_MAX 16
+#define ED_PAGE_DEFAULT 25
+#define ED_UNDO_MAX_DEFAULT 50
+#define ED_REDO_MAX_DEFAULT 50
+
+static int s_tab_width = ED_TAB_WIDTH_DEFAULT; /* Visual tab stop width for soft-wrap calculations */
 
 /* Forward declarations for undo record helpers (defined after editing funcs) */
 static void record_insert(Ed *ed, int row, int col, wchar_t ch);
@@ -83,10 +103,10 @@ static EdLine *line_new(const wchar_t *src, int len)
     if (!ln)
         return NULL;
 
-    if (len > 64)
+    if (len > ED_LINE_CAP_THRESHOLD)
         ln->cap = len + 1; /* +1 for the NUL terminator */
     else
-        ln->cap = len + 16;
+        ln->cap = len + ED_LINE_CAP_SMALL;
 
     ln->wcs = (wchar_t *)malloc((size_t)ln->cap * sizeof(wchar_t));
 
@@ -109,7 +129,7 @@ static EdLine *line_new(const wchar_t *src, int len)
     return ln;
 }
 
-/* Take ownership of an already-malloc()ed wchar_t buffer. Used by ed_load() and ed_load_stream() to avoid a copy per line */
+/* Adopt an existing malloc'd wchar_t buffer; avoids a copy per line */
 static EdLine *line_new_take(wchar_t *wcs, int len)
 {
     EdLine *ln = NULL;
@@ -159,7 +179,7 @@ static int line_grow(EdLine *ln, int need)
     if (ln->cap > need + 1)
         return 0;
 
-    nc = need + 64;
+    nc = need + ED_LINE_GROW_PAD;
 
     if ((size_t)nc > SIZE_MAX / sizeof(wchar_t))
         return -1;
@@ -538,7 +558,7 @@ int ed_prefix_rebuild_range(Ed *ed, int width, int start_line, int end_line)
                     ed->prefix_base -= ed_line_wrap_count(ed->lines[i], width);
 
                 if (ed->prefix_base < 0)
-                    ed->prefix_base = 0; /* safety net for corrupted state */
+                    ed->prefix_base = 0; /* Safety net for corrupted state */
             }
             else
             {
@@ -569,7 +589,7 @@ int ed_prefix_rebuild_range(Ed *ed, int width, int start_line, int end_line)
     ed->prefix_width = width;
     ed->prefix_start = start_line;
     ed->prefix_end = end_line;
-    ed->prefix_dirty_from = -1; /* fresh */
+    ed->prefix_dirty_from = -1; /* Fresh */
 
     return 0;
 }
@@ -745,8 +765,8 @@ void ed_set_tab_width(int n)
     if (n < 1)
         n = 1;
 
-    if (n > 16)
-        n = 16;
+    if (n > ED_TAB_WIDTH_MAX)
+        n = ED_TAB_WIDTH_MAX;
 
     s_tab_width = n;
 }
@@ -895,9 +915,9 @@ Ed *ed_new(void)
         return NULL;
 
     ed->insert_mode = 1;
-    ed->page = 25;
-    ed->undo_max = 50;
-    ed->redo_max = 50;
+    ed->page = ED_PAGE_DEFAULT;
+    ed->undo_max = ED_UNDO_MAX_DEFAULT;
+    ed->redo_max = ED_REDO_MAX_DEFAULT;
     ed->undo_snapshot_mode = 0;
     ed->hard_wrap = 0;
     ed->word_move_mode = 0;
@@ -1088,12 +1108,11 @@ void ed_load(Ed *ed, const char *utf8_text)
 /* Stream-load UTF-8 from FILE* in 8 KB chunks. Lower peak RAM than ed_load() because we never hold the whole file plus the wchar_t copy at once */
 int ed_load_stream(Ed *ed, FILE *fp)
 {
-    char chunk[8192];
+    char chunk[ED_READ_CHUNK_SIZE];
     char *acc = NULL;
     size_t acc_len = 0;
     size_t acc_cap = 0;
     size_t got;
-    const size_t MAX_LINE = 1024 * 1024;
 
     if (!ed || !fp)
         return -1;
@@ -1105,7 +1124,7 @@ int ed_load_stream(Ed *ed, FILE *fp)
     ed->block.active = 0;
     ed->undo_open = 0;
 
-    acc_cap = 4096;
+    acc_cap = ED_BUF_INITIAL_SIZE;
     acc = (char *)malloc(acc_cap);
 
     if (!acc)
@@ -1127,9 +1146,9 @@ int ed_load_stream(Ed *ed, FILE *fp)
             seg = i - segment_start;
             need = acc_len + seg + 1;
 
-            if (need > MAX_LINE)
+            if (need > ED_MAX_LINE_SIZE)
             {
-                seg = (MAX_LINE > acc_len + 1) ? (MAX_LINE - acc_len - 1) : 0;
+                seg = (ED_MAX_LINE_SIZE > acc_len + 1) ? (ED_MAX_LINE_SIZE - acc_len - 1) : 0;
                 need = acc_len + seg + 1;
             }
 
@@ -1141,8 +1160,8 @@ int ed_load_stream(Ed *ed, FILE *fp)
                 while (nc < need)
                     nc *= 2;
 
-                if (nc > MAX_LINE + 1)
-                    nc = MAX_LINE + 1;
+                if (nc > ED_MAX_LINE_SIZE + 1)
+                    nc = ED_MAX_LINE_SIZE + 1;
 
                 na = (char *)realloc(acc, nc);
 
@@ -1240,7 +1259,7 @@ char *ed_to_string(const Ed *ed)
     size_t cap = 0;
     size_t used = 0;
     char *line_buf = NULL;
-    int line_cap = 4096;
+    int line_cap = ED_BUF_INITIAL_SIZE;
     int i;
 
     if (!ed)
@@ -1288,7 +1307,7 @@ char *ed_to_string(const Ed *ed)
 
         if (used + (size_t)line_len + 2 > cap)
         {
-            size_t new_cap = cap ? cap * 2 : 4096;
+            size_t new_cap = cap ? cap * 2 : ED_BUF_INITIAL_SIZE;
             char *new_out = NULL;
 
             while (new_cap < used + (size_t)line_len + 2)
@@ -1331,7 +1350,7 @@ static int save_flush(FILE *fp, const char *charset_out, const char *buf, size_t
 
     if (charset_out && charset_out[0] && strcasecmp(charset_out, "UTF-8") != 0 && strcasecmp(charset_out, "UTF8") != 0)
     {
-        int dstsz = (int)(len * 2 + 16);
+        int dstsz = (int)(len * 2 + ED_CHARSET_CONV_PAD);
         char *converted = (char *)malloc((size_t)dstsz);
 
         if (converted)
@@ -1360,7 +1379,7 @@ int ed_save_to_file(const Ed *ed, const char *path, const char *charset_out)
     char *buf = NULL;
     char *line_buf = NULL;
     size_t used = 0;
-    int line_cap = 4096;
+    int line_cap = ED_BUF_INITIAL_SIZE;
     int i;
 
     if (!ed || !path || !path[0])
@@ -3281,7 +3300,7 @@ static int undo_coalesce_insert(Ed *ed, wchar_t ch)
     return 0;
 }
 
-/* Prepend a single wchar_t to the text of the last DELETE op */
+/* Prepend a wchar_t to the last DELETE op's text */
 static int undo_coalesce_delete_prepend(Ed *ed, wchar_t ch)
 {
     UndoGroup *g = NULL;
@@ -4351,7 +4370,7 @@ int ed_line_utf8(const Ed *ed, int line, char *buf, int bufsz)
     wcs = ed->lines[line]->wcs;
     wlen = ed->lines[line]->len;
 
-    /* Fast path: convert directly to buf (hot path for redraws) */
+    /* Convert line to UTF-8 in buf; return bytes written or -1 on truncate */
     n = 0;
 
     for (i = 0; i < wlen && n < bufsz - 4; i++)

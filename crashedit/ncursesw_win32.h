@@ -261,27 +261,20 @@ extern int COLORS;
 
 /* Attributes */
 #define A_NORMAL 0
-#define A_ATTRIBUTES 0xffff0000UL
 #define A_CHARTEXT 0x0000ffffUL
-#define A_COLOR 0x0000ff00UL
 #define A_STANDOUT 0x00010000UL
 #define A_UNDERLINE 0x00020000UL
 #define A_REVERSE 0x00040000UL
 #define A_BLINK 0x00080000UL
 #define A_DIM 0x00100000UL
 #define A_BOLD 0x00200000UL
+#define A_COLOR 0xff000000UL
+#define A_ATTRIBUTES 0xffff0000UL
 #define A_ALTCHARSET 0x00400000UL
 #define A_INVIS 0x00800000UL
-#define A_PROTECT 0x01000000UL
-#define A_HORIZONTAL 0x02000000UL
-#define A_LEFT 0x04000000UL
-#define A_LOW 0x08000000UL
-#define A_RIGHT 0x10000000UL
-#define A_TOP 0x20000000UL
-#define A_VERTICAL 0x40000000UL
 
-#define COLOR_PAIR(n) (((unsigned long)(n)) << 8)
-#define PAIR_NUMBER(a) (((unsigned long)(a) & A_COLOR) >> 8)
+#define COLOR_PAIR(n) (((unsigned long)(n)) << 24)
+#define PAIR_NUMBER(a) (((unsigned long)(a) & A_COLOR) >> 24)
 
 /* Colors */
 #define COLOR_BLACK 0
@@ -540,7 +533,10 @@ void win32_clear_font_files(void);
 int win32_get_font_family_name(const char *path, char *out, int out_sz);
 int win32_set_cursor_pen(int color);
 void win32_set_ansi_mode(int use_ansi);
+void win32_drain_messages(void);
 void win32_force_redraw(void);
+int win32_reload_ttf(const char *font_path, int new_size);
+int win32_reinit_window(void);
 
 /* Border/line */
 int border(chtype ls, chtype rs, chtype ts, chtype bs, chtype tl, chtype tr, chtype bl, chtype br);
