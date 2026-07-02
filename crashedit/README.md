@@ -445,12 +445,80 @@ Access configuration from any main screen with **`S`**.
 - AREAFILE (area list)
 - Default charset
 
+**Text Wrapping:**
+- AUTOWRAP: visual wrap column while typing (0 disables, default 75)
+- HARDWRAP: YES inserts real line breaks at wrap column; NO keeps soft-wrap
+- QUOTEMARGIN: wrap column for quoted lines in hard-wrap mode
+- UNDOLEVELS: undo stack depth (default 50)
+
+**Message Framing:**
+- GREETING / GREETINGTEXT: optional greeting line at the top of the body
+- ATTRIBUTION / ATTRIBSELF / ATTRIBOTHER: optional attribution line in replies
+- SIGNATURE / SIGNATURETEXT: optional signature line below the body
+- TAGLINEFILE: file with random taglines
+- TEMPLATEFILE: template loaded into the editor body when composing
+
+**Netmail:**
+- FORCEINTL: controls the INTL kludge (auto, always, never)
+
+**Editor Display:**
+- LINENUMBERS: show line numbers
+- MOUSE_ENABLED: enable mouse support (click, drag, double/triple click, wheel)
+- SHOW_WHITESPACE: mark tabs and trailing spaces
+- SHOW_BRACKETS: highlight matching bracket
+- HIGHLIGHT_LINE: highlight the line where the cursor sits
+- WORD_COUNT: show a compact word count in the status bar
+- RULER_COL: draw a column ruler
+- INDENT_GUIDES: show indent guides
+- WRAP_INDICATOR: mark soft-wrap continuation lines
+- AUTOCLOSE: auto-close brackets and quotes
+- SMART_INDENT: copy leading whitespace/quote prefix on Enter
+- TAB_WIDTH: visual tab stop width
+
+**Editor Assistance:**
+- ASSIST_SMART_QUOTES: convert straight quotes to curly quotes
+- ASSIST_AUTO_CAP: auto-capitalize after sentence endings
+- ASSIST_REPEAT_CHECK: highlight repeated words on the same line
+
+**Movement:**
+- WORD_MOVE_MODE: standard (alphanumeric + underscore) or vim-like (non-space blocks)
+
+**Area List:**
+- AREALISTSORT: sort keys (e.g., unread count, area type, description)
+- AREALISTFORMAT: columns to display (area number, description, unread, etc.)
+
+**Message List:**
+- MSGLISTFIRST: skip the area list and go to the first area on startup
+- MSGLISTFAST: faster list without the decorated header
+- MSGLISTHEADER: colored header bar
+- MSGLISTMAX: maximum number of messages loaded (0 = all)
+- SEARCHMAX: maximum number of search hits kept
+
+**Reader:**
+- VIEWHIDDEN: show SEEN-BY / Via / PATH lines
+- VIEWKLUDGE: show ^A kludge lines
+- VIEWANSI: render ANSI escape sequences
+
+**Spell / Hyphenation / Thesaurus:**
+- Enable/disable and dictionary paths
+- HYPH_WRAP_ENABLED: hyphenation at hard-wrap column
+- HYPH_DETECT_ON_LOAD: detect wrap-hyphens when loading messages
+
+**Colors / Fonts:**
+- COLOR / COLORMAP: customize color pairs and color name mapping
+- CURSORCOLOR: cursor color
+- FONT / ANSIFONT: UI and ANSI fonts
+- TTF_ENABLED / TTF_FONT / TTF_SIZE / TTF_ANTIALIAS / TTF_USE_UTF8 / TTF_FALLBACK1..8: TrueType rendering (AmigaOS)
+
+**Translation (if compiled in):**
+- TRANSLATE_ENABLED, backend, endpoint, languages, StarDict path
+
+**Timezone:**
+- TIMEZONE: local offset from UTC in minutes (auto-detected if not set)
+
 **Preferences:**
 - Character encoding (LATIN-1, CP437, UTF-8)
 - Origin (for messages)
-- Max hits in searches
-
-**Display Options:**
 - Colors and theme
 - Display margin
 

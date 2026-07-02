@@ -445,12 +445,80 @@ Accede a la configuración desde cualquier pantalla principal con **`S`**.
 - AREAFILE (lista de áreas)
 - Charset por defecto
 
+**Ajuste de Líneas:**
+- AUTOWRAP: columna de ajuste visual al escribir (0 desactiva, por defecto 75)
+- HARDWRAP: YES inserta retornos reales en la columna; NO mantiene ajuste suave
+- QUOTEMARGIN: columna de ajuste para líneas citadas en modo hard-wrap
+- UNDOLEVELS: profundidad de la pila de deshacer (por defecto 50)
+
+**Encuadre del Mensaje:**
+- GREETING / GREETINGTEXT: línea de saludo opcional al inicio del cuerpo
+- ATTRIBUTION / ATTRIBSELF / ATTRIBOTHER: línea de atribución opcional en respuestas
+- SIGNATURE / SIGNATURETEXT: línea de firma opcional al final del cuerpo
+- TAGLINEFILE: archivo con taglines aleatorias
+- TEMPLATEFILE: plantilla cargada en el cuerpo del editor al escribir
+
+**Netmail:**
+- FORCEINTL: control del kludge INTL (auto, siempre, nunca)
+
+**Visualización del Editor:**
+- LINENUMBERS: mostrar números de línea
+- MOUSE_ENABLED: activar soporte de ratón (clic, arrastre, doble/triple clic, rueda)
+- SHOW_WHITESPACE: marcar tabulaciones y espacios finales
+- SHOW_BRACKETS: resaltar paréntesis coincidente
+- HIGHLIGHT_LINE: resaltar la línea actual
+- WORD_COUNT: mostrar conteo de palabras en la barra de estado
+- RULER_COL: dibujar una regla en una columna
+- INDENT_GUIDES: mostrar guías de indentación
+- WRAP_INDICATOR: marcar líneas continuadas por ajuste suave
+- AUTOCLOSE: cerrar automáticamente brackets y comillas
+- SMART_INDENT: copiar espacio inicial/prefijo de cita al pulsar Enter
+- TAB_WIDTH: ancho visual del tabulador
+
+**Asistencia del Editor:**
+- ASSIST_SMART_QUOTES: convertir comillas rectas en tipográficas
+- ASSIST_AUTO_CAP: capitalizar automáticamente tras final de frase
+- ASSIST_REPEAT_CHECK: resaltar palabras repetidas en la misma línea
+
+**Movimiento:**
+- WORD_MOVE_MODE: estándar (alfanumérico + guión bajo) o tipo vim (bloques no espacio)
+
+**Lista de Áreas:**
+- AREALISTSORT: claves de ordenación (por no leídos, tipo, descripción, etc.)
+- AREALISTFORMAT: columnas a mostrar (número, descripción, no leídos, etc.)
+
+**Lista de Mensajes:**
+- MSGLISTFIRST: ir directamente a la lista de mensajes al iniciar
+- MSGLISTFAST: lista más rápida sin cabecera decorada
+- MSGLISTHEADER: barra de cabecera coloreada
+- MSGLISTMAX: máximo de mensajes cargados (0 = todos)
+- SEARCHMAX: máximo de coincidencias de búsqueda guardadas
+
+**Lector:**
+- VIEWHIDDEN: mostrar líneas SEEN-BY / Via / PATH
+- VIEWKLUDGE: mostrar líneas de control ^A
+- VIEWANSI: interpretar secuencias ANSI
+
+**Corrector / Guiones / Tesauro:**
+- Habilitar/deshabilitar y rutas de diccionarios
+- HYPH_WRAP_ENABLED: guionización en la columna de hard-wrap
+- HYPH_DETECT_ON_LOAD: detectar guiones de ajuste al cargar mensajes
+
+**Colores / Fuentes:**
+- COLOR / COLORMAP: personalizar pares de color y mapeo de nombres
+- CURSORCOLOR: color del cursor
+- FONT / ANSIFONT: fuentes de UI y ANSI
+- TTF_ENABLED / TTF_FONT / TTF_SIZE / TTF_ANTIALIAS / TTF_USE_UTF8 / TTF_FALLBACK1..8: renderizado TrueType (AmigaOS)
+
+**Traducción (si está compilada):**
+- TRANSLATE_ENABLED, backend, endpoint, idiomas, ruta StarDict
+
+**Zona Horaria:**
+- TIMEZONE: desplazamiento local respecto a UTC en minutos (auto-detectado si no se define)
+
 **Preferencias:**
 - Codificación de carácteres (LATIN-1, CP437, UTF-8)
 - Origen (Origin) para mensajes
-- Max hits en búsquedas
-
-**Opciones de Visualización:**
 - Colores y tema
 - Margen de visualización
 
