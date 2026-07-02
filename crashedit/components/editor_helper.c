@@ -231,11 +231,8 @@ int ed_search_forward(Ed *ed, const wchar_t *needle)
                 wchar_t a = line[col + k];
                 wchar_t b = needle[k];
 
-                if (a >= L'A' && a <= L'Z')
-                    a = a - L'A' + L'a';
-
-                if (b >= L'A' && b <= L'Z')
-                    b = b - L'A' + L'a';
+                a = towlower(a);
+                b = towlower(b);
 
                 if (a != b)
                 {
@@ -296,11 +293,8 @@ int ed_search_all(Ed *ed, const wchar_t *needle, int **out_rows, int **out_cols)
                 wchar_t b = needle[k];
 
                 /* Case-insensitive comparison */
-                if (a >= L'A' && a <= L'Z')
-                    a = a - L'A' + L'a';
-
-                if (b >= L'A' && b <= L'Z')
-                    b = b - L'A' + L'a';
+                a = towlower(a);
+                b = towlower(b);
 
                 if (a != b)
                 {
@@ -360,11 +354,8 @@ int ed_search_all(Ed *ed, const wchar_t *needle, int **out_rows, int **out_cols)
                 wchar_t b = needle[k];
 
                 /* Case-insensitive comparison */
-                if (a >= L'A' && a <= L'Z')
-                    a = a - L'A' + L'a';
-
-                if (b >= L'A' && b <= L'Z')
-                    b = b - L'A' + L'a';
+                a = towlower(a);
+                b = towlower(b);
 
                 if (a != b)
                 {

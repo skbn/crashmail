@@ -4551,11 +4551,8 @@ static int ed_sort_cmp(const void *a, const void *b)
         wchar_t ca = la->wcs[i];
         wchar_t cb = lb->wcs[i];
 
-        if (ca >= L'A' && ca <= L'Z')
-            ca = (wchar_t)(ca + 32);
-
-        if (cb >= L'A' && cb <= L'Z')
-            cb = (wchar_t)(cb + 32);
+        ca = towlower(ca);
+        cb = towlower(cb);
 
         if (ca != cb)
             return ca < cb ? -1 : 1;
@@ -4729,31 +4726,27 @@ int ed_convert_block_case(Ed *ed, int mode)
 
             if (mode == 0)
             {
-                if (c >= L'a' && c <= L'z')
-                    ln->wcs[i] = (wchar_t)(c - 32);
+                ln->wcs[i] = towupper(c);
             }
             else if (mode == 1)
             {
-                if (c >= L'A' && c <= L'Z')
-                    ln->wcs[i] = (wchar_t)(c + 32);
+                ln->wcs[i] = towlower(c);
             }
             else
             {
-                int is_alpha = (c >= L'A' && c <= L'Z') || (c >= L'a' && c <= L'z');
+                int is_alpha = iswalpha(c);
 
                 if (is_alpha)
                 {
                     if (!in_word_state)
                     {
-                        if (c >= L'a' && c <= L'z')
-                            ln->wcs[i] = (wchar_t)(c - 32);
+                        ln->wcs[i] = towupper(c);
 
                         in_word_state = 1;
                     }
                     else
                     {
-                        if (c >= L'A' && c <= L'Z')
-                            ln->wcs[i] = (wchar_t)(c + 32);
+                        ln->wcs[i] = towlower(c);
                     }
                 }
                 else
