@@ -22,10 +22,10 @@ HERE := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 USE_HUNSPELL ?= 1
 USE_HYPHEN ?= 1
 USE_MYTHES ?= 1
-USE_GRAMMAR ?= 1
 USE_TRANSLATE ?= 1
 USE_STARDICT ?= 1
 USE_TTS ?= 1
+USE_GRAMMAR ?= 1
 
 # Detect OS
 OS := $(shell uname -s)
@@ -113,16 +113,6 @@ ifeq ($(USE_TRANSLATE),1)
   endif
 endif
 
-# Text-To-Speech support. Zero build-time dependency: the module spawns
-# espeak-ng (or espeak, or macOS `say`, or festival) as a subprocess.
-# At runtime the user needs one of those in $PATH. Nothing to link.
-ifeq ($(USE_TTS),1)
-  CFLAGS += -DHAVE_TTS -I$(HERE)tts
-  CDEFS += -DHAVE_TTS
-  CORE_OBJS += $(OBJDIR)/tts.o $(OBJDIR)/tts_espeak.o
-  UI_OBJS   += $(OBJDIR)/ui_tts.o
-endif
-
 # ncurses library detection
 ifeq ($(OS),Darwin)
     NCURSES_LIB ?= -lncurses
@@ -177,6 +167,16 @@ UI_OBJS   += $(OBJDIR)/ui_dict.o
 UI_OBJS   += $(OBJDIR)/ui_dict_picker.o
 UI_OBJS   += $(OBJDIR)/ui_dict_reverse.o
 endif
+endif
+
+# Text-To-Speech support. Zero build-time dependency: the module spawns
+# espeak-ng (or espeak, or macOS `say`, or festival) as a subprocess.
+# At runtime the user needs one of those in $PATH. Nothing to link.
+ifeq ($(USE_TTS),1)
+  CFLAGS += -DHAVE_TTS -I$(HERE)tts
+  CDEFS += -DHAVE_TTS
+  CORE_OBJS += $(OBJDIR)/tts.o $(OBJDIR)/tts_espeak.o
+  UI_OBJS   += $(OBJDIR)/ui_tts.o
 endif
 
 # spell_utils.o is always needed (te_is_word_char used by ui_mouse.c)
