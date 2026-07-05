@@ -57,8 +57,16 @@
 #endif /* PLATFORM_AMIGA end (includes) */
 #endif /* HAVE_MYTHES end (includes) */
 
+#ifdef HAVE_GRAMMAR
+#include "../grammar/grammar.h"
+#endif /* HAVE_GRAMMAR */
+
 #ifdef PLATFORM_WIN32
 #include <windows.h>
+#endif
+
+#ifdef HAVE_TTS
+#include "ui_tts.h"
 #endif
 
 static void setup_font_start_dir(char *out, int out_sz)
@@ -109,8 +117,12 @@ static void setup_font_start_dir(char *out, int out_sz)
 #define HAVE_TTF_TAB 1
 #endif
 
+#if defined(HAVE_HUNSPELL) || defined(HAVE_GRAMMAR)
+#define HAVE_SPELL_TAB 1
+#endif
+
 #ifdef HAVE_TTF_TAB   /* HAVE_TTF_TAB begin (tabs) */
-#ifdef HAVE_HUNSPELL  /* HAVE_HUNSPELL begin (TTF tabs) */
+#ifdef HAVE_SPELL_TAB /* HAVE_SPELL_TAB begin (TTF tabs) */
 #ifdef HAVE_TRANSLATE /* HAVE_TRANSLATE begin (TTF+Hunspell tabs) */
 #define ST_TAB_COUNT 9
 
@@ -138,9 +150,9 @@ static const char *st_tab_names[ST_TAB_COUNT] =
     {
         "Identity", "Paths", "Display", "Editor", "Messages", "Colour/Font", "TTF"};
 #endif                /* HAVE_TRANSLATE end (TTF without Hunspell tabs) */
-#endif                /* HAVE_HUNSPELL end (TTF tabs) */
+#endif                /* HAVE_SPELL_TAB end (TTF tabs) */
 #else                 /* HAVE_TTF_TAB else (no TTF tab) */
-#ifdef HAVE_HUNSPELL  /* HAVE_HUNSPELL begin (non-TTF tabs) */
+#ifdef HAVE_SPELL_TAB /* HAVE_SPELL_TAB begin (non-TTF tabs) */
 #ifdef HAVE_TRANSLATE /* HAVE_TRANSLATE begin (non-TTF+Hunspell tabs) */
 #define ST_TAB_COUNT 8
 
@@ -154,7 +166,7 @@ static const char *st_tab_names[ST_TAB_COUNT] =
     {
         "Identity", "Paths", "Display", "Editor", "Messages", "Colour/Font", "Spell"};
 #endif                /* HAVE_TRANSLATE end (non-TTF+Hunspell tabs) */
-#else                 /* HAVE_HUNSPELL else (non-TTF without Hunspell tabs) */
+#else                 /* HAVE_SPELL_TAB else (non-TTF without Hunspell tabs) */
 #ifdef HAVE_TRANSLATE /* HAVE_TRANSLATE begin (non-TTF without Hunspell tabs) */
 #define ST_TAB_COUNT 7
 
@@ -168,7 +180,7 @@ static const char *st_tab_names[ST_TAB_COUNT] =
     {
         "Identity", "Paths", "Display", "Editor", "Messages", "Colour/Font"};
 #endif /* HAVE_TRANSLATE end (non-TTF without Hunspell tabs) */
-#endif /* HAVE_HUNSPELL end (non-TTF tabs) */
+#endif /* HAVE_SPELL_TAB end (non-TTF tabs) */
 #endif /* HAVE_TTF_TAB end (tabs) */
 
 typedef enum
@@ -196,6 +208,10 @@ typedef enum
     ,
     FT_THESLIST /* cycle through available MyThes dictionaries */
 #endif
+#endif
+#ifdef HAVE_GRAMMAR
+    ,
+    FT_GRAMMLIST /* cycle through available grammar rule packs */
 #endif
 #ifdef HAVE_TRANSLATE
     ,
@@ -270,6 +286,9 @@ static const SetupField st_fields[] =
         {3, "Force INTL 0/1/2", FT_TRI, F_OFF(forceintl), 0},
         /* System */
         {3, "Terminal Mouse", FT_BOOL, F_OFF(mouse_enabled), 0},
+#ifdef HAVE_TTS
+        {3, "TTS Enabled", FT_BOOL, F_OFF(tts_enabled), 0},
+#endif
         {3, "Undo levels", FT_INT, F_OFF(undo_levels), 0},
         /* Messages */
         {4, "Greeting on", FT_BOOL, F_OFF(greeting), 0},
@@ -416,6 +435,12 @@ static const SetupField st_fields[] =
 #endif             /* HAVE_MYTHES end (non-Amiga fields) */
 #endif             /* PLATFORM_AMIGA end (fields) */
 #endif             /* HAVE_HUNSPELL end (fields) */
+
+#ifdef HAVE_GRAMMAR
+        {TAB_SPELL, "Grammar Enabled", FT_BOOL, offsetof(CrashEditCfg, grammar_enabled), 0},
+        {TAB_SPELL, "Grammar Path", FT_STR, offsetof(CrashEditCfg, grammar_dict_path), CFG_STR_MAX},
+        {TAB_SPELL, "Grammar Dictionary", FT_GRAMMLIST, offsetof(CrashEditCfg, grammar_dict_name), 0},
+#endif /* HAVE_GRAMMAR */
 
 /* Translate */
 #ifdef HAVE_TRANSLATE       /* HAVE_TRANSLATE begin */
@@ -741,6 +766,15 @@ static void st_format_value(const CrashEditCfg *w, const SetupField *fld, char *
     }
 #endif
 #endif
+#ifdef HAVE_GRAMMAR
+    case FT_GRAMMLIST:
+    {
+        const char *s = base + fld->off;
+
+        snprintf(buf, bufsz, "%s", s[0] ? s : "(none)");
+        break;
+    }
+#endif
 #ifdef HAVE_TRANSLATE
     case FT_TRANSLATE_BACKEND:
     {
@@ -779,7 +813,7 @@ static void st_edit_field(CrashEditCfg *w, const SetupField *fld)
         char *s = base + fld->off;
 
         /* Special case: Dict Path uses directory picker */
-        if (strcmp(fld->label, "Dict Path") == 0 || strcmp(fld->label, "Hyphen Path") == 0 || strcmp(fld->label, "Thesaurus Path") == 0 || strcmp(fld->label, "StarDict Path") == 0)
+        if (strcmp(fld->label, "Dict Path") == 0 || strcmp(fld->label, "Hyphen Path") == 0 || strcmp(fld->label, "Thesaurus Path") == 0 || strcmp(fld->label, "Grammar Path") == 0 || strcmp(fld->label, "StarDict Path") == 0)
         {
             char tmp[CFG_STR_MAX];
 
@@ -1422,6 +1456,57 @@ static void st_edit_field(CrashEditCfg *w, const SetupField *fld)
     }
 #endif /* HAVE_MYTHES */
 
+#ifdef HAVE_GRAMMAR
+    case FT_GRAMMLIST:
+    {
+        char *s = base + fld->off;
+        char **langs = NULL;
+        int n_langs;
+        int i;
+        int current = -1;
+        int selected;
+        char *gramm_path = w->grammar_dict_path;
+
+        if (!gramm_path || !gramm_path[0])
+        {
+            mvaddnwstr(LINES / 2, (COLS - 40) / 2, L"Error: Grammar Path not set", 27);
+            refresh();
+            wrapper_getch();
+            break;
+        }
+
+        langs = gc_list_langs(gramm_path, &n_langs);
+
+        if (!langs || n_langs == 0)
+        {
+            mvaddnwstr(LINES / 2, (COLS - 40) / 2, L"No grammar rule packs found", 27);
+            refresh();
+            wrapper_getch();
+            break;
+        }
+
+        for (i = 0; i < n_langs; i++)
+        {
+            if (strcmp(s, langs[i]) == 0)
+            {
+                current = i;
+                break;
+            }
+        }
+
+        selected = ui_popup_list("Select Grammar", (const char **)langs, n_langs, current);
+
+        if (selected >= 0 && selected < n_langs)
+        {
+            strncpy(s, langs[selected], CFG_STR_MAX - 1);
+            s[CFG_STR_MAX - 1] = '\0';
+        }
+
+        gc_free_langs(langs, n_langs);
+        break;
+    }
+#endif /* HAVE_GRAMMAR */
+
 #ifdef HAVE_TRANSLATE
     case FT_TRANSLATE_BACKEND:
     {
@@ -1872,7 +1957,19 @@ int ui_setup_run(UiApp *app)
 #endif
 
             /* Apply new config in-place: update live struct, reapply colors/font */
+#ifdef HAVE_TTS
+            if (app->cfg->tts_enabled != work.tts_enabled)
+            {
+                *app->cfg = work;
+                ui_tts_load_from_config(app);
+            }
+            else
+            {
+                *app->cfg = work;
+            }
+#else
             *app->cfg = work;
+#endif
 
             ui_reapply_config(app);
 

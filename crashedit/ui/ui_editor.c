@@ -44,6 +44,9 @@
 #ifdef HAVE_TRANSLATE
 #include "ui_translate.h"
 #endif
+#ifdef HAVE_TTS
+#include "ui_tts.h"
+#endif
 #ifdef HAVE_MYTHES
 #include "ui_thes.h"
 #endif
@@ -145,6 +148,23 @@ static const char *EDITOR_HELP[] =
         "    Alt+N           Reverse lookup (scan dict)",
         "    Ctrl+T          Toggle translator",
         "    Alt+B           Exchange languages",
+#endif
+#ifdef HAVE_TTS
+        "",
+        "  Text-to-speech:",
+#ifdef PLATFORM_AMIGA
+        "    Alt+Shift+L     Speak selection / paragraph",
+        "    Alt+Shift+K     Speak entire message",
+        "    Alt+Shift+P     Pause / resume speech",
+        "    Alt+Shift+O     Stop speech",
+        "    Alt+Shift+J     Voice settings popup",
+#else
+        "    Ctrl+Alt+L      Speak selection / paragraph",
+        "    Ctrl+Alt+K      Speak entire message",
+        "    Ctrl+Alt+P      Pause / resume speech",
+        "    Ctrl+Alt+O      Stop speech",
+        "    Ctrl+Alt+J      Voice settings popup",
+#endif
 #endif
         "",
         "  Attachments:",
@@ -1130,6 +1150,60 @@ static int handle_alt_keys(UiApp *app, int ch, int is_key)
 
         return 1;
     }
+
+#ifdef HAVE_TTS
+    /* TTS shortcuts: Alt+Shift+L (Amiga) / Ctrl+Alt+L (rest) speak, Ctrl+Alt+P/O/J pause/stop/popup */
+#ifdef PLATFORM_AMIGA
+    if (ch == KEY_SHIFT('L'))
+#else
+    if (ch == KEY_ALT_CTRL('L'))
+#endif
+    {
+        ui_tts_speak_action(app);
+        return 1;
+    }
+
+    /* Whole-message dictation from top, Amiga: Alt+Shift+K, else: Ctrl+Alt+K */
+#ifdef PLATFORM_AMIGA
+    if (ch == KEY_SHIFT('K'))
+#else
+    if (ch == KEY_ALT_CTRL('K'))
+#endif
+    {
+        ui_tts_speak_doc_action(app);
+        return 1;
+    }
+
+#ifdef PLATFORM_AMIGA
+    if (ch == KEY_SHIFT('P'))
+#else
+    if (ch == KEY_ALT_CTRL('P'))
+#endif
+    {
+        ui_tts_pause_toggle(app);
+        return 1;
+    }
+
+#ifdef PLATFORM_AMIGA
+    if (ch == KEY_SHIFT('O'))
+#else
+    if (ch == KEY_ALT_CTRL('O'))
+#endif
+    {
+        ui_tts_stop(app);
+        return 1;
+    }
+
+#ifdef PLATFORM_AMIGA
+    if (ch == KEY_SHIFT('J'))
+#else
+    if (ch == KEY_ALT_CTRL('J'))
+#endif
+    {
+        ui_tts_popup(app);
+        return 1;
+    }
+#endif /* HAVE_TTS */
 
     /* Shift+Alt+X : convert case (popup: U=UPPER / L=lower / T=Title) */
     if (ch == KEY_SHIFT('X'))
@@ -2273,6 +2347,34 @@ UiView ui_editor_run(UiApp *app)
 
         wrc = wrapper_read_key(&wch);
 
+#ifdef HAVE_TTS
+        if (wrc == ERR && ui_tts_is_busy(app))
+        {
+            if (ui_tts_tick(app))
+                ui_draw_statusbar(app);
+
+#ifdef PLATFORM_AMIGA
+            pf_sleep_ms(60);
+#endif
+            continue;
+        }
+
+        /* Feed next chunk to backend and refresh status bar on state change */
+        if (ui_tts_tick(app))
+            ui_draw_statusbar(app);
+
+#ifdef PLATFORM_AMIGA
+        if (ui_tts_is_busy(app))
+            nodelay(stdscr, TRUE);
+        else
+            nodelay(stdscr, FALSE);
+#else
+        if (ui_tts_is_busy(app))
+            timeout(150);
+        else
+            timeout(-1);
+#endif
+#endif
         if (wrc == ERR)
             continue;
 

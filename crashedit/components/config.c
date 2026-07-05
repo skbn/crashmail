@@ -748,6 +748,23 @@ void cfg_defaults(CrashEditCfg *cfg)
     cfg->thes_dict_name[0] = '\0';
 #endif /* HAVE_MYTHES */
 
+#ifdef HAVE_GRAMMAR
+    cfg->grammar_enabled = 0;
+#if defined(PLATFORM_BSD)
+    strncpy(cfg->grammar_dict_path, "/usr/local/share/gramcheck", sizeof(cfg->grammar_dict_path) - 1);
+#elif defined(PLATFORM_UNIX)
+    strncpy(cfg->grammar_dict_path, "/usr/share/gramcheck", sizeof(cfg->grammar_dict_path) - 1);
+#elif defined(PLATFORM_WIN32)
+    strncpy(cfg->grammar_dict_path, "C:\\gramcheck\\rules", sizeof(cfg->grammar_dict_path) - 1);
+#elif defined(PLATFORM_AMIGA)
+    strncpy(cfg->grammar_dict_path, "PROGDIR:rules", sizeof(cfg->grammar_dict_path) - 1);
+#else
+    cfg->grammar_dict_path[0] = '\0';
+#endif
+    cfg->grammar_dict_path[sizeof(cfg->grammar_dict_path) - 1] = '\0';
+    cfg->grammar_dict_name[0] = '\0';
+#endif /* HAVE_GRAMMAR */
+
 #ifdef HAVE_TRANSLATE
     cfg->translate_enabled = 0;
     cfg->translate_backend = 0;        /* MyMemory */
@@ -763,6 +780,14 @@ void cfg_defaults(CrashEditCfg *cfg)
     cfg->translate_timeout = 10;  /* 10 seconds */
     cfg->stardict_path[0] = '\0'; /* Empty by default */
 #endif                            /* HAVE_TRANSLATE */
+
+#ifdef HAVE_TTS
+    cfg->tts_enabled = 0;
+    cfg->tts_voice = 0;
+    cfg->tts_rate = 150;
+    cfg->tts_pitch = 110;
+    cfg->tts_volume = 100;
+#endif
 }
 
 int cfg_load(CrashEditCfg *cfg, const char *path)
@@ -1122,6 +1147,30 @@ int cfg_load(CrashEditCfg *cfg, const char *path)
 #endif /* HAVE_MYTHES */
 #endif /* HAVE_HUNSPELL */
 
+#ifdef HAVE_GRAMMAR
+        else if (strcasecmp(word, "GRAMMAR_ENABLED") == 0)
+        {
+            cfg->grammar_enabled = parse_yesno(rest);
+        }
+        else if (strcasecmp(word, "GRAMMAR_DICT_PATH") == 0)
+        {
+            char tmp[CFG_STR_MAX];
+
+            copy_rest(rest, tmp, sizeof(tmp));
+            strip_quotes(tmp);
+
+            if (tmp[0] != '\0')
+            {
+                strncpy(cfg->grammar_dict_path, tmp, sizeof(cfg->grammar_dict_path) - 1);
+                cfg->grammar_dict_path[sizeof(cfg->grammar_dict_path) - 1] = '\0';
+            }
+        }
+        else if (strcasecmp(word, "GRAMMAR_DICT_NAME") == 0)
+        {
+            copy_rest(rest, cfg->grammar_dict_name, sizeof(cfg->grammar_dict_name));
+        }
+#endif /* HAVE_GRAMMAR */
+
 #ifdef HAVE_TRANSLATE
         else if (strcasecmp(word, "TRANSLATE_ENABLED") == 0)
         {
@@ -1214,6 +1263,64 @@ int cfg_load(CrashEditCfg *cfg, const char *path)
             cfg->stardict_path[sizeof(cfg->stardict_path) - 1] = '\0';
         }
 #endif /* HAVE_TRANSLATE */
+#ifdef HAVE_TTS
+        else if (strcasecmp(word, "TTS_ENABLED") == 0)
+        {
+            cfg->tts_enabled = parse_yesno(rest);
+        }
+        else if (strcasecmp(word, "TTS_VOICE") == 0)
+        {
+            char val[24];
+
+            get_token(rest, val, sizeof(val));
+
+            if (strcasecmp(val, "MALE") == 0)
+                cfg->tts_voice = 0;
+            else if (strcasecmp(val, "FEMALE") == 0)
+                cfg->tts_voice = 1;
+            else if (strcasecmp(val, "MALE_ROBOT") == 0 ||
+                     strcasecmp(val, "MALEROBOT") == 0)
+                cfg->tts_voice = 2;
+            else if (strcasecmp(val, "FEMALE_ROBOT") == 0 ||
+                     strcasecmp(val, "FEMALEROBOT") == 0)
+                cfg->tts_voice = 3;
+            else
+                cfg->tts_voice = atoi(val);
+
+            if (cfg->tts_voice < 0 || cfg->tts_voice > 3)
+                cfg->tts_voice = 0;
+        }
+        else if (strcasecmp(word, "TTS_RATE") == 0)
+        {
+            cfg->tts_rate = atoi(rest);
+
+            if (cfg->tts_rate < 40)
+                cfg->tts_rate = 40;
+
+            if (cfg->tts_rate > 400)
+                cfg->tts_rate = 400;
+        }
+        else if (strcasecmp(word, "TTS_PITCH") == 0)
+        {
+            cfg->tts_pitch = atoi(rest);
+
+            if (cfg->tts_pitch < 65)
+                cfg->tts_pitch = 65;
+
+            if (cfg->tts_pitch > 320)
+                cfg->tts_pitch = 320;
+        }
+        else if (strcasecmp(word, "TTS_VOLUME") == 0)
+        {
+            cfg->tts_volume = atoi(rest);
+
+            if (cfg->tts_volume < 0)
+                cfg->tts_volume = 0;
+
+            if (cfg->tts_volume > 100)
+                cfg->tts_volume = 100;
+        }
+#endif /* HAVE_TTS */
 
         else if (strcasecmp(word, "TEMPLATEFILE") == 0)
         {
@@ -1695,6 +1802,10 @@ int cfg_save(const CrashEditCfg *cfg, const char *path)
     const char *aa_str = NULL;
     int fi;
 
+#ifdef HAVE_TTS
+    const char *voice_name = "MALE";
+#endif
+
 #define KV_STR(k, s)                                       \
     do                                                     \
     {                                                      \
@@ -1846,6 +1957,12 @@ int cfg_save(const CrashEditCfg *cfg, const char *path)
 #endif
 #endif
 
+#ifdef HAVE_GRAMMAR
+    KV_YN("GRAMMAR_ENABLED", cfg->grammar_enabled);
+    KV_STR("GRAMMAR_DICT_PATH", cfg->grammar_dict_path);
+    KV_STR("GRAMMAR_DICT_NAME", cfg->grammar_dict_name);
+#endif
+
 #ifdef HAVE_TRANSLATE
     const char *backend_name = "MYMEMORY";
 
@@ -1870,6 +1987,35 @@ int cfg_save(const CrashEditCfg *cfg, const char *path)
     KV_STR("TRANSLATE_TO_LANG", cfg->translate_to_lang);
     KV_INT("TRANSLATE_TIMEOUT", cfg->translate_timeout);
     KV_STR("STARDICT_PATH", cfg->stardict_path);
+#endif
+
+#ifdef HAVE_TTS
+    voice_name = "MALE";
+
+    switch (cfg->tts_voice)
+    {
+    case 0:
+        voice_name = "MALE";
+        break;
+    case 1:
+        voice_name = "FEMALE";
+        break;
+    case 2:
+        voice_name = "MALE_ROBOT";
+        break;
+    case 3:
+        voice_name = "FEMALE_ROBOT";
+        break;
+    default:
+        voice_name = "MALE";
+        break;
+    }
+
+    KV_YN("TTS_ENABLED", cfg->tts_enabled);
+    KV_STR("TTS_VOICE", voice_name);
+    KV_INT("TTS_RATE", cfg->tts_rate);
+    KV_INT("TTS_PITCH", cfg->tts_pitch);
+    KV_INT("TTS_VOLUME", cfg->tts_volume);
 #endif
 
     snprintf(tmp_path, sizeof(tmp_path), "%s.tmp", path);

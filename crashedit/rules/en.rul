@@ -1,0 +1,62 @@
+# gramcheck rule pack — English (v3)
+LANG   en
+NAME   English (v3)
+
+# 1. Spelling (host Hunspell callback)
+SPELL_UNKNOWN
+
+# 2. Spacing
+SPACE_MULTIPLE
+PUNCT_NO_SPACE_BEFORE ,.;:!?)
+PUNCT_SPACE_AFTER     ,;:
+PUNCT_NO_SPACE_AFTER  (
+QUOTE_SPACING
+
+# 3. Punctuation
+PUNCT_NO_DOUBLE       ,;
+COMMA_BEFORE_DOT
+TRAILING_DOTS
+EXCESSIVE_PUNCT 2
+
+# 4. Capitalization
+CAPITALIZE_SENTENCE
+WORD_CAP  monday,tuesday,wednesday,thursday,friday,saturday,sunday,january,february,march,april,june,july,august,september,october,november,december,english,american,british,european,spanish,french,german,london,paris,europe,america
+WORD_UPPER  usa,uk,eu,un,nato,gdp,vat,dna,usb,pdf,html,url,isp,bbs,faq,ceo,ftn
+ALL_CAPS_WORD 5
+
+# 5. Repetition
+REPEAT_WORD
+REPEAT_WORD_SKIP  had,that,ha,ho,so,no,is,ok
+REPEAT_PHRASE
+
+# 6. Typography
+TRIPLE_DOT
+DOUBLE_DASH
+STRAIGHT_QUOTES
+BRACKET_PAIRS         ()[]{}
+
+# 7. Common confusions
+PAIR  teh          the           warn
+PAIR  recieve      receive       warn
+PAIR  seperate     separate      warn
+PAIR  definately   definitely    warn
+PAIR  occured      occurred      warn
+PAIR  accomodate   accommodate   warn
+PAIR  begining     beginning     warn
+PAIR  neccessary   necessary     warn
+PAIR  wich         which         info
+PAIR  alot         "a lot"       info
+PAIR  its          "it's"        info
+PAIR  your         "you're"      info
+PAIR  there        "their"       info
+PAIR  affect       effect        info
+PAIR  loose        lose          info
+PAIR  then         than          info
+PAIR  should of    "should have" warn
+PAIR  could of     "could have"  warn
+PAIR  would of     "would have"  warn
+
+# 9. Style
+SENTENCE_TOO_LONG 30
+TOO_MANY_COMMAS 4 10
+WORD_DENSITY 3 12

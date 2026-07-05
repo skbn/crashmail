@@ -1,0 +1,58 @@
+# gramcheck rule pack — Français (v3)
+LANG   fr
+NAME   Français (v3)
+
+# 1. Orthographe (Hunspell hôte)
+SPELL_UNKNOWN
+
+# 2. Espaces
+SPACE_MULTIPLE
+PUNCT_NO_SPACE_BEFORE ,.)]}
+PUNCT_SPACE_AFTER     ,;:
+PUNCT_NO_SPACE_AFTER  (
+QUOTE_SPACING
+
+# 3. Ponctuation — le français exige une espace insécable avant ; : ! ?
+PUNCT_NO_DOUBLE       ,;
+COMMA_BEFORE_DOT
+TRAILING_DOTS
+EXCESSIVE_PUNCT 2
+NBSP_REQUIRED  ;:!?
+
+# 4. Majuscules — jours et mois en minuscule en français
+CAPITALIZE_SENTENCE
+WORD_CAP  france,paris,europe,français,anglais,allemand
+WORD_LOWER  janvier,février,mars,avril,mai,juin,juillet,août,septembre,octobre,novembre,décembre,lundi,mardi,mercredi,jeudi,vendredi,samedi,dimanche
+WORD_UPPER  ue,onu,otan,pib,tva,adn,usb,pdf,html,url
+ALL_CAPS_WORD 6
+
+# 5. Répétitions
+REPEAT_WORD
+REPEAT_WORD_SKIP  le,la,les,de,du,des,et,ou,à,ni,ha,hé
+REPEAT_PHRASE
+
+# 6. Typographie
+TRIPLE_DOT
+DOUBLE_DASH
+STRAIGHT_QUOTES
+BRACKET_PAIRS         ()[]{}«»
+
+# 7. Fautes courantes
+# Articles français pour détection du genre dans les règles d'accord.
+ARTICLE_FEM  la,une,les
+ARTICLE_MASC  le,un,les
+PAIR  parceque    "parce que"    warn
+PAIR  cad         "c'est-à-dire" info
+PAIR  ca          ça             warn
+PAIR  a           à              info
+PAIR  ou          où             info
+PAIR  sa          ça             info
+PAIR  ces         ses            info
+PAIR  se          ce             info
+PAIR  malgres     malgré         warn
+PAIR  language    langage        warn
+
+# 9. Style
+SENTENCE_TOO_LONG 30
+TOO_MANY_COMMAS 4 10
+WORD_DENSITY 3 12

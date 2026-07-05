@@ -27,6 +27,7 @@
 #include "ui_editor_helper.h"
 #include "ui_attr.h"
 #include "ui_spell.h"
+#include "ui_grammar.h"
 #include "ui_dict.h"
 #include "ui_assist.h"
 #include "../core/msghdr.h"
@@ -728,6 +729,12 @@ void draw_edit_body(UiApp *app)
             }
 #endif
 
+#ifdef HAVE_GRAMMAR
+            /* Grammar/punctuation overlay — viewport-scoped, LRU-cached */
+            if (app->grammar_active && app->grammar_handle && wl && line_len > 0)
+                ui_grammar_draw_row(app, start_row + i, ln_offset, tab_width, wl, line_len);
+#endif
+
             /* Paint tabs and trailing spaces as visible glyphs */
             if (app->cfg->show_whitespace && line_len > 0)
             {
@@ -861,6 +868,12 @@ void draw_edit_body(UiApp *app)
                 }
             }
         }
+
+#ifdef HAVE_GRAMMAR
+        /* Prewarm grammar cache for a small margin above/below viewport */
+        if (app->grammar_active && app->grammar_handle)
+            ui_grammar_prewarm(app, info.top, rows, info.line_count);
+#endif
 
         return;
     }
@@ -1088,6 +1101,12 @@ void draw_edit_body(UiApp *app)
                 }
 #endif
 
+#ifdef HAVE_GRAMMAR
+                /* Grammar overlay for soft-wrap segment, cache-friendly check runs on full logical line once */
+                if (app->grammar_active && app->grammar_handle && l && len > 0 && seg_start < seg_end)
+                    ui_grammar_draw_row_segment(app, start_row + sr, ln_offset, tab_width, l, len, seg_start, seg_end, seg_start_vcol);
+#endif
+
                 /* Block-selection overlay */
                 if (b_r1 >= 0 && li >= b_r1 && li <= b_r2 && l)
                 {
@@ -1226,4 +1245,10 @@ void draw_edit_body(UiApp *app)
         li++;
         sub_skip = 0; /* subsequent lines start at sub-row 0 */
     }
+
+#ifdef HAVE_GRAMMAR
+    /* Prewarm grammar cache above/below viewport using info.top/rows computed for this function */
+    if (app->grammar_active && app->grammar_handle)
+        ui_grammar_prewarm(app, info.top, rows, info.line_count);
+#endif
 }

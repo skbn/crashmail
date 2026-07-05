@@ -30,6 +30,9 @@
 #include "ui_internal.h"
 #include "ui_attr.h"
 #include "ui_files.h"
+#ifdef HAVE_TTS
+#include "ui_tts.h"
+#endif
 #include "../../src/jamlib/jam.h"
 #include "../core/msghdr.h"
 #include "../core/ftn.h"
@@ -74,6 +77,21 @@ static const char *READER_HELP[] =
         "  w, F7          Write message to text file",
         "  d, Del         Delete this message",
         "  Alt+F          File request",
+#ifdef HAVE_TTS
+        "",
+        "  Text-to-speech:",
+#ifdef PLATFORM_AMIGA
+        "    Alt+Shift+L   Speak message",
+        "    Alt+Shift+P   Pause / resume speech",
+        "    Alt+Shift+O   Stop speech",
+        "    Alt+Shift+J   Voice settings popup",
+#else
+        "    Ctrl+Alt+L    Speak message",
+        "    Ctrl+Alt+P    Pause / resume speech",
+        "    Ctrl+Alt+O    Stop speech",
+        "    Ctrl+Alt+J    Voice settings popup",
+#endif
+#endif
         "",
         "  ESC, q         Back to message list",
         "  F1 Alt+Y       This help"};
@@ -860,9 +878,7 @@ UiView ui_reader_run(UiApp *app)
 
     /* Apply ANSI visibility from config on first load */
     if (app->cfg->viewansi != rd_ansi_visible(app->reader))
-    {
         rd_toggle_ansi(app->reader);
-    }
 
 #ifdef PLATFORM_AMIGA
     amiga_change_font(rd_ansi_visible(app->reader));
@@ -890,10 +906,83 @@ UiView ui_reader_run(UiApp *app)
         ui_draw_statusbar(app);
         refresh();
 
+#ifdef HAVE_TTS
+        /* Poll input with short timeout while speech plays, Amiga uses nodelay polling plus sleep */
+#ifdef PLATFORM_AMIGA
+        if (ui_tts_is_busy(app))
+            nodelay(stdscr, TRUE);
+        else
+            nodelay(stdscr, FALSE);
+#else
+        if (ui_tts_is_busy(app))
+            timeout(150);
+        else
+            timeout(-1);
+#endif
+#endif
+
         ch = wrapper_getch();
+
+#ifdef HAVE_TTS
+        if (ch == ERR && ui_tts_is_busy(app))
+        {
+            if (ui_tts_tick(app))
+                ui_draw_statusbar(app);
+
+#ifdef PLATFORM_AMIGA
+            pf_sleep_ms(60);
+#endif
+            continue;
+        }
+
+        if (ui_tts_tick(app))
+            ui_draw_statusbar(app);
+
+        if (ch == ERR)
+            continue;
+#endif
 
         switch (ch)
         {
+#ifdef HAVE_TTS
+
+#ifdef PLATFORM_AMIGA
+        case KEY_SHIFT('L'):
+#else
+        case KEY_ALT_CTRL('L'):
+#endif
+            ui_tts_speak_action(app);
+            break;
+            /* Whole message from the top */
+#ifdef PLATFORM_AMIGA
+        case KEY_SHIFT('K'):
+#else
+        case KEY_ALT_CTRL('K'):
+#endif
+            ui_tts_speak_doc_action(app);
+            break;
+#ifdef PLATFORM_AMIGA
+        case KEY_SHIFT('P'):
+#else
+        case KEY_ALT_CTRL('P'):
+#endif
+            ui_tts_pause_toggle(app);
+            break;
+#ifdef PLATFORM_AMIGA
+        case KEY_SHIFT('O'):
+#else
+        case KEY_ALT_CTRL('O'):
+#endif
+            ui_tts_stop(app);
+            break;
+#ifdef PLATFORM_AMIGA
+        case KEY_SHIFT('J'):
+#else
+        case KEY_ALT_CTRL('J'):
+#endif
+            ui_tts_popup(app);
+            break;
+#endif
         case KEY_UP:
             rd_scroll_up(app->reader, 1);
             break;

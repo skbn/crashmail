@@ -758,37 +758,15 @@ static wchar_t *ftn_split_reply_lines(const wchar_t *joined, size_t joined_len, 
     return outw;
 }
 
-/* True if the line ends with a wrap-inserted hyphen (trusts the flag) */
-static int hwrap_line_ends_with_hyphen(const wchar_t *line, int len, int has_wrap_hyphen)
-{
-    return has_wrap_hyphen != 0;
-}
-
-/* True if the line ends with whitespace */
-static int hwrap_ends_with_space(const wchar_t *line, int len)
-{
-    if (len <= 0)
-        return 0;
-
-    return line[len - 1] == L' ' || line[len - 1] == L'\t';
-}
-
-/* True if the line starts with whitespace (empty line counts as needing space) */
-static int hwrap_starts_with_space(const wchar_t *line, int len)
-{
-    if (len <= 0)
-        return 1;
-
-    return line[0] == L' ' || line[0] == L'\t';
-}
-
 /* Join a plain paragraph into one word stream and record cursor offset */
 static wchar_t *hwrap_join_para(Ed *ed, int first, int last, int cursor_row, int cursor_col, int *out_cursor_offset, size_t *out_len)
 {
     size_t cap = 256;
     size_t used = 0;
     wchar_t *joined = (wchar_t *)malloc(cap * sizeof(wchar_t));
+    int logical_pos = 0; /* Logical chars before the current point (no wrap hyphens) */
     int cursor_offset = -1;
+    int prev_had_break = 0; /* previous line had a wrap hyphen we removed */
     int i;
     wchar_t *tmp;
 
@@ -799,23 +777,49 @@ static wchar_t *hwrap_join_para(Ed *ed, int first, int last, int cursor_row, int
     {
         const wchar_t *l = ed->lines[i]->wcs;
         int ll = ed->lines[i]->len;
+        int has_wrap = ed->lines[i]->has_wrap_hyphen;
+        int skip_hyphen = -1;
+        int skip_space = -1;
+        int logical_len;
+        int had_break = 0;
         int j;
+
+        logical_len = ll;
+
+        /* Find and remove wrap hyphen before rejoining paragraph, also drop following space to glue word back together */
+        if (has_wrap)
+        {
+            for (j = ll - 1; j >= 0; j--)
+            {
+                if (l[j] == L'-')
+                {
+                    skip_hyphen = j;
+                    logical_len--;
+                    had_break = 1;
+
+                    if (j + 1 < ll && (l[j + 1] == L' ' || l[j + 1] == L'\t'))
+                    {
+                        skip_space = j + 1;
+                        logical_len--;
+                    }
+
+                    break;
+                }
+            }
+        }
 
         if (i > first)
         {
-            const wchar_t *prev = ed->lines[i - 1]->wcs;
-            int prev_len = ed->lines[i - 1]->len;
-
-            if (hwrap_line_ends_with_hyphen(prev, prev_len, ed->lines[i - 1]->has_wrap_hyphen))
+            if (prev_had_break)
             {
-                /* Remove the artificial '-' at the end of the joined stream */
+                /* Remove the trailing '-' that was kept in the joined stream */
                 if (used > 0 && joined[used - 1] == L'-')
                     used--;
             }
             else
             {
                 /* Add a joining space if neither side already has one */
-                if (used > 0 && !hwrap_ends_with_space(joined, (int)used) && !hwrap_starts_with_space(l, ll))
+                if (used > 0 && joined[used - 1] != L' ' && joined[used - 1] != L'\t' && l[0] != L' ' && l[0] != L'\t')
                 {
                     if (used + 1 >= cap)
                     {
@@ -832,12 +836,40 @@ static wchar_t *hwrap_join_para(Ed *ed, int first, int last, int cursor_row, int
                     }
 
                     joined[used++] = L' ';
+                    logical_pos++; /* joining space is a real logical char */
                 }
             }
         }
 
+        /* Record logical cursor offset before the line's chars are copied */
+        if (i == cursor_row)
+        {
+            if (cursor_col <= 0)
+            {
+                cursor_offset = logical_pos;
+            }
+            else
+            {
+                int logical_up_to_col = 0;
+
+                for (j = 0; j < cursor_col && j < ll; j++)
+                {
+                    if (j == skip_hyphen || j == skip_space)
+                        continue;
+
+                    logical_up_to_col++;
+                }
+
+                cursor_offset = logical_pos + logical_up_to_col;
+            }
+        }
+
+        /* Copy the line, skipping the removed hyphen and its following space */
         for (j = 0; j < ll; j++)
         {
+            if (j == skip_hyphen || j == skip_space)
+                continue;
+
             if (used + 1 >= cap)
             {
                 cap = (cap + 64) * 2;
@@ -853,15 +885,18 @@ static wchar_t *hwrap_join_para(Ed *ed, int first, int last, int cursor_row, int
             }
 
             joined[used++] = l[j];
-
-            if (i == cursor_row && j + 1 == cursor_col)
-                cursor_offset = (int)used;
         }
+
+        logical_pos += logical_len;
+
+        prev_had_break = had_break;
     }
 
     joined[used] = L'\0';
+
     *out_len = used;
     *out_cursor_offset = cursor_offset;
+
     return joined;
 }
 
@@ -869,7 +904,7 @@ static wchar_t *hwrap_join_para(Ed *ed, int first, int last, int cursor_row, int
 static int hwrap_grow_out(HwrapSplitCtx *ctx, size_t extra)
 {
     size_t new_cap;
-    wchar_t *tmp;
+    wchar_t *tmp = NULL;
 
     if (ctx->out_used + extra < ctx->out_cap)
         return 0;
@@ -882,13 +917,14 @@ static int hwrap_grow_out(HwrapSplitCtx *ctx, size_t extra)
 
     ctx->outw = tmp;
     ctx->out_cap = new_cap;
+
     return 0;
 }
 
 static int hwrap_grow_flags(HwrapSplitCtx *ctx)
 {
     int new_cap;
-    int *tmp;
+    int *tmp = NULL;
 
     if (!ctx->out_wrap_flags || ctx->lines_produced < ctx->flags_cap)
         return 0;
@@ -901,6 +937,7 @@ static int hwrap_grow_flags(HwrapSplitCtx *ctx)
 
     ctx->wrap_flags = tmp;
     ctx->flags_cap = new_cap;
+
     return 0;
 }
 
@@ -1141,22 +1178,42 @@ static void hwrap_find_cursor(Ed *ed, int first, int inserted, int cursor_offset
 {
     int i;
     int pos = 0;
-    int copy_len;
-    int last_ins;
 
     for (i = first; i < first + inserted && i < ed->count; i++)
     {
         const wchar_t *l = ed->lines[i]->wcs;
         int ll = ed->lines[i]->len;
-        int j;
+        int has_wrap = ed->lines[i]->has_wrap_hyphen;
+        int logical_len = ll;
+
+        /* The trailing wrap hyphen is not a logical character */
+        if (has_wrap && ll > 0 && l[ll - 1] == L'-')
+            logical_len--;
+
+        /* Cursor at the start of this line */
+        if (pos >= cursor_offset)
+        {
+            *out_row = i;
+            *out_col = 0;
+            return;
+        }
 
         if (i > first)
         {
+            /* Add a joining space unless the previous line ended with a wrap hyphen or either side has whitespace at the boundary */
             const wchar_t *prev = ed->lines[i - 1]->wcs;
             int prev_len = ed->lines[i - 1]->len;
+            int prev_has_wrap = ed->lines[i - 1]->has_wrap_hyphen;
+            int prev_last = prev_len > 0 ? prev[prev_len - 1] : 0;
+            int needs_space = 0;
 
-            /* Add joining space unless word continues or boundary has whitespace */
-            if (pos > 0 && !hwrap_line_ends_with_hyphen(prev, prev_len, ed->lines[i - 1]->has_wrap_hyphen) && !hwrap_ends_with_space(prev, prev_len) && !hwrap_starts_with_space(l, ll))
+            if (prev && pos > 0)
+            {
+                if (!(prev_has_wrap && prev_last == L'-') && prev_last != L' ' && prev_last != L'\t' && l[0] != L' ' && l[0] != L'\t')
+                    needs_space = 1;
+            }
+
+            if (needs_space)
             {
                 pos++;
 
@@ -1169,36 +1226,27 @@ static void hwrap_find_cursor(Ed *ed, int first, int inserted, int cursor_offset
             }
         }
 
-        copy_len = ll;
-
-        if (hwrap_line_ends_with_hyphen(l, ll, ed->lines[i]->has_wrap_hyphen))
-            copy_len = ll - 1;
-
-        for (j = 0; j < copy_len; j++)
+        /* Cursor inside this line */
+        if (cursor_offset > pos && cursor_offset <= pos + logical_len)
         {
-            pos++;
-
-            if (pos >= cursor_offset)
-            {
-                *out_row = i;
-                *out_col = j + 1;
-
-                if (*out_col > ll)
-                    *out_col = ll;
-
-                return;
-            }
+            *out_row = i;
+            *out_col = cursor_offset - pos;
+            return;
         }
+
+        pos += logical_len;
     }
 
     /* Cursor offset past end: place at end of last inserted line */
-    last_ins = first + inserted - 1;
+    {
+        int last_ins = first + inserted - 1;
 
-    if (last_ins >= ed->count)
-        last_ins = ed->count - 1;
+        if (last_ins >= ed->count)
+            last_ins = ed->count - 1;
 
-    *out_row = last_ins;
-    *out_col = ed->lines[last_ins]->len;
+        *out_row = last_ins;
+        *out_col = ed->lines[last_ins]->len;
+    }
 }
 
 /* Reflow the hard-wrap paragraph around the cursor */
@@ -1387,11 +1435,7 @@ int ed_rewrap_paragraph_ex(Ed *ed, int width, int (*hyph_cb)(void *, const wchar
     }
 
     if (undo_push_snapshot_range(ed, first, cur_col_before, snapshot_before, snapshot_after, old_count, new_count, cur_row_before, cur_col_before, cur_row_after, cur_col_after) != 0)
-    {
-        free(snapshot_before);
-        free(snapshot_after);
         return -1;
-    }
 
     ed->undo_open = 0;
     ed_prefix_invalidate(ed);
@@ -1559,13 +1603,10 @@ int ed_rewrap_ftn_reply(Ed *ed, int width)
     }
 
     if (undo_push_snapshot_range(ed, first, cursor_col_before, snapshot_before, snapshot_after, old_count, new_count, cursor_row_before, cursor_col_before, cursor_row_after, cursor_col_after) != 0)
-    {
-        free(snapshot_before);
-        free(snapshot_after);
         return -1;
-    }
 
     ed->undo_open = 0;
+
     ed_prefix_invalidate(ed);
 
     return 0;

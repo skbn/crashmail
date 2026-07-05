@@ -39,8 +39,10 @@ HERE := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 USE_HUNSPELL ?= 0
 USE_HYPHEN ?= 0
 USE_MYTHES ?= 0
+USE_GRAMMAR ?= 0
 USE_TRANSLATE ?= 0
 USE_STARDICT ?= 0
+USE_TTS ?= 0
 WITH_AMISSL ?= 0
 
 # AmiSSL SDK path for TLS support
@@ -136,6 +138,19 @@ ifeq ($(USE_MYTHES),1)
   THES_OBJS = $(OBJDIR)/spellchecker_thes.o
 endif
 
+# Grammar checker support (independent of Hunspell)
+GRAMMAR_DIR = $(HERE)grammar
+ifeq ($(USE_GRAMMAR),1)
+  CFLAGS += -DHAVE_GRAMMAR -I$(GRAMMAR_DIR)
+  CDEFS  += -DHAVE_GRAMMAR
+  GRAMMAR_OBJS = $(OBJDIR)/grammar_utils.o \
+                 $(OBJDIR)/grammar_cache.o \
+                 $(OBJDIR)/grammar_rules.o \
+                 $(OBJDIR)/grammar_core.o  \
+                 $(OBJDIR)/grammar_api.o   \
+                 $(OBJDIR)/ui_grammar.o
+endif
+
 ifeq ($(USE_HYPHEN),1)
 UI_OBJS    += $(OBJDIR)/ui_hyph.o
 endif
@@ -150,6 +165,9 @@ UI_OBJS    += $(OBJDIR)/ui_dict.o
 UI_OBJS    += $(OBJDIR)/ui_dict_picker.o
 UI_OBJS    += $(OBJDIR)/ui_dict_reverse.o
 endif
+endif
+ifeq ($(USE_TTS),1)
+UI_OBJS    += $(OBJDIR)/ui_tts.o
 endif
 
 # Translator support -- uses HTTP backends (MyMemory, LibreTranslate, Lingva)
@@ -169,6 +187,20 @@ else
   TRANSLATE_LIB =
 endif
 
+# Text-To-Speech via narrator.device + translator.library.
+#
+# translator.library (v43 from Aminet preferred; v37 fallback) and
+# narrator.device (v34 or v37) are opened dynamically at runtime via
+# OpenLibrary/OpenDevice. NOTHING extra to link. If the user hasn't
+# installed either, tts_new() returns NULL and the editor keeps going
+# without TTS (a status-bar message says why).
+ifeq ($(USE_TTS),1)
+  CFLAGS += -DHAVE_TTS -I$(HERE)tts
+  TTS_OBJS = $(OBJDIR)/tts.o $(OBJDIR)/tts_amiga.o
+else
+  TTS_OBJS =
+endif
+
 # Set WITH_AMISSL=1 to enable TLS support via AmiSSL (requires USE_TRANSLATE=1)
 ifeq ($(WITH_AMISSL),1)
   ifeq ($(USE_TRANSLATE),0)
@@ -178,7 +210,7 @@ ifeq ($(WITH_AMISSL),1)
   TRANSLATE_LIBS = -L$(AMISSL_SDK)/Developer/lib/AmigaOS3 -lamisslstubs
 endif
 
-ALL_OBJS   = $(CORE_OBJS) $(COMP_OBJS) $(UI_OBJS) $(SPELL_OBJS) $(HYPHWRAP_OBJS) $(THES_OBJS) $(TRANSLATE_OBJS) $(OBJDIR)/spellchecker_utils.o
+ALL_OBJS   = $(CORE_OBJS) $(COMP_OBJS) $(UI_OBJS) $(SPELL_OBJS) $(HYPHWRAP_OBJS) $(THES_OBJS) $(GRAMMAR_OBJS) $(TRANSLATE_OBJS) $(TTS_OBJS) $(OBJDIR)/spellchecker_utils.o
 
 # FreeType objects (with gzip + lzw modules) - all in OBJDIR
 FT_OBJS    := \
@@ -683,6 +715,42 @@ $(OBJDIR)/json_utils.o: $(HERE)translate/json_utils.c $(HERE)translate/json_util
 $(OBJDIR)/translate_stardict.o: $(HERE)translate/translate_stardict.c $(HERE)translate/translate_stardict.h $(COREDIR)/portable.h | $(OBJDIR)
 	$(CC) $(TEFLAGS) -c $< -o $@
 endif
+
+# TTS objects (only if USE_TTS=1). On Amiga we compile the backend-
+# agnostic core plus the narrator.device/translator.library backend.
+# No extra link libraries; both are opened dynamically at runtime.
+ifeq ($(USE_TTS),1)
+$(OBJDIR)/tts.o: $(HERE)tts/tts.c $(HERE)tts/tts.h $(HERE)tts/tts_backend.h | $(OBJDIR)
+	$(CC) $(TEFLAGS) -c $< -o $@
+
+$(OBJDIR)/tts_amiga.o: $(HERE)tts/tts_amiga.c $(HERE)tts/tts.h $(HERE)tts/tts_backend.h | $(OBJDIR)
+	$(CC) $(TEFLAGS) -c $< -o $@
+
+$(OBJDIR)/ui_tts.o: $(UIDIR)/ui_tts.c $(UIDIR)/ui_tts.h | $(OBJDIR)
+	$(CC) $(TEFLAGS) -c $< -o $@
+endif
+
+
+# Grammar checker objects (only if USE_GRAMMAR=1)
+GRAMMAR_PRIV = $(HERE)grammar/grammar.h $(HERE)grammar/grammar_priv.h
+
+$(OBJDIR)/grammar_utils.o: $(HERE)grammar/grammar_utils.c $(GRAMMAR_PRIV) | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
+$(OBJDIR)/grammar_cache.o: $(HERE)grammar/grammar_cache.c $(GRAMMAR_PRIV) | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
+$(OBJDIR)/grammar_rules.o: $(HERE)grammar/grammar_rules.c $(GRAMMAR_PRIV) | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
+$(OBJDIR)/grammar_core.o: $(HERE)grammar/grammar_core.c $(GRAMMAR_PRIV) | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
+$(OBJDIR)/grammar_api.o: $(HERE)grammar/grammar_api.c $(GRAMMAR_PRIV) | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
+
+$(OBJDIR)/ui_grammar.o: $(HERE)ui/ui_grammar.c $(HERE)ui/ui_grammar.h $(GRAMMAR_PRIV) | $(OBJDIR)
+	$(CC) $(CFLAGS) $(CDEFS) -c $< -o $@
 
 clean:
 	rm -rf $(OBJDIR) $(TARGET) $(CRASHEDIT)

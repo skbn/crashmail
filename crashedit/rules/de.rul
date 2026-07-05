@@ -1,0 +1,54 @@
+# gramcheck rule pack — Deutsch (v3)
+LANG   de
+NAME   Deutsch (v3)
+
+# 1. Rechtschreibung (Hunspell)
+SPELL_UNKNOWN
+
+# 2. Leerzeichen
+SPACE_MULTIPLE
+PUNCT_NO_SPACE_BEFORE ,.;:!?)
+PUNCT_SPACE_AFTER     ,;:
+PUNCT_NO_SPACE_AFTER  (
+QUOTE_SPACING
+
+# 3. Zeichensetzung
+PUNCT_NO_DOUBLE       ,;
+COMMA_BEFORE_DOT
+TRAILING_DOTS
+EXCESSIVE_PUNCT 2
+
+# 4. Großschreibung — Wochentage und Monate GROSS im Deutschen
+CAPITALIZE_SENTENCE
+WORD_CAP  montag,dienstag,mittwoch,donnerstag,freitag,samstag,sonntag,januar,februar,märz,april,mai,juni,juli,august,september,oktober,november,dezember,deutschland,berlin,europa
+WORD_UPPER  eu,uno,nato,bip,mwst,dna,usb,pdf,html,url
+ALL_CAPS_WORD 6
+
+# 5. Wiederholungen
+REPEAT_WORD
+REPEAT_WORD_SKIP  der,die,das,und,oder,zu,ha,so
+REPEAT_PHRASE
+
+# 6. Typografie
+TRIPLE_DOT
+DOUBLE_DASH
+STRAIGHT_QUOTES
+BRACKET_PAIRS         ()[]{}„“
+
+# 7. Häufige Fehler
+# Deutsche Artikel für Geschlechtererkennung in Übereinstimmungsregeln.
+ARTICLE_FEM  die,eine
+ARTICLE_MASC  der,ein
+PAIR  standart      Standard        warn
+PAIR  seit          "seit / seid"   info
+PAIR  seid          "seit / seid"   info
+PAIR  das           dass            info
+PAIR  wieder        wider           info
+PAIR  wird          wirt            info
+PAIR  tod           tot             info
+PAIR  endgültig     endgültig       info
+
+# 9. Stil
+SENTENCE_TOO_LONG 30
+TOO_MANY_COMMAS 4 10
+WORD_DENSITY 3 12

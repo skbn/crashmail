@@ -387,6 +387,12 @@ struct UiApp
     void *thes_handle; /* opaque ThesHandle* */
 #endif
 
+#ifdef HAVE_GRAMMAR
+    void *grammar_handle; /* GramCheck* (opaque) */
+    int grammar_enabled;  /* mirrors cfg->grammar_enabled */
+    int grammar_active;   /* runtime on/off */
+#endif
+
     /* Dictionary panel (always present; StarDict backend is optional) */
     int show_dict;       /* 1 = panel visible */
     char *dict_result;   /* malloc'd, NULL when empty */
@@ -398,6 +404,11 @@ struct UiApp
     int translate_enabled;     /* mirrors cfg.translate_enabled; runtime toggle */
     int translate_active;      /* translator active (manual toggle) */
     int translate_http_inited; /* flag: http_client_init was called */
+#endif
+
+#ifdef HAVE_TTS
+    void *tts_handle; /* TtsHandle* (opaque) */
+    int tts_enabled;  /* TTS enabled in config */
 #endif
 
     /* Bracket matching: row/col of partner of bracket under cursor.

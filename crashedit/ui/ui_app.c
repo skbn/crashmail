@@ -29,6 +29,7 @@
 #include "ui.h"
 #include "ui_internal.h"
 #include "ui_spell.h"
+#include "ui_grammar.h"
 
 #ifdef HAVE_HYPHEN
 #include "ui_hyph.h"
@@ -38,6 +39,9 @@
 #endif
 #ifdef HAVE_TRANSLATE
 #include "ui_translate.h"
+#endif
+#ifdef HAVE_TTS
+#include "ui_tts.h"
 #endif
 #include <locale.h>
 
@@ -289,13 +293,8 @@ void ui_reapply_config(UiApp *app)
 
     setup_colors(app->cfg);
 
-#ifdef HAVE_TRANSLATE
-    /* Reload translator when translate settings changed */
-    ui_translate_load_from_config(app);
-#endif
-
-    /* Load thesaurus FIRST (spell checker needs to attach to it) */
 #ifdef HAVE_MYTHES
+    /* Load thesaurus FIRST (spell checker needs to attach to it) */
     ui_thes_load_from_config(app);
 #endif
 
@@ -317,16 +316,19 @@ void ui_reapply_config(UiApp *app)
     ui_translate_load_from_config(app);
 #endif
 
+#ifdef HAVE_TTS
+    /* Load TTS from config, idempotent, degrades silently if unavailable */
+    ui_tts_load_from_config(app);
+#endif
+
 #if !defined(PLATFORM_AMIGA) && !defined(PLATFORM_WIN32)
     /* Reconfigure mouse if setting changed */
     ui_configure_mouse(app->cfg->mouse_enabled);
 #endif
 
 #ifdef PLATFORM_AMIGA
-    {
-        extern void amiga_force_redraw(void);
-        amiga_force_redraw();
-    }
+    extern void amiga_force_redraw(void);
+    amiga_force_redraw();
 #endif
 
     /* Propagate word move mode to editor */
@@ -335,7 +337,6 @@ void ui_reapply_config(UiApp *app)
 }
 
 /* Status bar */
-
 void ui_status(UiApp *app, const char *fmt, ...)
 {
     va_list ap;
@@ -722,6 +723,7 @@ UiApp *ui_init(CrashEditCfg *cfg, AreaList *areas)
     UiApp *app = NULL;
     char *s = NULL;
     int k;
+    int fi;
     const char *default_net;
 
     if (!cfg || !areas)
@@ -731,38 +733,34 @@ UiApp *ui_init(CrashEditCfg *cfg, AreaList *areas)
     ui_init_locale();
 
 #ifdef PLATFORM_AMIGA
+    /* Amiga setup (before initscr) */
+    amiga_set_default_bg_color(cfg->default_bg_color);
+    amiga_set_font_name(cfg->font);
+    amiga_set_ansi_font_name(cfg->ansifont);
+
+    /* Optional TrueType (ignored if disabled) */
+    if (cfg->ttf_enabled)
     {
-        int fi;
+        amiga_set_ttf(cfg->ttf_font, cfg->ttf_size, cfg->ttf_antialias);
+        amiga_set_ttf_encoding(cfg->ttf_use_utf8);
 
-        /* Amiga setup (before initscr) */
-        amiga_set_default_bg_color(cfg->default_bg_color);
-        amiga_set_font_name(cfg->font);
-        amiga_set_ansi_font_name(cfg->ansifont);
+        /* Pass TTF_FALLBACK<N> entries to engine */
+        amiga_clear_ttf_fallbacks();
 
-        /* Optional TrueType (ignored if disabled) */
-        if (cfg->ttf_enabled)
+        for (fi = 0; fi < CFG_TTF_FALLBACKS; fi++)
         {
-            amiga_set_ttf(cfg->ttf_font, cfg->ttf_size, cfg->ttf_antialias);
-            amiga_set_ttf_encoding(cfg->ttf_use_utf8);
-
-            /* Pass TTF_FALLBACK<N> entries to engine */
-            amiga_clear_ttf_fallbacks();
-
-            for (fi = 0; fi < CFG_TTF_FALLBACKS; fi++)
+            if (cfg->ttf_fallback[fi][0])
             {
-                if (cfg->ttf_fallback[fi][0])
-                {
-                    int sz = cfg->ttf_fallback_size[fi] > 0 ? cfg->ttf_fallback_size[fi] : cfg->ttf_size;
-                    amiga_add_ttf_fallback(cfg->ttf_fallback[fi], sz);
-                }
+                int sz = cfg->ttf_fallback_size[fi] > 0 ? cfg->ttf_fallback_size[fi] : cfg->ttf_size;
+                amiga_add_ttf_fallback(cfg->ttf_fallback[fi], sz);
             }
         }
-        else
-        {
-            /* Explicitly disable TTF when disabled */
-            amiga_set_ttf(NULL, 0, 0);
-            amiga_clear_ttf_fallbacks();
-        }
+    }
+    else
+    {
+        /* Explicitly disable TTF when disabled */
+        amiga_set_ttf(NULL, 0, 0);
+        amiga_clear_ttf_fallbacks();
     }
 #endif
 
@@ -932,7 +930,9 @@ UiApp *ui_init(CrashEditCfg *cfg, AreaList *areas)
     define_key("\033s", KEY_ALT('S'));       /* Alt+S */
     define_key("\033S", KEY_ALT('S'));       /* Alt+Shift+S */
     define_key("\033l", KEY_ALT('L'));       /* Alt+L */
-    define_key("\033L", KEY_ALT('L'));       /* Alt+Shift+L */
+    define_key("\033L", KEY_SHIFT('L'));     /* Alt+Shift+L: TTS speak (Leer) */
+    define_key("\033[1;4L", KEY_SHIFT('L')); /* xterm Alt+Shift+L */
+    define_key("\033K", KEY_SHIFT('K'));     /* Alt+Shift+K: TTS speak whole document */
     define_key("\033i", KEY_ALT('I'));       /* Alt+I */
     define_key("\033I", KEY_ALT('I'));       /* Alt+Shift+I */
     define_key("\033v", KEY_ALT('V'));       /* Alt+V nodelist view */
@@ -956,7 +956,8 @@ UiApp *ui_init(CrashEditCfg *cfg, AreaList *areas)
     define_key("\033r", KEY_ALT('R'));       /* Alt+R translate */
     define_key("\033R", KEY_ALT('R'));       /* Alt+Shift+R */
     define_key("\033p", KEY_ALT('P'));       /* Alt+P nodelist picker */
-    define_key("\033P", KEY_ALT('P'));       /* Alt+Shift+P */
+    define_key("\033P", KEY_SHIFT('P'));     /* Alt+Shift+P: TTS pause/resume */
+    define_key("\033[1;4P", KEY_SHIFT('P')); /* xterm Alt+Shift+P */
     define_key("\033q", KEY_ALT('Q'));       /* Alt+Q toggle wrap */
     define_key("\033Q", KEY_ALT('Q'));       /* Alt+Shift+Q */
     define_key("\033b", KEY_ALT('B'));       /* Alt+B toggle block */
@@ -964,7 +965,8 @@ UiApp *ui_init(CrashEditCfg *cfg, AreaList *areas)
     define_key("\033n", KEY_ALT('N'));       /* Alt+N next match */
     define_key("\033N", KEY_ALT('N'));       /* Alt+Shift+N */
     define_key("\033o", KEY_ALT('O'));       /* Alt+O insert file */
-    define_key("\033O", KEY_ALT('O'));       /* Alt+Shift+O */
+    define_key("\033O", KEY_SHIFT('O'));     /* Alt+Shift+O: TTS stop (Off) */
+    define_key("\033[1;4O", KEY_SHIFT('O')); /* xterm Alt+Shift+O */
     define_key("\033k", KEY_ALT('K'));       /* Alt+K kludges */
     define_key("\033K", KEY_ALT('K'));       /* Alt+Shift+K */
     define_key("\033m", KEY_ALT('M'));       /* Alt+M list attachments */
@@ -974,7 +976,8 @@ UiApp *ui_init(CrashEditCfg *cfg, AreaList *areas)
     define_key("\033w", KEY_ALT('W'));       /* Alt+W spell word */
     define_key("\033W", KEY_ALT('W'));       /* Alt+Shift+W */
     define_key("\033j", KEY_ALT('J'));       /* Alt+J thesaurus */
-    define_key("\033J", KEY_ALT('J'));       /* Alt+Shift+J */
+    define_key("\033J", KEY_SHIFT('J'));     /* Alt+Shift+J: TTS settings popup */
+    define_key("\033[1;4J", KEY_SHIFT('J')); /* xterm Alt+Shift+J */
     define_key("\033z", KEY_ALT('Z'));       /* Alt+Z redo */
     define_key("\033Z", KEY_ALT('Z'));       /* Alt+Shift+Z */
 #endif
@@ -1030,6 +1033,15 @@ UiApp *ui_init(CrashEditCfg *cfg, AreaList *areas)
         ui_translate_load_from_config(app);
 #endif
 
+#ifdef HAVE_TTS
+    /* Initialize TTS state */
+    app->tts_enabled = app->cfg->tts_enabled;
+
+    /* Load TTS if enabled in config */
+    if (app->tts_enabled)
+        ui_tts_load_from_config(app);
+#endif
+
     app->reader = rd_new(cfg->viewkludge, cfg->viewhidden);
     app->hdr = msghdr_new();
     app->editor = ed_new();
@@ -1043,8 +1055,7 @@ UiApp *ui_init(CrashEditCfg *cfg, AreaList *areas)
     app->edit_hdr = msghdr_new();
     app->attach_list = attach_new();
 
-    if (!app->reader || !app->hdr || !app->editor || !app->edit_hdr ||
-        !app->attach_list)
+    if (!app->reader || !app->hdr || !app->editor || !app->edit_hdr || !app->attach_list)
     {
         if (app->reader)
             rd_free(app->reader);
@@ -1116,6 +1127,14 @@ UiApp *ui_init(CrashEditCfg *cfg, AreaList *areas)
 #endif
 #ifdef HAVE_MYTHES
     ui_thes_load_from_config(app);
+#endif
+
+#ifdef HAVE_GRAMMAR
+    app->grammar_enabled = cfg->grammar_enabled;
+    app->grammar_active = 0;
+    app->grammar_handle = NULL;
+
+    ui_grammar_load_from_config(app);
 #endif
 
     ui_status(app, "Welcome to CrashEdit. Press F1 or ? for help");
@@ -1203,8 +1222,17 @@ void ui_cleanup(UiApp *app)
     ui_spell_unload(app);
 #endif
 
+#ifdef HAVE_GRAMMAR
+    ui_grammar_free_app(app);
+#endif
+
 #ifdef HAVE_TRANSLATE
     ui_translate_unload(app);
+#endif
+
+#ifdef HAVE_TTS
+    /* Stop in-flight speech before freeing to avoid dangling I/O */
+    ui_tts_unload(app);
 #endif
 
     ui_session_close(app);

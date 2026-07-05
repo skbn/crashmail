@@ -1,0 +1,128 @@
+# =================================================================
+# gramcheck rule pack — Español (v3)
+# Cubre las 10 categorías del listado completo.
+# =================================================================
+
+LANG   es
+NAME   Español (v3)
+
+# -----------------------------------------------------------------
+# 1. Ortografía — via callback Hunspell del editor.
+#    Requiere USE_HUNSPELL=1 y SPELL_ENABLED en el editor.
+#    Si no hay diccionario cargado la regla queda inactiva sin coste.
+# -----------------------------------------------------------------
+SPELL_UNKNOWN
+
+# -----------------------------------------------------------------
+# 2. Espacios
+# -----------------------------------------------------------------
+SPACE_MULTIPLE
+PUNCT_NO_SPACE_BEFORE ,.;:!?)
+PUNCT_SPACE_AFTER     ,;:
+PUNCT_NO_SPACE_AFTER  (¿¡
+QUOTE_SPACING
+
+# -----------------------------------------------------------------
+# 3. Puntuación
+# -----------------------------------------------------------------
+PUNCT_NO_DOUBLE       ,;
+COMMA_BEFORE_DOT
+TRAILING_DOTS
+EXCESSIVE_PUNCT 2
+SENTENCE_OPEN_ES      ?!
+
+# -----------------------------------------------------------------
+# 4. Mayúsculas
+# -----------------------------------------------------------------
+CAPITALIZE_SENTENCE
+WORD_CAP  España,Europa,Madrid,Barcelona,Sevilla,Valencia,América,África,Asia,Alemania,Francia,Italia,Portugal,Canarias,Tenerife
+# En español, meses y días van en minúscula a mitad de frase:
+WORD_LOWER  Enero,Febrero,Marzo,Abril,Mayo,Junio,Julio,Agosto,Septiembre,Octubre,Noviembre,Diciembre,Lunes,Martes,Miércoles,Jueves,Viernes,Sábado,Domingo
+WORD_UPPER  UE,ONU,OTAN,PIB,IVA,DNI,ADN,USB,PDF,HTML,URL,ISP,BBS,FTN,RAE
+ALL_CAPS_WORD 6
+
+# -----------------------------------------------------------------
+# 5. Repeticiones
+# -----------------------------------------------------------------
+REPEAT_WORD
+REPEAT_WORD_SKIP  de,que,y,o,a,en,ni,muy,ja,je,ha
+REPEAT_PHRASE
+
+# -----------------------------------------------------------------
+# 6. Tipografía
+# -----------------------------------------------------------------
+TRIPLE_DOT
+DOUBLE_DASH
+STRAIGHT_QUOTES
+BRACKET_PAIRS         ()[]{}«»
+
+# -----------------------------------------------------------------
+# 7. Errores frecuentes por idioma
+# -----------------------------------------------------------------
+PAIR  aver         "a ver"       info
+PAIR  aya          "haya"        warn
+PAIR  halla        "haya"        info
+PAIR  echo         "hecho"       info
+PAIR  porque       "por qué"     info
+PAIR  porqué       "por qué"     info
+PAIR  sino         "si no"       info
+PAIR  tambien      también       warn
+PAIR  esta         está          info
+PAIR  mas          más           info
+PAIR  tu           tú            info
+PAIR  el           él            info
+PAIR  si           sí            info
+PAIR  te           té            info
+PAIR  se           sé            info
+PAIR  osea         "o sea"       warn
+PAIR  ademas       además        warn
+PAIR  ingles       inglés        info
+PAIR  frances      francés       info
+PAIR  aleman       alemán        info
+PAIR  espanol      español       warn
+PAIR  ninos        niños         info
+PAIR  anos         años          info
+PAIR  haber        "a ver"       info
+PAIR  valla        vaya          info
+PAIR  vaya         valla         info
+PAIR  tubo         tuvo          info
+PAIR  tuvo         tubo          info
+PAIR  hechar       echar         warn
+PAIR  haiga        haya          warn
+PAIR  nesecito     necesito      warn
+PAIR  dijistes     dijiste       warn
+PAIR  vinistes     viniste       warn
+
+# -----------------------------------------------------------------
+# 8. Concordancia básica (heurísticos conservadores)
+# -----------------------------------------------------------------
+# Artículos y terminaciones de género del español para reglas de concordancia.
+ARTICLE_FEM  la,una,las
+ARTICLE_MASC  el,un,los,unos
+FEM_ENDINGS  a,as
+MASC_ENDINGS  o,os
+MASC_EXCEPTION_ENDINGS  ma
+AGREEMENT_ART_NOUN
+AGREEMENT_NOUN_ADJ
+# Excepciones: femeninos con "el" tónico, masculinos en -a, invariables
+AGREEMENT_EXCEPTIONS  agua,alma,área,aula,hacha,águila,arma,ala,hambre,ave,mano,foto,moto,radio,día,mapa,sofá,planeta,poeta,pirata,cura,guía,turista,artista,dentista,periodista,futbolista,taxista,modelo,testigo,soprano,grande,verde,triste,alegre,fuerte,inteligente,interesante,importante,posible,amable,doble,libre,pobre,dulce,breve,firme,noble,simple,suave,humilde,rebelde,salvaje,cobarde
+
+# -----------------------------------------------------------------
+# 9. Reglas de estilo
+# -----------------------------------------------------------------
+SENTENCE_TOO_LONG 30
+TOO_MANY_COMMAS 4 10
+WORD_DENSITY 3 12
+
+# -----------------------------------------------------------------
+# 10. Gramática avanzada (heurísticos)
+# -----------------------------------------------------------------
+# Locuciones que rigen subjuntivo. Si les sigue un indicativo claro
+# (terminación -amos/-emos ok en ambos; -aba/-aban/-ía es indicativo)
+SUBJUNCTIVE_AFTER  para que|sin que|antes de que|a fin de que|con tal de que|a menos que|en caso de que|ojalá que
+SUBJUNCTIVE_BAD_ENDINGS  aba,aban,abas,ía,ían,ías,aré,arás,será,serán,ienes,iene,uedes,uede,aces,ace,ienen
+
+# Mezcla de tiempos: pasado + marcador de presente en la misma línea
+TENSE_MIX
+TENSE_PAST_ENDINGS  aba,aban,ábamos,aron,ieron,aste,iste,amos
+TENSE_PRESENT_MARKERS  hoy,ahora,actualmente,estoy,estás,está,estamos,están

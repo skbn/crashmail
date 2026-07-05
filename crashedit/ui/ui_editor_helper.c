@@ -232,7 +232,6 @@ static int crashedit_hyph_cb(void *data, const wchar_t *word, int word_len, int 
 void ed_auto_rewrap_after_edit(UiApp *app)
 {
     int width;
-    int old_mode;
 
     if (!app || !app->editor || !app->cfg || !app->cfg->hard_wrap)
         return;
@@ -242,7 +241,6 @@ void ed_auto_rewrap_after_edit(UiApp *app)
     if (width < 4)
         return;
 
-    old_mode = app->editor->undo_snapshot_mode;
     app->editor->undo_snapshot_mode = 1;
 
 #ifdef HAVE_HYPHEN
@@ -251,7 +249,7 @@ void ed_auto_rewrap_after_edit(UiApp *app)
     ed_rewrap_paragraph_ex(app->editor, width, NULL, NULL);
 #endif
 
-    app->editor->undo_snapshot_mode = old_mode;
+    app->editor->undo_snapshot_mode = 0;
 }
 
 /* Manual hard-wrap rewrap for the current paragraph (Ctrl+W fallback) */
@@ -280,7 +278,7 @@ int ed_manual_rewrap_paragraph(UiApp *app, int width)
 /* Detect loaded wrap-hyphens using the active spell checker */
 void ui_editor_detect_wrap_hyphens(UiApp *app)
 {
-#ifdef HAVE_HUNSPELL
+#if defined(HAVE_HUNSPELL) && defined(HAVE_HYPHEN)
     Ed *ed = NULL;
     EdLine *ln = NULL;
     EdLine *next = NULL;

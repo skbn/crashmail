@@ -120,7 +120,7 @@ typedef struct
     /* Mouse support: 0=disabled, 1=enabled */
     int mouse_enabled;
 
-    /* Editor assistance toggles (independent of spell support) */
+    /* Independent editor assistance toggles */
     int assist_smart_quotes;
     int assist_auto_cap;
     int assist_repeat_check;
@@ -178,6 +178,12 @@ typedef struct
     char thes_dict_name[CFG_STR_MAX]; /* base name, e.g. "es_v2" */
 #endif
 
+#ifdef HAVE_GRAMMAR
+    int grammar_enabled;
+    char grammar_dict_path[CFG_STR_MAX]; /* Directory holding .rul files */
+    char grammar_dict_name[CFG_STR_MAX]; /* Base name (e.g. "en", "es") */
+#endif
+
 #ifdef HAVE_TRANSLATE
     int translate_enabled;
     int translate_backend; /* 0=MyMemory, 1=LibreTranslate, 2=Lingva, 4=DeepL, 10=StarDict */
@@ -189,6 +195,15 @@ typedef struct
     char translate_to_lang[16];      /* ISO language code, e.g. "es" */
     int translate_timeout;           /* HTTP timeout in seconds */
     char stardict_path[CFG_STR_MAX]; /* Directory or .ifo file for StarDict */
+#endif
+
+#ifdef HAVE_TTS
+    /* Language set by OS */
+    int tts_enabled;
+    int tts_voice;  /* 0=male, 1=female, 2=male_robot, 3=female_robot */
+    int tts_rate;   /* WPM 40..400 */
+    int tts_pitch;  /* Hz-like 65..320 */
+    int tts_volume; /* 0..100 */
 #endif
 } CrashEditCfg;
 

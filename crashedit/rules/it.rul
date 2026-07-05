@@ -1,0 +1,64 @@
+# gramcheck rule pack — Italiano (v3)
+LANG   it
+NAME   Italiano (v3)
+
+# 1. Ortografia (Hunspell)
+SPELL_UNKNOWN
+
+# 2. Spazi
+SPACE_MULTIPLE
+PUNCT_NO_SPACE_BEFORE ,.;:!?)
+PUNCT_SPACE_AFTER     ,;:
+PUNCT_NO_SPACE_AFTER  (
+QUOTE_SPACING
+
+# 3. Punteggiatura
+PUNCT_NO_DOUBLE       ,;
+COMMA_BEFORE_DOT
+TRAILING_DOTS
+EXCESSIVE_PUNCT 2
+
+# 4. Maiuscole — mesi e giorni in minuscolo in italiano
+CAPITALIZE_SENTENCE
+WORD_CAP  italia,roma,milano,europa
+WORD_LOWER  gennaio,febbraio,marzo,aprile,maggio,giugno,luglio,agosto,settembre,ottobre,novembre,dicembre,lunedì,martedì,mercoledì,giovedì,venerdì,sabato,domenica
+WORD_UPPER  ue,onu,nato,pil,iva,dna,usb,pdf,html,url
+ALL_CAPS_WORD 6
+
+# 5. Ripetizioni
+REPEAT_WORD
+REPEAT_WORD_SKIP  il,la,lo,gli,le,di,e,o,a,in,ha
+REPEAT_PHRASE
+
+# 6. Tipografia
+TRIPLE_DOT
+DOUBLE_DASH
+STRAIGHT_QUOTES
+BRACKET_PAIRS         ()[]{}«»
+
+# 7. Errori comuni
+PAIR  qual'è       "qual è"     warn
+PAIR  po           "po'"        warn
+PAIR  se           sé           info
+PAIR  da           dà           info
+PAIR  ne           né           info
+PAIR  gli          li           info
+PAIR  sopratutto   soprattutto  warn
+PAIR  daccordo     "d'accordo"  warn
+PAIR  perchè       perché       warn
+
+# 8. Concordanza di base (heurística -o/-a compatible)
+# Articoli e terminazioni di genere italiani per regole di concordanza.
+ARTICLE_FEM  la,una,le
+ARTICLE_MASC  il,lo,un,uno,gli,i
+FEM_ENDINGS  a,e
+MASC_ENDINGS  o,i
+MASC_EXCEPTION_ENDINGS  ma
+AGREEMENT_ART_NOUN
+AGREEMENT_NOUN_ADJ
+AGREEMENT_EXCEPTIONS  mano,foto,moto,radio,giorno,mappa,sofà,pianeta,poeta,problema,idioma,tema,sistema,programma,clima,grande,verde,triste,allegro,forte,intelligente,importante,possibile,amabile,libero,povero,dolce,breve,fermo,nobile,semplice,soave
+
+# 9. Stile
+SENTENCE_TOO_LONG 30
+TOO_MANY_COMMAS 4 10
+WORD_DENSITY 3 12

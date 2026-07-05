@@ -1,0 +1,64 @@
+# gramcheck rule pack — Português (v3)
+LANG   pt
+NAME   Português (v3)
+
+# 1. Ortografia (Hunspell)
+SPELL_UNKNOWN
+
+# 2. Espaços
+SPACE_MULTIPLE
+PUNCT_NO_SPACE_BEFORE ,.;:!?)
+PUNCT_SPACE_AFTER     ,;:
+PUNCT_NO_SPACE_AFTER  (
+QUOTE_SPACING
+
+# 3. Pontuação
+PUNCT_NO_DOUBLE       ,;
+COMMA_BEFORE_DOT
+TRAILING_DOTS
+EXCESSIVE_PUNCT 2
+
+# 4. Maiúsculas — meses e dias em minúscula em português
+CAPITALIZE_SENTENCE
+WORD_CAP  portugal,brasil,lisboa,europa
+WORD_LOWER  janeiro,fevereiro,março,abril,maio,junho,julho,agosto,setembro,outubro,novembro,dezembro,segunda,terça,quarta,quinta,sexta,sábado,domingo
+WORD_UPPER  ue,onu,otan,pib,iva,adn,usb,pdf,html,url
+ALL_CAPS_WORD 6
+
+# 5. Repetições
+REPEAT_WORD
+REPEAT_WORD_SKIP  a,o,de,que,e,ou,em,ha
+REPEAT_PHRASE
+
+# 6. Tipografia
+TRIPLE_DOT
+DOUBLE_DASH
+STRAIGHT_QUOTES
+BRACKET_PAIRS         ()[]{}«»
+
+# 7. Erros comuns
+PAIR  a           à         info
+PAIR  as          às        info
+PAIR  ha          há        info
+PAIR  mais        mas       info
+PAIR  porque      porquê    info
+PAIR  onde        aonde     info
+PAIR  sinao       senão     warn
+PAIR  concerteza  "com certeza" warn
+PAIR  derrepente  "de repente"  warn
+
+# 8. Concordância básica (heurística -o/-a)
+# Artigos e terminações de género portugueses para regras de concordância.
+ARTICLE_FEM  a,uma,as
+ARTICLE_MASC  o,um,os
+FEM_ENDINGS  a,as
+MASC_ENDINGS  o,os
+MASC_EXCEPTION_ENDINGS  ma
+AGREEMENT_ART_NOUN
+AGREEMENT_NOUN_ADJ
+AGREEMENT_EXCEPTIONS  mão,foto,moto,rádio,dia,mapa,sofá,planeta,poeta,problema,idioma,tema,sistema,programa,clima,grande,verde,triste,alegre,forte,inteligente,importante,possível,amável,livre,pobre,doce,breve,firme,nobre,simples,suave
+
+# 9. Estilo
+SENTENCE_TOO_LONG 30
+TOO_MANY_COMMAS 4 10
+WORD_DENSITY 3 12
