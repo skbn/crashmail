@@ -732,7 +732,7 @@ void draw_edit_body(UiApp *app)
 #ifdef HAVE_GRAMMAR
             /* Grammar/punctuation overlay — viewport-scoped, LRU-cached */
             if (app->grammar_active && app->grammar_handle && wl && line_len > 0)
-                ui_grammar_draw_row(app, start_row + i, ln_offset, tab_width, wl, line_len);
+                ui_grammar_draw_row(app, start_row + i, ln_offset, tab_width, wl, line_len, line_idx);
 #endif
 
             /* Paint tabs and trailing spaces as visible glyphs */
@@ -1104,7 +1104,7 @@ void draw_edit_body(UiApp *app)
 #ifdef HAVE_GRAMMAR
                 /* Grammar overlay for soft-wrap segment, cache-friendly check runs on full logical line once */
                 if (app->grammar_active && app->grammar_handle && l && len > 0 && seg_start < seg_end)
-                    ui_grammar_draw_row_segment(app, start_row + sr, ln_offset, tab_width, l, len, seg_start, seg_end, seg_start_vcol);
+                    ui_grammar_draw_row_segment(app, start_row + sr, ln_offset, tab_width, l, len, seg_start, seg_end, seg_start_vcol, li);
 #endif
 
                 /* Block-selection overlay */

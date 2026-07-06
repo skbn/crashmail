@@ -194,7 +194,7 @@ static int build_spans(const char *line, size_t line_len, struct gc_span *sp, in
 }
 
 /* Sequence pass: SPELL_UNKNOWN, WORD_LOWER, AGREEMENT_ART_NOUN, AGREEMENT_NOUN_ADJ, WORD_DENSITY, SUBJUNCTIVE_AFTER, TENSE_MIX. Operates on a prebuilt span table so rules share tokenization */
-static int gc_sequence_pass(GramCheck *g, const char *line, size_t line_len, GcIssue *out, int n_out, int cap)
+static int gc_sequence_pass(GramCheck *g, const char *line, size_t line_len, int prev_terminated, GcIssue *out, int n_out, int cap)
 {
     struct gc_span sp[GC_MAX_SPANS];
     int ns;
@@ -312,9 +312,6 @@ static int gc_sequence_pass(GramCheck *g, const char *line, size_t line_len, GcI
             if (!gc_is_upper_cp(fcp))
                 continue;
 
-            if (sp[i].s == 0 && g->sentence_start)
-                continue;
-
             while (b > 0)
             {
                 char c = line[b - 1];
@@ -330,7 +327,7 @@ static int gc_sequence_pass(GramCheck *g, const char *line, size_t line_len, GcI
                 break;
             }
 
-            if (b == 0 || after_terminator)
+            if (after_terminator || (b == 0 && prev_terminated))
                 continue;
 
             la = span_lower(line, sp[i].s, sp[i].e, wa, sizeof(wa));
@@ -593,7 +590,7 @@ static int gc_sequence_pass(GramCheck *g, const char *line, size_t line_len, GcI
     return n_out;
 }
 
-int gc_run_checks(GramCheck *g, const char *line, GcIssue *out, int cap)
+int gc_run_checks(GramCheck *g, const char *line, int prev_terminated, GcIssue *out, int cap)
 {
     const char *p = NULL;
     size_t line_len;
@@ -845,7 +842,7 @@ int gc_run_checks(GramCheck *g, const char *line, GcIssue *out, int cap)
     word_end = 0;
     prev_word_start = 0;
     prev_word_end = 0;
-    need_cap = g->sentence_start ? 1 : 0;
+    need_cap = prev_terminated ? 1 : 0;
     bdepth = 0;
     n_out = 0;
 
@@ -1420,7 +1417,7 @@ int gc_run_checks(GramCheck *g, const char *line, GcIssue *out, int cap)
     }
 
     /* Word-sequence pass (spell / word_lower / agreement / density / subjunctive / tense). Shares one tokenization for all of them */
-    n_out = gc_sequence_pass(g, line, line_len, out, n_out, cap);
+    n_out = gc_sequence_pass(g, line, line_len, prev_terminated, out, n_out, cap);
 
     return n_out;
 }
