@@ -673,6 +673,7 @@ static void hyphen_split_replace_cm(Ed *ed, const HyphenSplit *hs, const wchar_t
         return;
 
     ed_save_undo(ed);
+    ed->undo_snapshot_mode = 1;
 
     /* Delete second half on second_row */
     ed_set_pos(ed, hs->second_row, hs->second_start);
@@ -693,6 +694,8 @@ static void hyphen_split_replace_cm(Ed *ed, const HyphenSplit *hs, const wchar_t
     /* Join first_row with the following line (which now holds the remainder) */
     ed_set_pos(ed, hs->first_row, hs->first_start + suggestion_len);
     ed_delete(ed);
+
+    ed->undo_snapshot_mode = 0;
 }
 
 int ui_spell_check_word_at_cursor(UiApp *app)
@@ -894,6 +897,8 @@ int ui_spell_check_word_at_cursor(UiApp *app)
             else
             {
                 ed_save_undo(ed);
+                ed->undo_snapshot_mode = 1;
+
                 ed_set_pos(ed, info.row, ws);
 
                 for (i = 0; i < (we - ws); i++)
@@ -902,6 +907,7 @@ int ui_spell_check_word_at_cursor(UiApp *app)
                 for (i = 0; i < sug_len; i++)
                     ed_insert_char(ed, sug_wcs[i]);
 
+                ed->undo_snapshot_mode = 0;
                 ui_status(app, "Replaced with '%s'", sugs[sel]);
             }
 

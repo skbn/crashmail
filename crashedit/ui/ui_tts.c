@@ -539,7 +539,11 @@ void ui_tts_popup(UiApp *app)
     {
         char buf[64];
 
+        standend();
+
         ui_draw_popup_frame(y, x, h, w, " Speech ");
+
+        attron(COLOR_PAIR(COL_POPUP));
 
         for (i = 0; i < 4; i++)
         {

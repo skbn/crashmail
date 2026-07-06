@@ -975,7 +975,8 @@ static int hwrap_try_hyphenation(HwrapSplitCtx *ctx)
     if (word_start + wlen <= avail)
         return 0;
 
-    col_limit = avail - word_start;
+    col_limit = avail - word_start - 1; /* -1 to leave room for the hyphen char */
+
     bp = ctx->hyph_cb(ctx->hyph_data, &ctx->joined[pos + word_start], wlen, col_limit);
 
     if (bp <= 0 || bp >= wlen)
