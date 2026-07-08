@@ -34,6 +34,9 @@ extern int s_soft_top_sub;
 extern int s_soft_desired_vcol;
 extern int s_soft_last_width;
 
+/* Visual tab stop width, copied from config */
+extern int s_tab_width;
+
 /* Legacy alias kept zero for backward compatibility */
 extern int s_soft_vtop;
 

@@ -23,6 +23,8 @@
  */
 
 #include "hyph.h"
+#include "../core/utf8.h"
+#include "../core/charset.h"
 #include "../core/portable.h"
 
 #include <stdlib.h>
@@ -62,6 +64,7 @@ struct HyphDict
 {
 #ifdef HAVE_HYPHEN
     HyphenDict *dict;
+    char dict_enc[24]; /* canonical charset when the .dic is not UTF-8, else "" */
 #endif
     short head;
     short tail;
@@ -192,10 +195,17 @@ static int hyph_compute(HyphDict *h, const char *word, int word_len, unsigned sh
     /* libhyphen requires larger buffers: word+5 and 5*word+5 */
     char hyphens[HYPH_CACHE_KEY_MAX + 5];
     char hyphword[5 * HYPH_CACHE_KEY_MAX + 5];
-    char **rep;
-    int *pos;
-    int *cut;
+    char lat[HYPH_CACHE_KEY_MAX + 5];
+    unsigned short cpos[HYPH_CACHE_KEY_MAX + 5];
+    char **rep = NULL;
+    int *pos = NULL;
+    int *cut = NULL;
+    const char *hw = word;
+    int hw_len = word_len;
     int i, n;
+    int nchars = 0;
+    int q_lat = 0;
+    int q_src = 0;
 
     *out_count = 0;
 
@@ -207,7 +217,44 @@ static int hyph_compute(HyphDict *h, const char *word, int word_len, unsigned sh
     if (word_len < 4 || word_len >= HYPH_CACHE_KEY_MAX)
         return 0;
 
-    if (hnj_hyphen_hyphenate2(h->dict, word, word_len, hyphens, hyphword, &rep, &pos, &cut) != 0)
+    if (h->dict_enc[0])
+    {
+        nchars = 0;
+
+        for (i = 0; i < word_len; i++)
+        {
+            if (((unsigned char)word[i] & 0xC0) != 0x80)
+                nchars++;
+
+            cpos[nchars] = (unsigned short)(i + 1);
+        }
+
+        n = utf8_to_charset(h->dict_enc, word, word_len, lat, (int)sizeof(lat));
+
+        /* One byte per character; a '?' the word did not have means lossy */
+        if (n != nchars)
+            return 0;
+
+        for (i = 0; i < n; i++)
+        {
+            if (lat[i] == '?')
+                q_lat++;
+        }
+
+        for (i = 0; i < word_len; i++)
+        {
+            if (word[i] == '?')
+                q_src++;
+        }
+
+        if (q_lat != q_src)
+            return 0;
+
+        hw = lat;
+        hw_len = n;
+    }
+
+    if (hnj_hyphen_hyphenate2(h->dict, hw, hw_len, hyphens, hyphword, &rep, &pos, &cut) != 0)
     {
         *out_count = 0;
     }
@@ -216,19 +263,34 @@ static int hyph_compute(HyphDict *h, const char *word, int word_len, unsigned sh
         /* Odd values mark break points */
         n = 0;
 
-        for (i = 0; i < word_len; i++)
+        for (i = 0; i < hw_len; i++)
         {
-            if ((hyphens[i] & 1) && n < HYPH_MAX_BREAKS)
+            if (!(hyphens[i] & 1) || n >= HYPH_MAX_BREAKS)
+                continue;
+
+            if (h->dict_enc[0])
+            {
+                /* Map converted char index back to a UTF-8 byte offset */
+                if (i + 1 <= nchars)
+                    out_pos[n++] = cpos[i + 1];
+            }
+            else
+            {
+                /* Never break inside a UTF-8 sequence */
+                if (i + 1 < word_len && ((unsigned char)word[i + 1] & 0xC0) == 0x80)
+                    continue;
+
                 out_pos[n++] = (unsigned short)(i + 1);
+            }
         }
 
         *out_count = n;
     }
 
-    /* Free libhyphen allocations */
+    /* Free libhyphen allocations (sized by the word we passed) */
     if (rep)
     {
-        for (i = 0; i < word_len; i++)
+        for (i = 0; i < hw_len; i++)
         {
             if (rep[i])
                 free(rep[i]);
@@ -261,15 +323,23 @@ HyphDict *hyph_new(const char *dict_path)
 #ifdef HAVE_HYPHEN
     HyphDict *h = NULL;
     FILE *fp = NULL;
+    char enc[32];
+    const char *canon = "UTF-8";
 
     if (!dict_path)
         return NULL;
 
-    /* Probe file first to avoid stderr logging */
+    /* Probe file first to avoid stderr logging; line 1 declares the charset */
     fp = fopen(dict_path, "rb");
 
     if (!fp)
         return NULL;
+
+    if (fgets(enc, (int)sizeof(enc), fp))
+    {
+        enc[strcspn(enc, "\r\n")] = '\0';
+        canon = charset_resolve(enc);
+    }
 
     fclose(fp);
 
@@ -284,6 +354,15 @@ HyphDict *hyph_new(const char *dict_path)
     {
         free(h);
         return NULL;
+    }
+
+    /* Words arrive as UTF-8; a non-UTF-8 dictionary needs word conversion */
+    h->dict_enc[0] = '\0';
+
+    if (strcasecmp(canon, "UTF-8") != 0)
+    {
+        strncpy(h->dict_enc, canon, sizeof(h->dict_enc) - 1);
+        h->dict_enc[sizeof(h->dict_enc) - 1] = '\0';
     }
 
     hcache_init(h);

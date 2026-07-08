@@ -55,6 +55,10 @@ int lineno_width(int line_count)
     return width + 1; /* +1 for space after number */
 }
 
+/* Whitespace marker glyphs (hex escapes keep this C89-valid) */
+static const wchar_t s_ws_arrow[2] = {0x2192, 0}; /* rightwards arrow */
+static const wchar_t s_ws_dot[2] = {0xB7, 0};     /* middle dot */
+
 #ifdef HAVE_HUNSPELL
 /* Check whether a word is misspelled, ignoring words split across two lines by a trailing hyphen (e.g. "adqui-" / "rido") */
 static int spell_word_incorrect(UiApp *app, int line_idx, const wchar_t *line, int line_len, int word_start, int word_end)
@@ -373,8 +377,6 @@ void position_edit_cursor(UiApp *app)
             const wchar_t *wl = ed_line_wcs(app->editor, info.row);
             int line_len = ed_line_len(app->editor, info.row);
             int wchar_col = info.col;
-            extern int s_tab_width;
-
             if (wchar_col > line_len)
                 wchar_col = line_len;
             if (wchar_col < 0)
@@ -428,13 +430,18 @@ void draw_edit_body(UiApp *app)
     int li, sr;
     int ln_width = 0;  /* line number width */
     int ln_offset = 0; /* offset for editor content */
-    int show_lnum = app->cfg && app->cfg->show_line_numbers;
+    int show_lnum;
     int sub_skip;
-    int tab_width = (app->cfg && app->cfg->tab_width > 0) ? app->cfg->tab_width : 4;
+    int tab_width;
+
+    /* cfg is set at app init; guard once so later derefs are safe */
+    if (!app || !app->cfg)
+        return;
+
+    show_lnum = app->cfg->show_line_numbers;
+    tab_width = (app->cfg->tab_width > 0) ? app->cfg->tab_width : 4;
 
     standend();
-
-    extern int s_tab_width;
 
     s_tab_width = tab_width;
     ed_set_tab_width(tab_width);
@@ -760,15 +767,15 @@ void draw_edit_body(UiApp *app)
                     {
 #ifdef PLATFORM_AMIGA
                         if (app->cfg->ttf_enabled)
-                            mvaddnwstr(start_row + i, col_x, L"\u2192", 1);
+                            mvaddnwstr(start_row + i, col_x, s_ws_arrow, 1);
                         else
                             mvaddch(start_row + i, col_x, '>');
 #else
-                        mvaddnwstr(start_row + i, col_x, L"\u2192", 1);
+                        mvaddnwstr(start_row + i, col_x, s_ws_arrow, 1);
 #endif
                     }
                     else if (ch == L' ' && k >= trail_start)
-                        mvaddnwstr(start_row + i, col_x, L"\u00b7", 1);
+                        mvaddnwstr(start_row + i, col_x, s_ws_dot, 1);
                 }
 
                 attroff(COLOR_PAIR(COL_BORDER));
@@ -989,16 +996,16 @@ void draw_edit_body(UiApp *app)
                         {
 #ifdef PLATFORM_AMIGA
                             if (app->cfg->ttf_enabled)
-                                mvaddnwstr(start_row + sr, col_x, L"\u2192", 1);
+                                mvaddnwstr(start_row + sr, col_x, s_ws_arrow, 1);
                             else
                                 mvaddch(start_row + sr, col_x, '>');
 #else
-                            mvaddnwstr(start_row + sr, col_x, L"\u2192", 1);
+                            mvaddnwstr(start_row + sr, col_x, s_ws_arrow, 1);
 #endif
                         }
                         else if (ch == L' ' &&
                                  (seg_start + k) >= trail_start)
-                            mvaddnwstr(start_row + sr, col_x, L"\u00b7", 1);
+                            mvaddnwstr(start_row + sr, col_x, s_ws_dot, 1);
                     }
 
                     attroff(COLOR_PAIR(COL_BORDER));

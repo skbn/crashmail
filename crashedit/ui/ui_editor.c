@@ -414,14 +414,9 @@ static int handle_function_keys(UiApp *app, int ch, int is_key)
         {
             char tmp[16];
 
-            strncpy(tmp, app->cfg->translate_from_lang, sizeof(tmp) - 1);
-            tmp[sizeof(tmp) - 1] = '\0';
-
-            strncpy(app->cfg->translate_from_lang, app->cfg->translate_to_lang, sizeof(app->cfg->translate_from_lang) - 1);
-            app->cfg->translate_from_lang[sizeof(app->cfg->translate_from_lang) - 1] = '\0';
-
-            strncpy(app->cfg->translate_to_lang, tmp, sizeof(app->cfg->translate_to_lang) - 1);
-            app->cfg->translate_to_lang[sizeof(app->cfg->translate_to_lang) - 1] = '\0';
+            snprintf(tmp, sizeof(tmp), "%s", app->cfg->translate_from_lang);
+            snprintf(app->cfg->translate_from_lang, sizeof(app->cfg->translate_from_lang), "%s", app->cfg->translate_to_lang);
+            snprintf(app->cfg->translate_to_lang, sizeof(app->cfg->translate_to_lang), "%s", tmp);
 
             ui_status(app, "Swapped: %s <-> %s", app->cfg->translate_from_lang, app->cfg->translate_to_lang);
             return 1;
@@ -2267,8 +2262,6 @@ UiView ui_editor_run(UiApp *app)
     s_soft_last_width = COLS;
 
     tab_width = app->cfg && app->cfg->tab_width > 0 ? app->cfg->tab_width : 4;
-
-    extern int s_tab_width;
 
     s_tab_width = tab_width;
     ed_set_tab_width(tab_width);

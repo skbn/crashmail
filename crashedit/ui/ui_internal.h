@@ -23,7 +23,11 @@
  */
 
 /* ui_internal.h -- Internal types and helpers shared between UI modules */
-#define _XOPEN_SOURCE
+
+/* Bare _XOPEN_SOURCE means XPG3 and hides snprintf/wcswidth; ask for SUSv4 */
+#ifndef _XOPEN_SOURCE
+#define _XOPEN_SOURCE 700
+#endif
 #ifndef UI_INTERNAL_H
 #define UI_INTERNAL_H
 

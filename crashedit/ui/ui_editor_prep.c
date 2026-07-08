@@ -734,10 +734,7 @@ void ui_editor_prep_reply(UiApp *app, uint32_t orig_msgnum)
             use = NULL; /* Keep Auto mode if detection failed */
 
         if (use)
-        {
-            strncpy(app->edit_charset, use, sizeof(app->edit_charset) - 1);
-            app->edit_charset[sizeof(app->edit_charset) - 1] = '\0';
-        }
+            snprintf(app->edit_charset, sizeof(app->edit_charset), "%s", use);
     }
 
     if (body_utf8)
@@ -995,10 +992,7 @@ void ui_editor_prep_edit(UiApp *app, uint32_t msgnum)
             use = NULL; /* Keep Auto mode if detection failed */
 
         if (use)
-        {
-            strncpy(app->edit_charset, use, sizeof(app->edit_charset) - 1);
-            app->edit_charset[sizeof(app->edit_charset) - 1] = '\0';
-        }
+            snprintf(app->edit_charset, sizeof(app->edit_charset), "%s", use);
     }
 
     if (body_utf8)

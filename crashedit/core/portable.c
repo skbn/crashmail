@@ -530,6 +530,7 @@ long pf_get_file_mtime(const char *path)
     WIN32_FILE_ATTRIBUTE_DATA info;
     FILETIME ft;
     ULARGE_INTEGER ull;
+    ULONGLONG epoch;
     wchar_t *wpath = NULL;
 
     if (!path || !path[0])
@@ -552,7 +553,10 @@ long pf_get_file_mtime(const char *path)
     ull.LowPart = ft.dwLowDateTime;
     ull.HighPart = ft.dwHighDateTime;
 
-    return (long)((ull.QuadPart - 116444736000000000ULL) / 10000000ULL);
+    /* FILETIME epoch offset built without long long literals for C89 */
+    epoch = (ULONGLONG)116444736UL * 1000000000UL;
+
+    return (long)((ull.QuadPart - epoch) / 10000000UL);
 
 #elif defined(PLATFORM_AMIGA)
     BPTR lock;
@@ -602,11 +606,6 @@ struct PfDir
     int eod;
     char name[260];
 };
-
-static int pf_dir_skip_entry(const char *name)
-{
-    return (name[0] == '.' && (name[1] == '\0' || (name[1] == '.' && name[2] == '\0')));
-}
 
 PfDir *pf_dir_open(const char *path)
 {
@@ -1112,12 +1111,15 @@ void pf_lock_release(PfLockFile *lk)
 
 int pf_atomic_rename(const char *from, const char *to)
 {
+    wchar_t *wfrom = NULL;
+    wchar_t *wto = NULL;
+    int rc = -1;
+
     if (!from || !to)
         return -1;
 
-    wchar_t *wfrom = pf_utf8_to_utf16(from);
-    wchar_t *wto = pf_utf8_to_utf16(to);
-    int rc = -1;
+    wfrom = pf_utf8_to_utf16(from);
+    wto = pf_utf8_to_utf16(to);
 
     if (wfrom && wto)
         rc = MoveFileExW(wfrom, wto, MOVEFILE_REPLACE_EXISTING) ? 0 : -1;

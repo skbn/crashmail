@@ -58,7 +58,7 @@ struct Reader
     int vis_count;
 };
 
-#define INIT_ALLOC 256
+#define RD_INIT_ALLOC 256
 
 static int rd_grow(Reader *rd)
 {
@@ -68,7 +68,7 @@ static int rd_grow(Reader *rd)
     if (rd->count < rd->alloc)
         return 0;
 
-    na = rd->alloc > 0 ? rd->alloc * 2 : INIT_ALLOC;
+    na = rd->alloc > 0 ? rd->alloc * 2 : RD_INIT_ALLOC;
     t = (RdLine *)realloc(rd->lines, (size_t)na * sizeof(RdLine));
 
     if (!t)

@@ -23,7 +23,10 @@
  */
 
 /* editor.c -- Text editor with wchar_t internal representation */
-#define _XOPEN_SOURCE
+/* Bare _XOPEN_SOURCE means XPG3 and hides snprintf/wcswidth; ask for SUSv4 */
+#ifndef _XOPEN_SOURCE
+#define _XOPEN_SOURCE 700
+#endif
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -550,12 +553,7 @@ int ed_prefix_rebuild_range(Ed *ed, int width, int start_line, int end_line)
         {
             /* Window moved forward -- add wrap_count of old_start..start_line-1 to base */
             for (i = old_start; i < start_line; i++)
-            {
-                const wchar_t *l = ed_line_wcs(ed, i);
-                int len = ed_line_len(ed, i);
-
                 ed->prefix_base += ed_line_wrap_count(ed->lines[i], width);
-            }
         }
         else /* start_line < old_start */
         {
@@ -575,12 +573,7 @@ int ed_prefix_rebuild_range(Ed *ed, int width, int start_line, int end_line)
                 ed->prefix_base = 0;
 
                 for (i = 0; i < start_line; i++)
-                {
-                    const wchar_t *l = ed_line_wcs(ed, i);
-                    int len = ed_line_len(ed, i);
-
                     ed->prefix_base += ed_line_wrap_count(ed->lines[i], width);
-                }
             }
         }
     }
@@ -1927,15 +1920,12 @@ void ed_set_word_move_mode(Ed *ed, int mode)
 int ed_insert_char(Ed *ed, wchar_t ch)
 {
     EdLine *ln = NULL;
-    int was_snapshot_mode = 0;
 
     if (!ed || ch == 0)
         return -1;
 
     if (ed->hard_wrap)
     {
-        was_snapshot_mode = ed->undo_snapshot_mode;
-
         if (!ed->undo_snapshot_mode)
             ed_auto_rewrap_capture_pre_snapshot(ed);
 
@@ -2025,15 +2015,12 @@ int ed_backspace(Ed *ed)
 {
     EdLine *ln = NULL;
     EdLine *prev = NULL;
-    int was_snapshot_mode = 0;
 
     if (!ed)
         return -1;
 
     if (ed->hard_wrap)
     {
-        was_snapshot_mode = ed->undo_snapshot_mode;
-
         if (!ed->undo_snapshot_mode)
             ed_auto_rewrap_capture_pre_snapshot(ed);
 
@@ -2091,15 +2078,12 @@ int ed_delete(Ed *ed)
 {
     EdLine *ln = NULL;
     EdLine *nxt = NULL;
-    int was_snapshot_mode = 0;
 
     if (!ed)
         return -1;
 
     if (ed->hard_wrap)
     {
-        was_snapshot_mode = ed->undo_snapshot_mode;
-
         if (!ed->undo_snapshot_mode)
             ed_auto_rewrap_capture_pre_snapshot(ed);
 

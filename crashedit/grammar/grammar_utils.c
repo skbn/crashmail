@@ -550,7 +550,7 @@ unsigned long gc_hash32(const char *s, size_t n)
     unsigned long h;
     size_t i;
 
-    h = 2166136261;
+    h = 2166136261UL;
 
     if (!s)
         return h;

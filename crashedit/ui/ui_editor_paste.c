@@ -436,7 +436,7 @@ int parse_sgr_mouse(int *out_type, int *out_x, int *out_y)
     char end_char;
     int parsed;
 
-    while (i < sizeof(buf) - 1)
+    while (i < (int)sizeof(buf) - 1)
     {
         wrc = wrapper_read_key(&wch);
 

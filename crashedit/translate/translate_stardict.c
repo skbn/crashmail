@@ -442,6 +442,7 @@ int translate_stardict_open(const char *path, const char *from, const char *to, 
     {
         PfDir *d = pf_dir_open(path);
         const char *name = NULL;
+        char sep;
 
         if (!d)
         {
@@ -466,7 +467,7 @@ int translate_stardict_open(const char *path, const char *from, const char *to, 
         }
 
         n = (int)strlen(path);
-        char sep = (n > 0 && (path[n - 1] == '/' || path[n - 1] == ':')) ? '\0' : '/';
+        sep = (n > 0 && (path[n - 1] == '/' || path[n - 1] == ':')) ? '\0' : '/';
 
         if (sep)
             snprintf(ifo_path, sizeof(ifo_path), "%s/%s", path, name);
@@ -1886,7 +1887,6 @@ int translate_stardict_suggest(struct StarDictHandle *h, const char *word, char 
     int lo;
     int hi;
     int best_prefix = 0;
-    int i;
     int probe;
 
     if (!h || !word || !items || max <= 0 || h->entry_count == 0)

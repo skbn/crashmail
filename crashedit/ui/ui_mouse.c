@@ -23,6 +23,7 @@
  */
 
 #include "ui_internal.h"
+#include "ui_editor_softwrap.h"
 #include "ui_mouse.h"
 #include "../components/editor.h"
 #include "ui_editor_helper.h"

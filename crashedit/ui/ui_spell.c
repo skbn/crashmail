@@ -22,14 +22,14 @@
  * General Public License v2.1. See src/jamlib/LICENSE for details.
  */
 
+#include "ui_internal.h"
+#include "ui_spell.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <wchar.h>
 #include <wctype.h>
-
-#include "ui_spell.h"
-#include "ui_internal.h"
 #include "ui_editor_helper.h"
 #include "../components/editor.h"
 #include "../components/config.h"
@@ -70,6 +70,7 @@ typedef struct
 /* Sentinel: add word to custom dictionary instead of replace */
 #define UI_SPELL_ADD_TO_DICT (-2)
 
+#ifdef HAVE_HUNSPELL
 /* Truncate UTF-8 string to max_cols display columns, appending "..." if needed */
 static char *truncate_utf8_cols(const char *s, int max_cols)
 {
@@ -115,6 +116,7 @@ static char *truncate_utf8_cols(const char *s, int max_cols)
     free(w);
     return out;
 }
+#endif /* HAVE_HUNSPELL */
 
 static void spell_panel_geometry(int *x, int *y, int *w, int *h)
 {

@@ -1573,7 +1573,7 @@ static void st_edit_field(CrashEditCfg *w, const SetupField *fld)
             char dicts_dir[CFG_STR_MAX];
             char parent_dir[CFG_STR_MAX];
             wchar_t dict_name[CFG_STR_MAX];
-            char dict_path[CFG_STR_MAX];
+            char dict_path[CFG_STR_MAX + 300];
 
             /* Get custom dicts directory */
             port_get_config_dir(parent_dir, sizeof(parent_dir));

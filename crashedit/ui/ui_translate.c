@@ -130,17 +130,6 @@ void ui_translate_unload(UiApp *app)
     }
 }
 
-static int is_word_char(wchar_t c)
-{
-    if (iswalnum((wint_t)c))
-        return 1;
-
-    if (c == L'\'' || c == L'-')
-        return 1;
-
-    return 0;
-}
-
 /* If a block selection exists in the editor, fill *out_text (UTF-8 malloc'd) with the selection */
 static int grab_source_text(UiApp *app, char **out_text, int *out_row_first, int *out_row_last)
 {
@@ -344,31 +333,6 @@ static int replace_lines(UiApp *app, int first, int last, const char *new_utf8)
     ed_set_modified(ed, 1);
     ed_prefix_invalidate_from(ed, first);
     ed_ensure_visible(ed);
-
-    return 0;
-}
-
-/* Compact set of lang options for the popup. Order = display order */
-static const char *const ui_langs_src[] =
-    {
-        "auto", "en", "es", "fr", "de", "it", "pt", "ca", "gl", NULL};
-
-static const char *const ui_langs_dst[] =
-    {
-        "es", "en", "fr", "de", "it", "pt", "ca", "gl", NULL};
-
-static int find_lang_idx(const char *const *list, const char *code)
-{
-    int i;
-
-    if (!code)
-        return 0;
-
-    for (i = 0; list[i]; i++)
-    {
-        if (strcmp(list[i], code) == 0)
-            return i;
-    }
 
     return 0;
 }

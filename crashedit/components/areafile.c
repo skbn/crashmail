@@ -343,7 +343,8 @@ int areafile_load(AreaList *list, const char *path)
             /* Crashmail format: skip AKA field if present */
             rest = p;
 
-            if (rest && *rest && *rest != '"' && strchr(rest, ':') != NULL)
+            /* Rest points into the stack line buffer, never NULL here */
+            if (*rest && *rest != '"' && strchr(rest, ':') != NULL)
             {
                 rest = parse_token_dyn(rest, &skip_buf);
                 free(skip_buf);
@@ -425,7 +426,8 @@ int areafile_load(AreaList *list, const char *path)
             /* Crashmail format: skip AKA field if present */
             rest = p;
 
-            if (rest && *rest && *rest != '"' && strchr(rest, ':') != NULL)
+            /* Rest points into the stack line buffer, never NULL here */
+            if (*rest && *rest != '"' && strchr(rest, ':') != NULL)
             {
                 rest = parse_token_dyn(rest, &skip_buf);
 

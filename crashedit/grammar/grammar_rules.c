@@ -433,7 +433,6 @@ int gc_load_rules(GramCheck *g, const char *path)
     char *tok = NULL;
     char *rest = NULL;
     unsigned char severity;
-    unsigned char category;
     int rc;
 
     if (!g || !path)
@@ -729,7 +728,6 @@ int gc_load_rules(GramCheck *g, const char *path)
             msg = gc_lstrip(msg);
 
             severity = GC_INFO;
-            category = GC_CAT_TYPO | GC_CAT_STYLE;
 
             /* Optional leading severity keyword */
             if (msg && *msg && (strncmp(msg, "warn", 4) == 0) && (msg[4] == '\0' || msg[4] == ' ' || msg[4] == '\t' || msg[4] == '#'))

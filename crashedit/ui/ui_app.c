@@ -61,8 +61,11 @@
 /* Cursor color setup (platform-specific) */
 static void ui_apply_cursor_color(const CrashEditCfg *cfg)
 {
-    FILE *tty = NULL;
     int color_to_use;
+
+#if !defined(PLATFORM_AMIGA) && !defined(PLATFORM_WIN32)
+    FILE *tty = NULL;
+#endif
 
 #ifdef PLATFORM_AMIGA
     /* Amiga: use pen index */
@@ -398,7 +401,7 @@ static void build_status_right(const UiApp *app, char *out, int outsz)
 #endif
 #ifdef HAVE_TRANSLATE
         if (app->translate_active && app->translate_handle)
-            snprintf(tr_buf, sizeof(tr_buf), "TR [%s]->[%s] ", app->cfg->translate_from_lang, app->cfg->translate_to_lang);
+            snprintf(tr_buf, sizeof(tr_buf), "TR [%.7s]->[%.7s] ", app->cfg->translate_from_lang, app->cfg->translate_to_lang);
 #endif
         snprintf(out, (size_t)outsz, " %s %s%s%s%s %s ", app->cfg->hard_wrap ? "HARD" : "SOFT", sp_buf, hy_buf, tr_buf, info.insert_mode ? "INS" : "OVR", tbuf);
     }
@@ -721,10 +724,16 @@ static void ui_init_locale(void)
 UiApp *ui_init(CrashEditCfg *cfg, AreaList *areas)
 {
     UiApp *app = NULL;
-    char *s = NULL;
     int k;
+
+#if !defined(PLATFORM_AMIGA) && !defined(PLATFORM_WIN32)
+    char *s = NULL;
+#endif
+    const char *default_net = NULL;
+
+#ifdef PLATFORM_AMIGA
     int fi;
-    const char *default_net;
+#endif
 
     if (!cfg || !areas)
         return NULL;
@@ -1010,8 +1019,7 @@ UiApp *ui_init(CrashEditCfg *cfg, AreaList *areas)
     app->view_charset[0] = '\0';
 
     /* edit_charset seeded from cfg->charset */
-    strncpy(app->edit_charset, cfg->charset, sizeof(app->edit_charset) - 1);
-    app->edit_charset[sizeof(app->edit_charset) - 1] = '\0';
+    snprintf(app->edit_charset, sizeof(app->edit_charset), "%s", cfg->charset);
 
     /* Initialize saved charset and manual change flag */
     app->edit_charset_saved[0] = '\0';

@@ -1723,9 +1723,7 @@ int cfg_load(CrashEditCfg *cfg, const char *path)
 
                     copy_rest(rest, tmp, sizeof(tmp));
                     strip_quotes(tmp);
-                    strncpy(cfg->ttf_fallback[idx], tmp, sizeof(cfg->ttf_fallback[idx]) - 1);
-
-                    cfg->ttf_fallback[idx][sizeof(cfg->ttf_fallback[idx]) - 1] = '\0';
+                    snprintf(cfg->ttf_fallback[idx], sizeof(cfg->ttf_fallback[idx]), "%s", tmp);
                 }
             }
         }
@@ -1801,6 +1799,10 @@ int cfg_save(const CrashEditCfg *cfg, const char *path)
     int i;
     const char *aa_str = NULL;
     int fi;
+
+#ifdef HAVE_TRANSLATE
+    const char *backend_name = "MYMEMORY";
+#endif
 
 #ifdef HAVE_TTS
     const char *voice_name = "MALE";
@@ -1964,8 +1966,6 @@ int cfg_save(const CrashEditCfg *cfg, const char *path)
 #endif
 
 #ifdef HAVE_TRANSLATE
-    const char *backend_name = "MYMEMORY";
-
     KV_YN("TRANSLATE_ENABLED", cfg->translate_enabled);
 
     if (cfg->translate_backend == 1)

@@ -1229,8 +1229,11 @@ static void hwrap_find_cursor(Ed *ed, int first, int inserted, int cursor_offset
             const wchar_t *prev = ed->lines[i - 1]->wcs;
             int prev_len = ed->lines[i - 1]->len;
             int prev_has_wrap = ed->lines[i - 1]->has_wrap_hyphen;
-            int prev_last = prev_len > 0 ? prev[prev_len - 1] : 0;
+            int prev_last = 0;
             int needs_space = 0;
+
+            if (prev && prev_len > 0)
+                prev_last = prev[prev_len - 1];
 
             if (prev && pos > 0)
             {

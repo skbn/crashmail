@@ -132,7 +132,8 @@ static void wchar_to_char(const wchar_t *src, char *dst, int dst_sz)
 
     for (i = 0, j = 0; src[i] && j < dst_sz - 1; i++)
     {
-        wchar_t w = src[i];
+        /* 32-bit copy keeps the range checks valid with 16-bit wchar_t */
+        unsigned long w = (unsigned long)src[i];
 
         if (w < 0x80)
         {
@@ -178,8 +179,12 @@ static FileEnt *load_dir(const char *dir, int *out_n)
     int n = 0, cap = 0;
     int i, j;
     int at_root = 0;
+
+#ifdef PLATFORM_WIN32
     int dlen;
-    const char *colon;
+#elif defined(PLATFORM_AMIGA)
+    const char *colon = NULL;
+#endif
 
     *out_n = 0;
 
@@ -191,8 +196,8 @@ static FileEnt *load_dir(const char *dir, int *out_n)
         return NULL;
 
     /* Determine if we are at a root directory */
-    dlen = (int)strlen(dir);
 #ifdef PLATFORM_WIN32
+    dlen = (int)strlen(dir);
     at_root = (dlen <= 3); /* "C:\" or "C:/" */
 #elif defined(PLATFORM_AMIGA)
     colon = strchr(dir, ':');

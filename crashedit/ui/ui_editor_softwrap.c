@@ -22,7 +22,11 @@
  * General Public License v2.1. See src/jamlib/LICENSE for details.
  */
 
-#define _XOPEN_SOURCE
+/* Bare _XOPEN_SOURCE means XPG3 and hides snprintf/wcswidth; ask for SUSv4 */
+#ifndef _XOPEN_SOURCE
+#define _XOPEN_SOURCE 700
+#endif
+
 #include <wchar.h>
 #include "ui_editor_softwrap.h"
 #include "ui.h"
