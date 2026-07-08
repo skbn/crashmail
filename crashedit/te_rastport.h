@@ -83,14 +83,16 @@ void TE_SetColorPen(struct TERenderContext *dc, struct Screen *screen, LONG txtP
 
 /* Measurement */
 void TE_GetMetrics(struct TERenderContext *dc, struct TEGlyphMetrics *out);
+
+/* Grid render: fixed cellW advance per character (monospace cell runs) */
+void TE_RenderTextCells(struct RastPort *rp, struct TERenderContext *dc, struct TEDrawPosition *pos, CONST_STRPTR utf8, LONG cellW);
 void TE_MeasureText(struct TERenderContext *dc, CONST_STRPTR utf8, LONG maxChars, struct TEGlyphMetrics *out);
 void TE_GetCharOffsets(struct TERenderContext *dc, CONST_STRPTR utf8, LONG maxChars, LONG *arrayout);
 
 /* Drawing */
 void TE_RenderText(struct RastPort *rp, struct TERenderContext *dc, struct TEDrawPosition *pos, CONST_STRPTR utf8, ULONG maxChars);
 
-/* Screen / palette association. Required before drawing
- * GRAY or RGBA glyphs on indexed-colour screens */
+/* Screen / palette association. Required before drawing GRAY or RGBA glyphs on indexed-colour screens */
 void TE_SetScreen(struct TERenderContext *dc, struct Screen *screen);
 void TE_UpdatePalette(struct TERenderContext *dc, struct Screen *screen);
 

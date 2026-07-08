@@ -59,70 +59,114 @@ BRACKET_PAIRS         ()[]{}«»
 # -----------------------------------------------------------------
 # 7. Errores frecuentes por idioma
 # -----------------------------------------------------------------
-PAIR  aver         "a ver"       info
-PAIR  aya          "haya"        warn
-PAIR  halla        "haya"        info
-PAIR  echo         "hecho"       info
-PAIR  porque       "por qué"     info
-PAIR  porqué       "por qué"     info
-PAIR  sino         "si no"       info
-PAIR  tambien      también       warn
-PAIR  esta         está          info
-PAIR  mas          más           info
-PAIR  tu           tú            info
-PAIR  el           él            info
-PAIR  si           sí            info
-PAIR  te           té            info
-PAIR  se           sé            info
-PAIR  osea         "o sea"       warn
-PAIR  ademas       además        warn
-PAIR  ingles       inglés        info
-PAIR  frances      francés       info
-PAIR  aleman       alemán        info
-PAIR  espanol      español       warn
-PAIR  ninos        niños         info
-PAIR  anos         años          info
-PAIR  haber        "a ver"       info
-PAIR  valla        vaya          info
-PAIR  vaya         valla         info
-PAIR  tubo         tuvo          info
-PAIR  tuvo         tubo          info
-PAIR  hechar       echar         warn
-PAIR  haiga        haya          warn
-PAIR  nesecito     necesito      warn
-PAIR  dijistes     dijiste       warn
-PAIR  vinistes     viniste       warn
 
-# -----------------------------------------------------------------
-# 8. Concordancia básica (heurísticos conservadores)
-# -----------------------------------------------------------------
-# Artículos y terminaciones de género del español para reglas de concordancia.
-ARTICLE_FEM  la,una,las
-ARTICLE_MASC  el,un,los,unos
-FEM_ENDINGS  a,as
-MASC_ENDINGS  o,os
-MASC_EXCEPTION_ENDINGS  ma
-AGREEMENT_ART_NOUN
-AGREEMENT_NOUN_ADJ
-# Excepciones: femeninos con "el" tónico, masculinos en -a, invariables
-AGREEMENT_EXCEPTIONS  agua,alma,área,aula,hacha,águila,arma,ala,hambre,ave,mano,foto,moto,radio,día,mapa,sofá,planeta,poeta,pirata,cura,guía,turista,artista,dentista,periodista,futbolista,taxista,modelo,testigo,soprano,grande,verde,triste,alegre,fuerte,inteligente,interesante,importante,posible,amable,doble,libre,pobre,dulce,breve,firme,noble,simple,suave,humilde,rebelde,salvaje,cobarde
+# --- Word confusions (typos and joins, safe without context) ---
+PAIR  "a ber"              haber  info  # ¿Quería decir haber?
+PAIR  "a caba"             acaba  info  # ¿Quería decir acaba?
+PAIR  "a parte"            aparte  info  # En la mayoría de los casos se escribe aparte
+PAIR  ace                  hace  info  # ¿Quería decir hace (del verbo hacer)?
+PAIR  ademas               además
+PAIR  agusto               "a gusto"  info  # ¿Quería decir a gusto?
+PAIR  "al finales"         "a finales"  info  # ¿Quería decir a finales?
+PAIR  "al fines"           "a fines"  info  # ¿Quería decir a fines?
+PAIR  "ala vez"            "a la vez"  info  # ¿Quería decir a la vez?
+PAIR  aleman               alemán
+PAIR  anos                 años
+PAIR  aveces               "a veces"  info  # ¿Quería decir a veces?
+PAIR  aver                 "a ver"  info  # ¿Quería decir a ver o haber?
+PAIR  aya                  haya
+PAIR  "boca bajo"          bocabajo  info  # Como adverbio, se escribe bocabajo o boca abajo
+PAIR  "contra más"         "cuanto más"  info  # Lo correcto es cuanto más
+PAIR  "debido que"         "debido a que"  info  # ¿Quería decir debido a que?
+PAIR  "del la"             "de la"  info  # ¿Quería decir de la?
+PAIR  "des de"             desde  info  # ¿Quería decir desde?
+PAIR  "des del"            "desde el"  info  # ¿Quería decir desde el?
+PAIR  dijistes             dijiste
+PAIR  enserio              "en serio"  info  # ¿Quería decir en serio?
+PAIR  eramos               éramos  info
+PAIR  erase                érase  info
+PAIR  espanol              español
+PAIR  frances              francés
+PAIR  haiga                haya
+PAIR  hechar               echar
+PAIR  hico                 hizo  info
+PAIR  ingles               inglés
+PAIR  jamas                jamás  info
+PAIR  laque                "la que"  info  # ¿Quería decir la que?
+PAIR  "más aya"            "más allá"  info  # ¿Quería decir más allá?
+PAIR  nesecito             necesito
+PAIR  ninos                niños
+PAIR  ojala                ojalá  info
+PAIR  osea                 "o sea"
+PAIR  porqué               "por qué"  info  # El sustantivo porqué lleva artículo: el porqué
+PAIR  respuesto            respondido  info
+PAIR  tambien              también
+PAIR  tubo                 tuvo  info  # Tubo es un cilindro; del verbo tener es tuvo
+PAIR  "u no"               uno  info  # ¿Quería decir uno?
+PAIR  vinistes             viniste
+PAIR  vividamente          vívidamente  info
+PAIR  whatsapps            WhatsApp  info
+PAIR  ó                    o  info  # La conjunción o ya no se acentúa ni entre cifras
+PAIR  "sao paulo"          "São Paulo"  info
+PAIR  "borís johnson"      "Boris Johnson"  info
+PAIR  "jean austen"        "Jane Austen"  info
+PAIR  "jean fonda"         "Jane Fonda"  info
+PAIR  "google doc"         "Google Docs"  info
 
-# -----------------------------------------------------------------
-# 9. Reglas de estilo
-# -----------------------------------------------------------------
-SENTENCE_TOO_LONG 30
-TOO_MANY_COMMAS 4 10
-WORD_DENSITY 3 12
+# --- Tildes diacríticas y confusiones que exigen contexto (PAIRCTX) ---
+# Interrogativos y exclamativos dentro de ¿...? llevan tilde
+PAIRCTX  que     qué     QMARK  info  # En interrogativas lleva tilde: qué
+PAIRCTX  como    cómo    QMARK  info  # En interrogativas lleva tilde: cómo
+PAIRCTX  cuando  cuándo  QMARK  info  # En interrogativas lleva tilde: cuándo
+PAIRCTX  donde   dónde   QMARK  info  # En interrogativas lleva tilde: dónde
+PAIRCTX  quien   quién   QMARK  info  # En interrogativas lleva tilde: quién
+PAIRCTX  cuanto  cuánto  QMARK  info  # En interrogativas lleva tilde: cuánto
+PAIRCTX  cuanta  cuánta  QMARK  info  # En interrogativas lleva tilde: cuánta
+PAIRCTX  porque  "por qué"  QMARK  info  # En preguntas se escribe por qué
 
-# -----------------------------------------------------------------
-# 10. Gramática avanzada (heurísticos)
-# -----------------------------------------------------------------
-# Locuciones que rigen subjuntivo. Si les sigue un indicativo claro
-# (terminación -amos/-emos ok en ambos; -aba/-aban/-ía es indicativo)
-SUBJUNCTIVE_AFTER  para que|sin que|antes de que|a fin de que|con tal de que|a menos que|en caso de que|ojalá que
-SUBJUNCTIVE_BAD_ENDINGS  aba,aban,abas,ía,ían,ías,aré,arás,será,serán,ienes,iene,uedes,uede,aces,ace,ienen
+# tu (posesivo) vs tú (pronombre): delante de verbo en segunda persona
+PAIRCTX  tu  tú  NEXT=eres,estás,estas,tienes,puedes,quieres,sabes,vas,has,haces,dices,vienes,crees,piensas,debes,mismo,misma,solo,sola,también,tambien  info  # Delante de verbo es el pronombre tú
 
-# Mezcla de tiempos: pasado + marcador de presente en la misma línea
-TENSE_MIX
-TENSE_PAST_ENDINGS  aba,aban,ábamos,aron,ieron,aste,iste,amos
-TENSE_PRESENT_MARKERS  hoy,ahora,actualmente,estoy,estás,está,estamos,están
+# el (artículo) vs él (pronombre): delante de verbo en tercera persona
+PAIRCTX  el  él  NEXT=es,está,esta,tiene,puede,quiere,sabe,va,ha,hace,dice,viene,cree,piensa,debe,fue,era,dijo,vino,hizo,quiso,supo,pudo,estuvo,tuvo  info  # Delante de verbo es el pronombre él
+
+# esta (demostrativo) vs está (verbo estar)
+PAIRCTX  esta  está  NEXT=bien,mal,aquí,aqui,ahí,ahi,allí,alli,claro,listo,lista,hecho,hecha,roto,rota,muy,tan,siendo,siempre,en,de,a,con,sin,por,para  info  # ¿Quería decir está (verbo estar)?
+PAIRCTX  esta  está  PREV=no,ya,se,me,te,nos,aún,aun,todavía,todavia,siempre,nunca,dónde,donde  info  # ¿Quería decir está (verbo estar)?
+
+# te (pronombre) vs té (infusión): tras determinante o verbo de tomar
+PAIRCTX  te  té  PREV=un,el,este,ese,aquel,mi,tu,su,tomar,tomo,tomas,toma,tomamos,tomáis,toman,beber,bebo,bebes,bebe,preparo,preparas,prepara,sirvo,sirves,sirve  info  # ¿Quería decir té (infusión)?
+
+# se (pronombre) vs sé (verbo saber/ser)
+PAIRCTX  se  sé  PREV=yo  info  # Tras yo es el verbo: yo sé
+PAIRCTX  se  sé  PREV=no NEXT=$,si,cómo,como,qué,que,nada  info  # ¿Quería decir no sé?
+
+# si (condicional) vs sí (afirmación)
+PAIRCTX  si  sí  NEXT=$,.,;,! PREV=que,dijo,digo,dije,claro,pues  info  # Como afirmación lleva tilde: sí
+PAIRCTX  si  sí  PREV=eso,esto,ella,él,el,yo NEXT=$  info  # Como afirmación lleva tilde: sí
+
+# mas (conjunción arcaica) vs más (cantidad)
+PAIRCTX  mas  más  NEXT=de,que,o,y,grande,pequeño,alto,bajo,tarde,temprano,rápido,rapido,lento,cerca,lejos,aún,aun,todavía,todavia  info  # Como adverbio de cantidad lleva tilde: más
+PAIRCTX  mas  más  PREV=el,la,lo,los,las,mucho,poco,nada,algo,vez,cada,es,son,era,eran  info  # Como adverbio de cantidad lleva tilde: más
+
+# aun vs aún (equivale a todavía)
+PAIRCTX  aun  aún  NEXT=no,más,mas,queda,quedan,falta,faltan,hay,sigue,siguen,estoy,estás,está,estamos,están  info  # Si equivale a todavía lleva tilde: aún
+PAIRCTX  aun  aún  PREV=pero,y,que  NEXT=no  info  # Si equivale a todavía lleva tilde: aún
+
+# de vs dé (verbo dar)
+PAIRCTX  de  dé  PREV=me,te,le,nos,os,les  NEXT=el,la,los,las,un,una,algo,cuenta,tiempo,dinero,igual,lo  info  # ¿Quería decir dé (verbo dar)?
+
+# haber vs "a ver": delante de pausa o al mirar algo
+PAIRCTX  haber  "a ver"  NEXT=si,qué,que,cómo,como,cuándo,cuando,quién,quien,$  info  # ¿Quería decir a ver?
+
+# echo (verbo echar) vs hecho (participio de hacer)
+PAIRCTX  echo   hecho   PREV=ha,has,han,he,hemos,habéis,habeis,había,habia,habías,habias,habían,habian,haber,haya,hayas,hayan  info  # Participio de hacer: hecho
+# vaya (verbo ir) vs valla (cerca)
+PAIRCTX  vaya   valla   PREV=la,una,esa,esta,aquella  info  # La cerca es una valla
+PAIRCTX  valla  vaya    PREV=que,ojalá,ojala  info  # Del verbo ir: vaya
+PAIRCTX  valla  vaya    NEXT=a,usted,con,bien  info  # Del verbo ir: vaya
+# tubo (cilindro) vs tuvo (verbo tener)
+PAIRCTX  tubo   tuvo    NEXT=que,lugar,éxito,exito,miedo,suerte,razón,razon,tiempo,hijos  info  # Del verbo tener: tuvo
+PAIRCTX  tuvo   tubo    PREV=un,este,ese,del  info  # El cilindro es un tubo
+# sino (conjunción) vs si no (condicional)
+PAIRCTX  sino   "si no"  NEXT=puedes,quieres,vienes,haces,sabes,tienes,vas,estás,estas,lo,te,me,nos,hay,fuera,fuese  info  # Condicional negativo: si no
