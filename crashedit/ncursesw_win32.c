@@ -601,7 +601,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
         RECT rect;
         HBRUSH hBrush;
 
-        /* ignore minimize */
+        /* Ignore minimize */
         if (wParam == SIZE_MINIMIZED)
             return 0;
 
@@ -621,16 +621,14 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
         old_cols = COLS;
         old_cells = stdscr->cells;
 
-        /* allocate new cell buffer */
+        /* Allocate new cell buffer */
         new_cells = (Cell *)malloc(sizeof(Cell) * new_lines * new_cols);
 
+        /* Keep old buffer on failure */
         if (!new_cells)
-        {
-            /* keep old buffer on failure */
             return 0;
-        }
 
-        /* copy old content, fill new area with spaces */
+        /* Copy old content, fill new area with spaces */
         for (r = 0; r < new_lines; r++)
         {
             for (c = 0; c < new_cols; c++)
@@ -653,7 +651,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
         LINES = new_lines;
         COLS = new_cols;
 
-        /* recreate backing bitmap */
+        /* Recreate backing bitmap */
         if (hBitmap)
             DeleteObject(hBitmap);
 
@@ -661,7 +659,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
 
         if (!hBitmap)
         {
-            /* restore on failure */
+            /* Restore on failure */
             free(new_cells);
 
             stdscr->cells = old_cells;
@@ -672,7 +670,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
             return 0;
         }
 
-        /* free old buffer only after bitmap succeeds */
+        /* Free old buffer only after bitmap succeeds */
         free(old_cells);
         SelectObject(hMemDC, hBitmap);
 
@@ -695,14 +693,14 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
             ReleaseDC(hWnd, hdc);
         }
 
-        /* notify application of resize */
+        /* Notify application of resize */
         if (s_key_count < 16)
             s_key_buf[s_key_count++] = KEY_RESIZE;
     }
         return 0;
 
     case WM_CLOSE:
-        /* send ESC so the app can confirm quit */
+        /* Send ESC so the app can confirm quit */
         if (s_key_count < 16)
             s_key_buf[s_key_count++] = 27;
 
@@ -857,7 +855,7 @@ static void render_cell(int row, int col, Cell *cell)
     RECT rect;
     HBRUSH hBrush;
     int pair;
-    int cell_w = fw; /* width of the area to repaint -- fw or 2*fw */
+    int cell_w = fw; /* Width of the area to repaint -- fw or 2*fw */
     unsigned int draw_cp;
     chtype ch;
     attr_t attrs;
@@ -888,7 +886,7 @@ static void render_cell(int row, int col, Cell *cell)
     pair = (int)PAIR_NUMBER(attrs);
     apply_colors(pair, attrs);
 
-    /* clear background over 1 or 2 cells */
+    /* Clear background over 1 or 2 cells */
     rect.left = col * fw;
     rect.top = row * fh;
     rect.right = rect.left + cell_w;
@@ -899,9 +897,27 @@ static void render_cell(int row, int col, Cell *cell)
     FillRect(hMemDC, &rect, hBrush);
     DeleteObject(hBrush);
 
-    /* render glyph, surrogate-pair aware */
+    /* Render glyph, surrogate-pair aware */
     if (draw_cp >= 0x20)
+    {
+        if (s_te_dc)
+        {
+            ULONG te_style = TE_STY_NORMAL;
+
+            if (attrs & A_BOLD)
+                te_style |= TE_STY_BOLD;
+
+            if (attrs & A_DIM)
+                te_style |= TE_STY_ITALIC;
+
+            TE_SetStyle(s_te_dc, te_style);
+        }
+
         draw_glyph_te(rect.left, rect.top, cell_w, draw_cp);
+
+        if (s_te_dc)
+            TE_SetStyle(s_te_dc, TE_STY_NORMAL);
+    }
 
     /* Draw underline if requested */
     if (attrs & A_UNDERLINE)
@@ -1282,7 +1298,7 @@ static void render_all(void)
         }
     }
 
-    /* draw cursor as a rectangle border */
+    /* Draw cursor as a rectangle border */
     if (s_cursor_vis && stdscr && stdscr->_cury >= 0 && stdscr->_cury < LINES && stdscr->_curx >= 0 && stdscr->_curx < COLS)
     {
         int cy = stdscr->_cury;
@@ -1316,7 +1332,7 @@ static void render_all(void)
         InvertRect(hMemDC, &rc);
     }
 
-    /* blit to window */
+    /* Blit to window */
     if (hWnd)
     {
         InvalidateRect(hWnd, NULL, FALSE);
@@ -1373,7 +1389,7 @@ WINDOW *initscr(void)
             return NULL;
     }
 
-    /* initial size */
+    /* Initial size */
     COLS = 80;
     LINES = 25;
     fw = 8;
@@ -1444,7 +1460,7 @@ WINDOW *initscr(void)
         }
     }
 
-    /* center on screen */
+    /* Center on screen */
     scr_w = GetSystemMetrics(SM_CXSCREEN);
     scr_h = GetSystemMetrics(SM_CYSCREEN);
     win_w = COLS * fw + 16;
@@ -1466,7 +1482,7 @@ WINDOW *initscr(void)
         return NULL;
     }
 
-    /* device contexts */
+    /* Device contexts */
     hDC = GetDC(hWnd);
 
     if (!hDC)
@@ -1515,7 +1531,7 @@ WINDOW *initscr(void)
     SelectObject(hMemDC, hBitmap);
     ReleaseDC(NULL, screenDC);
 
-    /* clear bitmap to black */
+    /* Clear bitmap to black */
     rect.left = 0;
     rect.top = 0;
     rect.right = COLS * fw;
@@ -1549,14 +1565,14 @@ WINDOW *initscr(void)
     SetTextAlign(hMemDC, TA_LEFT | TA_TOP);
     SetTextCharacterExtra(hMemDC, 0);
 
-    /* show window */
+    /* Show window */
     ShowWindow(hWnd, SW_SHOW);
     UpdateWindow(hWnd);
 
-    /* drain initial messages */
+    /* Drain initial messages */
     pump_messages();
 
-    /* allocate stdscr */
+    /* Allocate stdscr */
     stdscr = (WINDOW *)malloc(sizeof(WINDOW));
 
     if (!stdscr)
@@ -1587,7 +1603,7 @@ WINDOW *initscr(void)
     clear_cells(stdscr);
     curscr = stdscr;
 
-    /* default color pair */
+    /* Default color pair */
     memset(s_pair_ok, 0, sizeof(s_pair_ok));
 
     s_pair_fg[0] = COLOR_WHITE;
@@ -1881,7 +1897,7 @@ int wrefresh(WINDOW *win)
 
     if (win != stdscr)
     {
-        /* copy to stdscr */
+        /* Copy to stdscr */
         for (r = 0; r < win->_maxy; r++)
         {
             int dst_y = win->_begy + r;
@@ -2052,7 +2068,7 @@ int waddch(WINDOW *win, const chtype ch)
     attrs &= ~A_COLOR;
     attrs |= COLOR_PAIR(win->color_pair);
 
-    /* Case A: writing on TRAILING -> orphan the lead */
+    /* Writing on TRAILING -> orphan the lead */
     if (c > 0)
     {
         Cell *cur = CELL(win, r, c);
@@ -2102,7 +2118,7 @@ int waddch(WINDOW *win, const chtype ch)
 
     cw = is_wide_cp((unsigned int)ch_out) ? 2 : 1;
 
-    /* Case B: narrow into lead -> orphan the trailing */
+    /* Narrow into lead -> orphan the trailing */
     if (cw == 1 && c + 1 < win->_maxx)
     {
         Cell *nxt = CELL(win, r, c + 1);
@@ -2115,7 +2131,7 @@ int waddch(WINDOW *win, const chtype ch)
         }
     }
 
-    /* Case C: wide over wide -> orphan the next trailing */
+    /* Wide over wide -> orphan the next trailing */
     if (cw == 2 && c + 2 < win->_maxx)
     {
         Cell *thd = CELL(win, r, c + 2);
@@ -2128,13 +2144,13 @@ int waddch(WINDOW *win, const chtype ch)
         }
     }
 
-    /* write lead cell */
+    /* Write lead cell */
     CELL(win, r, c)->ch = ch_out;
     CELL(win, r, c)->attrs = attrs;
     CELL(win, r, c)->full_cp = 0;
     win->_curx++;
 
-    /* write trailing cell for wide glyphs */
+    /* Write trailing cell for wide glyphs */
     if (cw == 2)
     {
         Cell *trail = CELL(win, r, win->_curx);
@@ -2150,7 +2166,7 @@ int waddch(WINDOW *win, const chtype ch)
         win->_curx = 0;
         win->_cury++;
 
-        /* scroll if at bottom and scrollok set */
+        /* Scroll if at bottom and scrollok set */
         if (win->_cury >= win->_maxy && (win->_flags & 2))
         {
             win->_cury = win->_maxy - 1;
@@ -2241,13 +2257,13 @@ int waddch32(WINDOW *win, unsigned long cp)
         }
     }
 
-    /* write lead cell */
+    /* Write lead cell */
     CELL(win, r, c)->ch = ch_out;
     CELL(win, r, c)->attrs = attrs;
     CELL(win, r, c)->full_cp = cp;
     win->_curx++;
 
-    /* write trailing cell for wide glyphs */
+    /* Write trailing cell for wide glyphs */
     if (cw == 2)
     {
         Cell *trail = CELL(win, r, win->_curx);
@@ -2380,7 +2396,7 @@ int waddnstr(WINDOW *win, const char *str, int n)
         utf8_decode_one_cp((const unsigned char *)&str[i], n - i, &cp, &consumed);
 
         if (consumed <= 0)
-            consumed = 1; /* always make progress */
+            consumed = 1; /* Always make progress */
 
         if (cp > 0xFFFF || is_wide_cp((unsigned int)cp))
         {
@@ -2473,7 +2489,7 @@ int waddnwstr(WINDOW *win, const wchar_t *wstr, int n)
             if (lo >= 0xDC00 && lo <= 0xDFFF)
             {
                 cp = 0x10000UL + (((unsigned long)(wc - 0xD800)) << 10) + (unsigned long)(lo - 0xDC00);
-                i++; /* consume trailing surrogate */
+                i++; /* Consume trailing surrogate */
             }
         }
 
@@ -2653,7 +2669,7 @@ int wattron(WINDOW *win, int attrs)
 
     win->attrs |= (attr_t)attrs;
 
-    /* extract and set color pair if A_COLOR is present */
+    /* Extract and set color pair if A_COLOR is present */
     if (attrs & A_COLOR)
     {
         int new_pair = (int)PAIR_NUMBER(attrs);
@@ -2682,7 +2698,7 @@ int wattrset(WINDOW *win, int attrs)
 
     win->attrs = (attr_t)attrs;
 
-    /* extract color pair */
+    /* Extract color pair */
     if (attrs & A_COLOR)
         win->color_pair = (int)PAIR_NUMBER(attrs);
     else
@@ -2764,10 +2780,11 @@ int start_color(void)
 {
     s_colors_on = 1;
 
-    /* default pair 0 */
+    /* Default pair 0 */
     s_pair_fg[0] = COLOR_WHITE;
     s_pair_bg[0] = COLOR_BLACK;
     s_pair_ok[0] = 1;
+
     return OK;
 }
 
@@ -2819,7 +2836,7 @@ int wgetch(WINDOW *win)
     int ch;
     int i;
 
-    /* check ungetch buffer first */
+    /* Check ungetch buffer first */
     if (s_ungetch != ERR)
     {
         ch = s_ungetch;
@@ -2834,7 +2851,7 @@ int wgetch(WINDOW *win)
         return KEY_MOUSE;
     }
 
-    /* wait for a key */
+    /* Wait for a key */
     while (s_key_count == 0)
     {
         if (s_nodelay)
@@ -2856,7 +2873,7 @@ int wgetch(WINDOW *win)
         }
         else
         {
-            /* blocking: wait for message */
+            /* Blocking: wait for message */
             BOOL result = GetMessage(&msg, NULL, 0, 0);
 
             if (result == 0)
@@ -2880,7 +2897,7 @@ int wgetch(WINDOW *win)
 
     ch = s_key_buf[0];
 
-    /* shift buffer */
+    /* Shift buffer */
     for (i = 0; i < s_key_count - 1; i++)
         s_key_buf[i] = s_key_buf[i + 1];
 
@@ -3125,6 +3142,7 @@ int set_tabsize(int n)
         n = 16;
 
     s_tab_size = n;
+
     return OK;
 }
 
@@ -3460,7 +3478,7 @@ int resize_term(int nlines, int ncols)
 
         if (!stdscr->cells)
         {
-            /* restore on alloc failure */
+            /* Restore on alloc failure */
             COLS = old_cols;
             LINES = old_lines;
             return ERR;
@@ -3478,7 +3496,7 @@ int resize_term(int nlines, int ncols)
         hBitmap = CreateCompatibleBitmap(hDC, COLS * fw, LINES * fh);
         if (!hBitmap)
         {
-            /* restore on bitmap failure */
+            /* Restore on bitmap failure */
             COLS = old_cols;
             LINES = old_lines;
 
@@ -3498,7 +3516,7 @@ int resize_term(int nlines, int ncols)
                 }
                 else
                 {
-                    /* both allocs failed: mark stdscr invalid */
+                    /* Both allocs failed: mark stdscr invalid */
                     stdscr->_maxy = 0;
                     stdscr->_maxx = 0;
                 }
@@ -3599,7 +3617,7 @@ int copywin(const WINDOW *src, WINDOW *dst, int sminrow, int smincol, int dminro
             sc = &src->cells[srow * src->_maxx + scol];
             dc = &dst->cells[drow * dst->_maxx + dcol];
 
-            /* overlay: skip blank src cells */
+            /* Overlay: skip blank src cells */
             if (overlay && (sc->ch == ' ' || sc->ch == 0))
                 continue;
 
