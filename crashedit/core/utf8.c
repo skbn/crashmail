@@ -306,7 +306,7 @@ int latin1_to_utf8(const char *src, int srclen, char *dst, int dstmax)
 
     if (!src || !dst || dstmax <= 0)
     {
-        if (dst)
+        if (dst && dstmax > 0)
             dst[0] = '\0';
 
         return 0;
@@ -571,7 +571,7 @@ int charset_to_utf8(const char *cs, const char *src, int sl, char *dst, int dm)
 {
     if (!cs || !src || dm <= 0)
     {
-        if (dst)
+        if (dst && dm > 0)
             dst[0] = '\0';
 
         return 0;
@@ -612,7 +612,7 @@ int utf8_to_charset(const char *cs, const char *src, int sl, char *dst, int dm)
 {
     if (!cs || !src || dm <= 0)
     {
-        if (dst)
+        if (dst && dm > 0)
             dst[0] = '\0';
 
         return 0;

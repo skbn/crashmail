@@ -497,7 +497,8 @@ int ui_thes_lookup_word(UiApp *app)
                 ed_auto_rewrap_capture_pre_snapshot(ed);
                 ed_save_undo(ed);
 
-                ed->undo_snapshot_mode = 1;
+                if (ed->hard_wrap)
+                    ed->undo_snapshot_mode = 1;
 
                 if (is_hyphen_split)
                 {
@@ -531,7 +532,10 @@ int ui_thes_lookup_word(UiApp *app)
                         ed_insert_char(ed, wsyn[i]);
                 }
 
-                ed->undo_snapshot_mode = 0;
+                if (ed->hard_wrap)
+                    ed->undo_snapshot_mode = 0;
+
+                ed_save_undo(ed);
 
                 free(wsyn);
 

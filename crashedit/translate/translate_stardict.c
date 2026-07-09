@@ -1888,6 +1888,7 @@ int translate_stardict_suggest(struct StarDictHandle *h, const char *word, char 
     int hi;
     int best_prefix = 0;
     int probe;
+    int min_share;
 
     if (!h || !word || !items || max <= 0 || h->entry_count == 0)
         return 0;
@@ -1914,12 +1915,10 @@ int translate_stardict_suggest(struct StarDictHandle *h, const char *word, char 
     if (best_prefix == 0)
         return 0;
 
-    {
-        int min_share = (int)strlen(word) >= 4 ? 2 : 1;
+    min_share = (int)strlen(word) >= 4 ? 2 : 1;
 
-        if (best_prefix < min_share)
-            return 0;
-    }
+    if (best_prefix < min_share)
+        return 0;
 
     /* Collect best matching neighbours around the insertion position */
     lo = pos - 1;

@@ -1345,8 +1345,7 @@ char *port_sanitize_filename(const char *utf8_name)
         if (c < 0x80)
         {
             /* Replace problematic characters with underscore */
-            if (c == '/' || c == ':' || c == '\\' || c == '?' || c == '*' ||
-                c == '"' || c == '<' || c == '>' || c == '|')
+            if (c == '/' || c == ':' || c == '\\' || c == '?' || c == '*' || c == '"' || c == '<' || c == '>' || c == '|')
                 c = '_';
 
             *out++ = (char)c;
@@ -1358,95 +1357,74 @@ char *port_sanitize_filename(const char *utf8_name)
         {
             /* 2-byte UTF-8 */
             unsigned char c2 = p[1];
+            uint32_t cp = ((c & 0x1F) << 6) | (c2 & 0x3F);
 
-            switch ((c << 8) | c2)
+            /* Convert common Spanish characters */
+            switch (cp)
             {
-            case 0xC3A1:
+            case 0xE1:
                 *out++ = 'a';
                 i++;
-                p += 2;
-                continue; /* á */
-            case 0xC381:
-                *out++ = 'A';
-                i++;
-                p += 2;
-                continue; /* Á */
-            case 0xC3A9:
+                break; /* á */
+            case 0xE9:
                 *out++ = 'e';
                 i++;
-                p += 2;
-                continue; /* é */
-            case 0xC389:
-                *out++ = 'E';
-                i++;
-                p += 2;
-                continue; /* É */
-            case 0xC3AD:
+                break; /* é */
+            case 0xED:
                 *out++ = 'i';
                 i++;
-                p += 2;
-                continue; /* í */
-            case 0xC38D:
-                *out++ = 'I';
-                i++;
-                p += 2;
-                continue; /* Í */
-            case 0xC3B3:
+                break; /* í */
+            case 0xF3:
                 *out++ = 'o';
                 i++;
-                p += 2;
-                continue; /* ó */
-            case 0xC393:
-                *out++ = 'O';
-                i++;
-                p += 2;
-                continue; /* Ó */
-            case 0xC3BA:
+                break; /* ó */
+            case 0xFA:
                 *out++ = 'u';
                 i++;
-                p += 2;
-                continue; /* ú */
-            case 0xC39A:
-                *out++ = 'U';
-                i++;
-                p += 2;
-                continue; /* Ú */
-            case 0xC3B1:
+                break; /* ú */
+            case 0xF1:
                 *out++ = 'n';
                 i++;
-                p += 2;
-                continue; /* ñ */
-            case 0xC391:
-                *out++ = 'N';
+                break; /* ñ */
+            case 0xC1:
+                *out++ = 'A';
                 i++;
-                p += 2;
-                continue; /* Ñ */
-            case 0xC3BC:
-                *out++ = 'u';
+                break; /* Á */
+            case 0xC9:
+                *out++ = 'E';
                 i++;
-                p += 2;
-                continue; /* ü */
-            case 0xC39C:
+                break; /* É */
+            case 0xCD:
+                *out++ = 'I';
+                i++;
+                break; /* Í */
+            case 0xD3:
+                *out++ = 'O';
+                i++;
+                break; /* Ó */
+            case 0xDA:
                 *out++ = 'U';
                 i++;
-                p += 2;
-                continue; /* Ü */
-            case 0xC2BF:
-                *out++ = '?';
+                break; /* Ú */
+            case 0xD1:
+                *out++ = 'N';
                 i++;
-                p += 2;
-                continue; /* ¿ */
-            case 0xC2A1:
-                *out++ = '!';
+                break; /* Ñ */
+            case 0xFC:
+                *out++ = 'u';
                 i++;
-                p += 2;
-                continue; /* ¡ */
+                break; /* ü */
+            case 0xDC:
+                *out++ = 'U';
+                i++;
+                break; /* Ü */
             default:
                 *out++ = '_';
                 i++;
-                p += 2;
-                break;
+                break; /* Other UTF-8 -> underscore */
             }
+
+            p += 2;
         }
         else if ((c & 0xF0) == 0xE0 && (p[1] & 0xC0) == 0x80 && (p[2] & 0xC0) == 0x80)
         {
