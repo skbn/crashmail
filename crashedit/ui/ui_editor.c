@@ -525,8 +525,29 @@ static int handle_control_keys(UiApp *app, int ch, int is_key)
 
             if (!clip || !clip[0])
             {
-                ui_status(app, "Clipboard: empty or no backend (install xclip/wl-clipboard, or check clipboard.device)");
                 free(clip);
+
+                /* External clipboard empty or backend failed: fall back to the internal killbuf instead of refusing to paste */
+                if (app->edit_active_field == EF_BODY)
+                {
+                    ed_auto_rewrap_capture_pre_snapshot(app->editor);
+
+                    if (ed_block_paste(app->editor) == 0)
+                    {
+                        reset_search(app);
+
+                        ed_auto_rewrap_after_edit(app);
+                        ed_ensure_visible(app->editor);
+
+                        ui_status(app, "Pasted (internal block)");
+                        return 1;
+                    }
+
+                    free(app->editor->auto_rewrap_pre_snapshot);
+                    app->editor->auto_rewrap_pre_snapshot = NULL;
+                }
+
+                ui_status(app, "Clipboard: empty or no backend (install xclip/wl-clipboard, or check clipboard.device)");
 
                 return 1;
             }
@@ -576,23 +597,13 @@ static int handle_control_keys(UiApp *app, int ch, int is_key)
 
             if (ed_block_copy(ed) == 0)
             {
-                /* Copy to external clipboard if available */
+                /* Copy to external clipboard if available. On failure the internal killbuf is KEPT: it is the only paste fallback */
                 if (clipboard_use_external() && block_utf8)
                 {
                     if (clipboard_copy(block_utf8) == 0)
-                    {
                         ui_status(app, "Block copied to clipboard");
-                    }
                     else
-                    {
-                        /* External clipboard failed: free internal killbuf so the large block does not sit unused in memory until exit */
-                        free(ed->killbuf);
-
-                        ed->killbuf = NULL;
-                        ed->killlen = 0;
-
-                        ui_status(app, "Clipboard copy failed; internal block freed");
-                    }
+                        ui_status(app, "Block copied (internal; external clipboard failed)");
                 }
                 else
                 {

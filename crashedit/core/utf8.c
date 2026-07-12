@@ -398,8 +398,7 @@ uint32_t cp1252_to_unicode(unsigned char c) { return c < 128 ? (uint32_t)c : (ui
 
 uint32_t latin2_to_unicode(unsigned char c) { return c < 128 ? (uint32_t)c : (uint32_t)latin2_map[c - 128]; }
 
-/* Charset-name-aware single-byte -> Unicode. See utf8.h doc comment
- * Order of strcasecmp checks mirrors charset_to_utf8 for consistency */
+/* Charset-name-aware single-byte -> Unicode. See utf8.h doc comment. Order of strcasecmp checks mirrors charset_to_utf8 for consistency */
 uint32_t charset_byte_to_unicode(const char *cs, unsigned char b)
 {
     if (b < 0x80)

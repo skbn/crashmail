@@ -1,64 +1,36 @@
-# =================================================================
-# gramcheck rule pack — Español (v3)
-# Cubre las 10 categorías del listado completo.
-# =================================================================
-
+# gramcheck rule pack -- generated from LanguageTool by lt2rul.py
+# LanguageTool rules are LGPL; keep this file with its notice.
 LANG   es
-NAME   Español (v3)
+NAME   es (from LanguageTool)
 
-# -----------------------------------------------------------------
-# 1. Ortografía — via callback Hunspell del editor.
-#    Requiere USE_HUNSPELL=1 y SPELL_ENABLED en el editor.
-#    Si no hay diccionario cargado la regla queda inactiva sin coste.
-# -----------------------------------------------------------------
-SPELL_UNKNOWN
-
-# -----------------------------------------------------------------
-# 2. Espacios
-# -----------------------------------------------------------------
-SPACE_MULTIPLE
 PUNCT_NO_SPACE_BEFORE ,.;:!?)
-PUNCT_SPACE_AFTER     ,;:
-PUNCT_NO_SPACE_AFTER  (¿¡
-QUOTE_SPACING
-
-# -----------------------------------------------------------------
-# 3. Puntuación
-# -----------------------------------------------------------------
-PUNCT_NO_DOUBLE       ,;
-COMMA_BEFORE_DOT
-TRAILING_DOTS
+PUNCT_SPACE_AFTER ;
+PUNCT_NO_SPACE_AFTER (¿¡
+PUNCT_NO_DOUBLE ,;
 EXCESSIVE_PUNCT 2
-SENTENCE_OPEN_ES      ?!
-
-# -----------------------------------------------------------------
-# 4. Mayúsculas
-# -----------------------------------------------------------------
-CAPITALIZE_SENTENCE
-WORD_CAP  España,Europa,Madrid,Barcelona,Sevilla,Valencia,América,África,Asia,Alemania,Francia,Italia,Portugal,Canarias,Tenerife
-# En español, meses y días van en minúscula a mitad de frase:
-WORD_LOWER  Enero,Febrero,Marzo,Abril,Mayo,Junio,Julio,Agosto,Septiembre,Octubre,Noviembre,Diciembre,Lunes,Martes,Miércoles,Jueves,Viernes,Sábado,Domingo
-WORD_UPPER  UE,ONU,OTAN,PIB,IVA,DNI,ADN,USB,PDF,HTML,URL,ISP,BBS,FTN,RAE
+SENTENCE_OPEN_ES !
+WORD_CAP España,Europa,Madrid,Barcelona,Sevilla,Valencia,América,África,Asia,Alemania,Francia,Italia,Portugal,Canarias,Tenerife,Lunes,Martes,Miércoles,Jueves,Viernes,Sábados,Domingos,Enero,Febrero,Marzo,Abril,Mayo,Junio,Julio,Agosto,Septiembre,Octubre,Noviembre,Diciembre,abudabí,antiguano,asunceno,beirutí,burkinés,catarí,vaticano,comorense,marfileño,dominiqués,emiratí,holandés,salomonense,liechtensteiniano,malauí,malí,micronesio,palestino,puertorriqueño,ruso,sansalvadoreño,santotomense,trinitense,yemenita,yibutiano,bareiní,afgano,albanés,alemán,andorrano,angoleño,argelino,argentino,armenio,australiano,austríaco,azerbaiyano,bahameño,bahreiní,bangladesí,barbadense,belaruso,belga,beliceño,beninés,bhutanés,bielorruso,birmano,boliviano,bosniaco,bosnio,bosnio-herzegovino,bosníaco,botsuano,brasileño,británico,burundés,butanés,búlgaro,caboverdiano,camboyano,camerunés,canadiense,ceilandés,ceilanés,singalés,esrilanqués,centroafricano,chadiano,checo,chileno,chino,chipriota,colombiano,comorano,congoleño,congolés,costarricense,croata,cubano,danés,dinamarqués,dominicano,ecuatoriano,egipcio,eritreo,eslovaco,esloveno,español,estadounidense,estonio,etíope,filipino,finlandés,fiyiano,francés,gabonés,gambiano,georgiano,ghanés,granadino,griego,guatemalteco,guineano,ecuatoguineano,guineo,guyanés,haitiano,hondureño,húngaro,indio,indonesio,iraní,iraquí,irlandés,islandés,islándico,israelí,italiano,jamaicano,jamaiquino,japonés,jordano,kazajo,keniano,kirguiso,kirguís,kiribatiano,kiribatí,kuwaití,lao,laosiano,letón,libanés,liberiano,libio,lituano,luxemburgués,macedonio,malasio,malawiano,maldivo,malgache,maliense,maltés,marroquí,mauriciano,mauritano,mexicano,moldavo,monegasco,mongol,montenegrino,mozambiqueño,namibiano,namibio,nauruano,neerlandés,neozelandés,nepalés,nicaragüense,nigeriano,nigerino,niuano,norcoreano,norteamericano,americano,noruego,omaní,pakistaní,palauano,panameño,papú,papúa,paquistaní,paraguayo,peruano,polaco,polonés,portugués,qatarí,ruandés,rumano,rwandés,salvadoreño,samoano,sanmarinense,santalucense,saudita,saudí,senegalés,serbio,sierraleonés,singapurense,sirio,somalí,suazi,sudafricano,sudanés,sueco,suizo,surcoreano,surinamés,sursudanés,tailandés,tanzano,tayiko,timorense,togolés,tongano,tunecino,turco,turcomano,tuvaluano,ucraniano,ucranio,ugandés,uruguayo,uzbeko,vanuatense,venezolano,vietnamita,yemení,zambiano,zimbabuense,árabe
+WORD_UPPER UE,ONU,OTAN,PIB,IVA,DNI,ADN,USB,PDF,HTML,URL,ISP,BBS,FTN,RAE
 ALL_CAPS_WORD 6
-
-# -----------------------------------------------------------------
-# 5. Repeticiones
-# -----------------------------------------------------------------
-REPEAT_WORD
-REPEAT_WORD_SKIP  de,que,y,o,a,en,ni,muy,ja,je,ha
-REPEAT_PHRASE
-
-# -----------------------------------------------------------------
-# 6. Tipografía
-# -----------------------------------------------------------------
-TRIPLE_DOT
+REPEAT_WORD_SKIP de,que,y,o,a,en,ni,muy,ja,je,ha
+BRACKET_PAIRS ()[]{}«»
+ARTICLE_FEM la,una,las
+ARTICLE_MASC el,un,los,unos
+FEM_ENDINGS a,as
+MASC_ENDINGS o,os
+MASC_EXCEPTION_ENDINGS ma
+AGREEMENT_EXCEPTIONS agua,alma,área,aula,hacha,águila,arma,ala,hambre,ave,mano,foto,moto,radio,día,mapa,sofá,planeta,poeta,pirata,cura,guía,turista,artista,dentista,periodista,futbolista,taxista,modelo,testigo,soprano,grande,verde,triste,alegre,fuerte,inteligente,interesante,importante,posible,amable,doble,libre,pobre,dulce,breve,firme,noble,simple,suave,humilde,rebelde,salvaje,cobarde
+SENTENCE_TOO_LONG 30
+TOO_MANY_COMMAS 4 10
+WORD_DENSITY 3 12
+SUBJUNCTIVE_AFTER para que|sin que|antes de que|a fin de que|con tal de que|a menos que|en caso de que|ojalá que
+SUBJUNCTIVE_BAD_ENDINGS aba,aban,abas,ía,ían,ías,aré,arás,será,serán,ienes,iene,uedes,uede,aces,ace,ienen
+TENSE_PAST_ENDINGS aba,aban,ábamos,aron,ieron,aste,iste,amos
+TENSE_PRESENT_MARKERS hoy,ahora,actualmente,estoy,estás,está,estamos,están
+WORD_LOWER
+CAPITALIZE_SENTENCE
 DOUBLE_DASH
-STRAIGHT_QUOTES
-BRACKET_PAIRS         ()[]{}«»
-
-# -----------------------------------------------------------------
-# 7. Errores frecuentes por idioma
-# -----------------------------------------------------------------
+REPEAT_WORD
 
 # --- Word confusions (typos and joins, safe without context) ---
 PAIR  "a ber"              haber  info  # ¿Quería decir haber?
