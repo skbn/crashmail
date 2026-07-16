@@ -2,7 +2,7 @@
 
 ## Introduction
 
-CrashEdit is an FTN (FidoNet) message reader and editor that allows you to read message areas (echomail), private mail (netmail), write new messages, and reply to existing ones. It works internally in UTF-8.
+CrashEdit is an FTN (FidoNet) message reader and editor that allows you to read message areas (echomail), private mail (netmail), write new messages, and reply to existing ones. It works internally in UTF-8
 
 ---
 
@@ -22,8 +22,8 @@ When starting CrashEdit, the program looks for a configuration file:
 
 ### Initial Screen: Area List
 
-Once configured, CrashEdit displays the **Area List** - all available message areas organized in a table.
-If you cannot access them, verify that the tosser has created the files.
+Once configured, CrashEdit displays the **Area List** - all available message areas organized in a table
+If you cannot access them, verify that the tosser has created the files
 
 **What you see:**
 - Area number, short name (tag), description
@@ -59,7 +59,7 @@ The **Editor** opens with the cursor in the "To" field:
 
 ### Nodelist Picker
 
-The **Nodelist Picker** allows selecting recipients from loaded nodelists (configured with `INCLUDE` in crashedit.conf).
+The **Nodelist Picker** allows selecting recipients from loaded nodelists (configured with `INCLUDE` in crashedit.conf)
 
 **Usage:**
 - From the "To" field in the editor, press **`F10`** or **`Alt+P`**
@@ -76,11 +76,11 @@ The **Nodelist Picker** allows selecting recipients from loaded nodelists (confi
 
 ### Writing Body and Saving
 
-Use the **Editor** keys (see "Editor Usage" section below) to write your message.
+Use the **Editor** keys (see "Editor Usage" section below) to write your message
 
-When finished, press **`F2`** or **`Ctrl+S`** to save.
+When finished, press **`F2`** or **`Ctrl+S`** to save
 
-**Note:** CrashEdit saves the message but does not send it directly. Use the tosser to prepare sending, then the mailer will handle it.
+**Note:** CrashEdit saves the message but does not send it directly. Use the tosser to prepare sending, then the mailer will handle it
 
 ---
 
@@ -100,11 +100,11 @@ CC: Blabla 2:341/201@fidonet
 - **Address only:** `CC: 2:341/207@fidonet` → Copy goes to same name in **To** field but at that FTN address
 - **With name:** `CC: Blabla 2:341/201@fidonet` → Copy goes to **Blabla** at that FTN address
 
-CrashEdit will convert these lines to `^ACC:` kludges and the message will be sent to all specified recipients. This is useful for sending the same message to multiple nodes without writing separate messages.
+CrashEdit will convert these lines to `^ACC:` kludges and the message will be sent to all specified recipients. This is useful for sending the same message to multiple nodes without writing separate messages
 
 ### File Request (FREQ) - Request Files via FidoNet
 
-From the area or message list, press **`Ctrl+F`** to open the File Request screen.
+From the area or message list, press **`Ctrl+F`** to open the File Request screen
 
 **Steps:**
 1. Enter the FTN address of the node that has the files
@@ -116,9 +116,9 @@ From the area or message list, press **`Ctrl+F`** to open the File Request scree
 4. (Optional) Set password with **`P`**
 5. Generate request with **`W`** (write)
 
-**Requirement:** You must have `OUTBOUND` configured in your `crashedit.conf` pointing to your mailer's outbound directory.
+**Requirement:** You must have `OUTBOUND` configured in your `crashedit.conf` pointing to your mailer's outbound directory
 
-The generated `.req` file will be processed by your mailer and sent to the destination node, which will respond by sending the requested files.
+The generated `.req` file will be processed by your mailer and sent to the destination node, which will respond by sending the requested files
 
 ### File Attachments
 
@@ -137,13 +137,13 @@ In **netmail** messages, you can attach files to send to other nodes:
 - Attachments are sent as messages with the `FileAttach` attribute
 
 **To receive file attachments:**
-The mailer will receive the files and place them in your inbound directory. The message in CrashEdit will show the file names in the subject.
+The mailer will receive the files and place them in your inbound directory. The message in CrashEdit will show the file names in the subject
 
 ---
 
 ## Message List
 
-When you enter an area (by pressing `Enter` in the area list), the **Message List** for that area appears.
+When you enter an area (by pressing `Enter` in the area list), the **Message List** for that area appears
 
 **What you see:**
 - Message number
@@ -170,26 +170,35 @@ When you enter an area (by pressing `Enter` in the area list), the **Message Lis
 
 ## Message Reader
 
-When entering an area and selecting a message, the **Reader** opens where you can see the complete content.
+When entering an area and selecting a message, the **Reader** opens where you can see the complete content
 
 ### Reader Navigation
 
-- **`↑`** / **`↓`** or **`PgUp`** / **`PgDn`**: Move through text
-- **`Space`**: Next page
-- **`Home`**: Go to message start
-- **`End`**: Go to message end
-- **`→`** / **`←`**: Change message (previous/next)
-- **`Enter`**: Return to message list
+- **`↑`** / **`↓`**: Scroll body up/down
+- **`PgUp`** / **`PgDn`**: Page scroll
+- **`Home`** / **`End`**: First / last line
+- **`b`** / **`Space`**: Page up / down (or advance to next message)
+- **`<`** / **`>`**: First / last line (scroll)
+- **`,`** / **`.`**: First / last message
+- **`→`** / **`←`** or **`p`** / **`n`**: Previous / next message
+- **`Ctrl+Left`**: Jump to original (follow reply chain)
+- **`Ctrl+Right`**: Jump to reply (pick if multiple)
+- **`Alt+J`**: Follow reply chain to original
+- **`Ctrl+G`**: Scroll to top of message
+- **`Ctrl+K`**: Scroll to bottom of message
+- **`Alt+G`**: Go to line number
+- **`Enter`**: Page down or advance to next message
+- **`Esc`**, **`q`**: Back to message list
 
 ### ANSI Mode (Colors)
 
-Messages may contain ANSI color codes (escape codes for colors and effects).
+Messages may contain ANSI color codes (escape codes for colors and effects)
 
 - **`a`**: Toggle ANSI mode (enable/disable colors)
 - When ANSI is **active**: Color codes are interpreted and text is shown with colors
 - When ANSI is **inactive**: Color codes are shown as plain text (e.g: `[0;32m`)
 
-This is useful if a message has ANSI codes that make reading difficult or if you want to see the text without formatting.
+This is useful if a message has ANSI codes that make reading difficult or if you want to see the text without formatting
 
 ### Show/Hide Elements
 
@@ -241,24 +250,24 @@ CrashEdit supports multiple character encodings for FTN messages:
 
 ## Replying to a Message
 
-In the reader, press **`r`** (reply).
+In the reader, press **`r`** (reply)
 
 The **Editor** opens with pre-filled data:
 - Subject is copied prefixed with "Re:"
 - Recipient is copied from original sender
 - Original text is quoted with `>` at the start of each line
 
-Write your response below the quoted text and press **`F2`** or **`Ctrl+S`** to save.
+Write your response below the quoted text and press **`F2`** or **`Ctrl+S`** to save
 
 ---
 
 ## Editing Your Own Message
 
-Navigate to a message you wrote (your name appears in "From") and press **`e`** (edit).
+Navigate to a message you wrote (your name appears in "From") and press **`e`** (edit)
 
-The **Editor** opens with the message loaded. Make necessary changes and save with **`F2`** or **`Ctrl+S`**.
+The **Editor** opens with the message loaded. Make necessary changes and save with **`F2`** or **`Ctrl+S`**
 
-**Note:** You can only edit your own messages. The program verifies that the sender matches your configured AKA.
+**Note:** You can only edit your own messages. The program verifies that the sender matches your configured AKA
 
 ---
 
@@ -274,7 +283,7 @@ The **Editor** opens with the message loaded. Make necessary changes and save wi
 2. Press **`d`** or **`Del`**
 3. Confirm with `Y`
 
-**The message is not physically deleted** - it is marked for deletion and will be removed during message base maintenance (purge).
+**The message is not physically deleted** - it is marked for deletion and will be removed during message base maintenance (purge)
 
 ---
 
@@ -288,7 +297,7 @@ When you have read what interests you from an area and want to mark the rest as 
 3. Select `Y` for this area or `A` for all
 
 ### From Message List
-Press **`C`** - will mark all messages in current area as read.
+Press **`C`** - will mark all messages in current area as read
 
 ---
 
@@ -309,7 +318,7 @@ From the message list or areas:
    - Search pattern is required
 4. `Enter` to execute
 
-**Results:** Shows area list with matches. Select an area to see found messages.
+**Results:** Shows area list with matches. Select an area to see found messages
 
 ---
 
@@ -324,9 +333,13 @@ The editor is used to write and modify messages. Accessed from:
 
 - **`Enter`**: New line
 - **`Backspace`** / **`Delete`**: Delete characters
-- **`Ctrl+K`** / **`Ctrl+Y`**: Delete entire line
+- **`Ctrl+Y`**: Delete entire line
 - **`Ctrl+Z`**: Undo last change
 - **`Alt+Z`**: Redo
+- **`Ctrl+G`**: Go to start of document
+- **`Ctrl+K`**: Go to end of document
+- **`Alt+Q`**: Toggle wrap mode
+- **`Alt+D`**: Hide dict panel / toggle line numbers
 - **`F2`** / **`Ctrl+S`**: Save message
 - **`F10`** / **`Esc`** / **`Ctrl+Q`**: Cancel editing
 
@@ -354,18 +367,21 @@ The editor is used to write and modify messages. Accessed from:
 
 CrashEdit integrates with the system clipboard:
 
-- **Copy (`Ctrl+C`)**: Selected text is copied to both internal and system clipboard. You can paste it in other applications.
-- **Cut (`Ctrl+X`)**: Same as copy, but deletes text from editor.
-- **Paste (`Ctrl+V`)**: First tries to paste from internal clipboard. If no internal selection, pastes from system clipboard.
+- **Copy (`Ctrl+C`)**: Selected text is copied to both internal and system clipboard. You can paste it in other applications
+- **Cut (`Ctrl+X`)**: Same as copy, but deletes text from editor
+- **Paste (`Ctrl+V`)**: First tries to paste from internal clipboard. If no internal selection, pastes from system clipboard
 
-This allows exchanging text between CrashEdit and other applications (browser, text editor, etc.).
+This allows exchanging text between CrashEdit and other applications (browser, text editor, etc.)
 
 ### Search and Replace
 
-- **`F5`**: Search text forward
-- **`Ctrl+R`**: Interactive search and replace
+- **`F5`** / **`Alt+S`**: Search (show all matches)
+- **`Ctrl+R`**: Interactive find and replace
+- **`F3`** / **`Alt+P`**: Previous match (search mode)
+- **`F4`** / **`Alt+N`**: Next match (search mode)
 - **`F6`** / **`Alt+B`**: Replace all occurrences (search mode)
-- **`Ctrl+G`**: Go to specific line number
+- **`Alt+G`**: Go to specific line number
+- **`Ctrl+G`**: Go to start of document
 
 ### Undo/Redo
 
@@ -386,10 +402,10 @@ This allows exchanging text between CrashEdit and other applications (browser, t
 
 ### Attachments (Netmail Only)
 
-- **`Ctrl+F`**: Add file attachment
-- **`Ctrl+Q`**: Remove attachment
-- **`Ctrl+L`**: List attachments
-- **`Alt+L`**: Clear all attachments
+- **`Alt+A`**: Add file attachment
+- **`Alt+X`**: Remove attachment
+- **`Alt+M`**: List attachments
+- **`Alt+C`**: Clear all attachments
 
 ### Spell Checker
 
@@ -431,9 +447,46 @@ These options are configured from **Setup** (key `S`):
 
 ---
 
+## Text-to-speech (TTS)
+
+If compiled with `USE_TTS=1`, CrashEdit can read messages and selected text aloud
+
+**Unix/Windows:**
+- `Ctrl+Alt+L`: Speak selection / paragraph
+- `Ctrl+Alt+K`: Speak entire message
+- `Ctrl+Alt+P`: Pause / resume speech
+- `Ctrl+Alt+O`: Stop speech
+- `Ctrl+Alt+J`: Voice settings popup
+
+**AmigaOS:**
+- `Alt+Shift+L`: Speak selection / paragraph
+- `Alt+Shift+K`: Speak entire message
+- `Alt+Shift+P`: Pause / resume speech
+- `Alt+Shift+O`: Stop speech
+- `Alt+Shift+J`: Voice settings popup
+
+Configure the TTS backend, voice, rate, pitch and volume from Setup (`S`)
+
+---
+
+## Grammar Checker (Experimental)
+
+CrashEdit includes an experimental grammar/style checker when compiled with `USE_GRAMMAR=1`:
+
+- Self-contained C module, no external library required
+- Grammar checking is performed on UTF-8 text; non-UTF-8 messages may produce incorrect results
+- Loads `.rul` rule packs from the configured directory
+- Rule packs can be generated from LanguageTool XML files using `tools/lt2rul.py`
+- Only a subset of LanguageTool rules is extracted (simple literal pairs, punctuation, spacing, case, repetition, bracket matching and style hints)
+- **This is not a full language-aware proofreader**
+
+Enable and configure the rule pack from Setup (`S`) under the dictionary panel
+
+---
+
 ## Configuration (Setup)
 
-Access configuration from any main screen with **`S`**.
+Access configuration from any main screen with **`S`**
 
 ### Configurable Options
 
@@ -527,10 +580,10 @@ Access configuration from any main screen with **`S`**.
 ## Program Exit
 
 ### From Area List
-Press **`q`**. If no pending operations, the program closes immediately.
+Press **`q`**. If no pending operations, the program closes immediately
 
 ### From Any Other Screen
-Press **`q`** or **`Esc`** repeatedly until returning to area list, then **`q`** to exit.
+Press **`q`** or **`Esc`** repeatedly until returning to area list, then **`q`** to exit
 
 ### From Editor
 - **`F10`**, **`Esc`**, or **`Ctrl+Q`**: Cancel editing
@@ -551,4 +604,4 @@ Press **`q`** or **`Esc`** repeatedly until returning to area list, then **`q`**
 
 ## End
 
-For more details on advanced configuration, see the `crashedit.conf.example` file.
+For more details on advanced configuration, see the `crashedit.conf.example` file

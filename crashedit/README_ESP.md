@@ -2,7 +2,7 @@
 
 ## Introducción
 
-CrashEdit es un lector y editor de mensajes FTN (FidoNet) que te permite leer áreas de mensajes (echomail), correo privado (netmail), escribir nuevos mensajes y responder a los existentes. Funciona internamente en UTF-8.
+CrashEdit es un lector y editor de mensajes FTN (FidoNet) que te permite leer áreas de mensajes (echomail), correo privado (netmail), escribir nuevos mensajes y responder a los existentes. Funciona internamente en UTF-8
 
 ---
 
@@ -22,8 +22,8 @@ Al iniciar CrashEdit, el programa busca un archivo de configuración:
 
 ### Pantalla Inicial: Lista de Áreas
 
-Una vez configurado, CrashEdit muestra la **Lista de Áreas** - todas las áreas de mensajes disponibles organizadas en una tabla.
-Si no puedes acceder a ellas, debes verificar que el tosser ha creado los archivos.
+Una vez configurado, CrashEdit muestra la **Lista de Áreas** - todas las áreas de mensajes disponibles organizadas en una tabla
+Si no puedes acceder a ellas, debes verificar que el tosser ha creado los archivos
 
 **Qué ves:**
 - Número de área, nombre corto (tag), descripción
@@ -59,7 +59,7 @@ Se abre el **Editor** con el cursor en el campo "To" (Para):
 
 ### Nodelist Picker
 
-El **Nodelist Picker** permite seleccionar destinatarios de nodelists cargados (configurados con `INCLUDE` en crashedit.conf).
+El **Nodelist Picker** permite seleccionar destinatarios de nodelists cargados (configurados con `INCLUDE` en crashedit.conf)
 
 **Uso:**
 - Desde el campo "To" en el editor, presiona **`F10`** o **`Alt+P`**
@@ -76,11 +76,11 @@ El **Nodelist Picker** permite seleccionar destinatarios de nodelists cargados (
 
 ### Escribir el Cuerpo y Guardar
 
-Usa las teclas del **Editor** (ver sección "Uso del Editor" más abajo) para escribir tu mensaje.
+Usa las teclas del **Editor** (ver sección "Uso del Editor" más abajo) para escribir tu mensaje
 
-Cuando termines, presiona **`F2`** o **`Ctrl+S`** para guardar.
+Cuando termines, presiona **`F2`** o **`Ctrl+S`** para guardar
 
-**Nota:** CrashEdit guarda el mensaje pero no lo envía directamente. Para preparar el envío, usa el tosser y luego el mailer hará lo propio.
+**Nota:** CrashEdit guarda el mensaje pero no lo envía directamente. Para preparar el envío, usa el tosser y luego el mailer hará lo propio
 
 ---
 
@@ -100,11 +100,11 @@ CC: Blabla 2:341/201@fidonet
 - **Solo dirección:** `CC: 2:341/207@fidonet` → La copia va al mismo nombre del campo **To** pero en esa dirección FTN
 - **Con nombre:** `CC: Blabla 2:341/201@fidonet` → La copia va a **Blabla** en esa dirección FTN
 
-CrashEdit convertirá estas líneas en kludges `^ACC:` y el mensaje se enviará a todos los destinatarios especificados. Esto es útil para enviar el mismo mensaje a varios nodos sin escribir mensajes separados.
+CrashEdit convertirá estas líneas en kludges `^ACC:` y el mensaje se enviará a todos los destinatarios especificados. Esto es útil para enviar el mismo mensaje a varios nodos sin escribir mensajes separados
 
 ### File Request (FREQ) - Solicitar Archivos vía FidoNet
 
-Desde la lista de áreas o mensajes, presiona **`Ctrl+F`** para abrir la pantalla de File Request.
+Desde la lista de áreas o mensajes, presiona **`Ctrl+F`** para abrir la pantalla de File Request
 
 **Pasos:**
 1. Introduce la dirección FTN del nodo que tiene los archivos
@@ -116,9 +116,9 @@ Desde la lista de áreas o mensajes, presiona **`Ctrl+F`** para abrir la pantall
 4. (Opcional) Establece contraseña con **`P`**
 5. Genera la solicitud con **`W`** (write)
 
-**Requisito:** Debes tener configurado `OUTBOUND` en tu `crashedit.conf` apuntando al directorio outbound de tu mailer.
+**Requisito:** Debes tener configurado `OUTBOUND` en tu `crashedit.conf` apuntando al directorio outbound de tu mailer
 
-El archivo `.req` generado será procesado por tu mailer y enviado al nodo destino, que responderá enviando los archivos solicitados.
+El archivo `.req` generado será procesado por tu mailer y enviado al nodo destino, que responderá enviando los archivos solicitados
 
 ### Adjuntos de Archivos (File Attach)
 
@@ -137,13 +137,13 @@ En mensajes **netmail**, puedes adjuntar archivos para enviarlos a otros nodos:
 - Los adjuntos se envían como mensajes con el atributo `FileAttach`
 
 **Para recibir archivos adjuntos:**
-El mailer recibirá los archivos y los colocará en tu directorio de inbound. El mensaje en CrashEdit mostrará los nombres de archivo en el asunto.
+El mailer recibirá los archivos y los colocará en tu directorio de inbound. El mensaje en CrashEdit mostrará los nombres de archivo en el asunto
 
 ---
 
 ## Lista de Mensajes
 
-Cuando entras en un área (presionando `Enter` en la lista de áreas), aparece la **Lista de Mensajes** de esa área.
+Cuando entras en un área (presionando `Enter` en la lista de áreas), aparece la **Lista de Mensajes** de esa área
 
 **Qué ves:**
 - Número de mensaje
@@ -170,26 +170,35 @@ Cuando entras en un área (presionando `Enter` en la lista de áreas), aparece l
 
 ## Lector de Mensajes
 
-Al entrar en un área y seleccionar un mensaje, se abre el **Lector** donde puedes ver el contenido completo.
+Al entrar en un área y seleccionar un mensaje, se abre el **Lector** donde puedes ver el contenido completo
 
 ### Navegación en el Lector
 
-- **`↑` / `↓`** o **`PgUp`** / **`PgDn`**: Moverse por el texto
-- **`Space`**: Página siguiente
-- **`Home`**: Ir al inicio del mensaje
-- **`End`**: Ir al final
-- **`→`** / **`←`**: Cambiar de mensaje (anterior/siguiente)
-- **`Enter`**: Volver a la lista de mensajes
+- **`↑`** / **`↓`**: Desplazar texto arriba/abajo
+- **`PgUp`** / **`PgDn`**: Página arriba/abajo
+- **`Home`** / **`End`**: Primera / última línea
+- **`b`** / **`Space`**: Página arriba/abajo (o avanzar al siguiente mensaje)
+- **`<`** / **`>`**: Primera / última línea (desplazamiento)
+- **`,`** / **`.`**: Primer / último mensaje
+- **`→`** / **`←`** o **`p`** / **`n`**: Mensaje anterior/siguiente
+- **`Ctrl+Left`**: Saltar al mensaje original (seguir cadena de respuestas)
+- **`Ctrl+Right`**: Saltar a la respuesta (elegir si hay varias)
+- **`Alt+J`**: Seguir cadena de respuestas al original
+- **`Ctrl+G`**: Ir al inicio del mensaje
+- **`Ctrl+K`**: Ir al final del mensaje
+- **`Alt+G`**: Ir a línea específica
+- **`Enter`**: Página siguiente o avanzar al siguiente mensaje
+- **`Esc`**, **`q`**: Volver a la lista de mensajes
 
 ### Modo ANSI (Colores)
 
-Los mensajes pueden contener códigos de color ANSI (códigos de escape para colores y efectos).
+Los mensajes pueden contener códigos de color ANSI (códigos de escape para colores y efectos)
 
 - **`a`**: Alternar modo ANSI (activar/desactivar colores)
 - Cuando ANSI está **activo**: Los códigos de color se interpretan y el texto se muestra con colores
 - Cuando ANSI está **desactivo**: Los códigos se muestran como texto plano (ej: `[0;32m`)
 
-Esto es útil si un mensaje tiene códigos ANSI que dificultan la lectura o si quieres ver el texto sin formato.
+Esto es útil si un mensaje tiene códigos ANSI que dificultan la lectura o si quieres ver el texto sin formato
 
 ### Mostrar/Ocultar Elementos
 
@@ -248,17 +257,17 @@ El **Editor** se abre con datos pre-rellenados:
 - El destinatario se copia del remitente original
 - El texto original se cita con `>` al inicio de cada línea
 
-Escribe tu respuesta debajo del texto citado y presiona **`F2`** o **`Ctrl+S`** para guardar.
+Escribe tu respuesta debajo del texto citado y presiona **`F2`** o **`Ctrl+S`** para guardar
 
 ---
 
 ## Editar un Mensaje Propio
 
-Navega a un mensaje que tú hayas escrito (aparece tu nombre en "From") y presiona **`e`** (edit).
+Navega a un mensaje que tú hayas escrito (aparece tu nombre en "From") y presiona **`e`** (edit)
 
-El **Editor** se abre con el mensaje cargado. Haz los cambios necesarios y guarda con **`F2`** o **`Ctrl+S`**.
+El **Editor** se abre con el mensaje cargado. Haz los cambios necesarios y guarda con **`F2`** o **`Ctrl+S`**
 
-**Nota:** Solo puedes editar tus propios mensajes. El programa verifica que el remitente coincida con tu AKA configurada.
+**Nota:** Solo puedes editar tus propios mensajes. El programa verifica que el remitente coincida con tu AKA configurada
 
 ---
 
@@ -274,7 +283,7 @@ El **Editor** se abre con el mensaje cargado. Haz los cambios necesarios y guard
 2. Presiona **`d`** o **`Del`**
 3. Confirma con `Y`
 
-**El mensaje no se borra físicamente** - se marca para borrado y se eliminará durante el mantenimiento de la base de mensajes (purga).
+**El mensaje no se borra físicamente** - se marca para borrado y se eliminará durante el mantenimiento de la base de mensajes (purga)
 
 ---
 
@@ -288,7 +297,7 @@ Cuando hayas leído lo que te interesa de un área y quieras marcar el resto com
 3. Selecciona `Y` para esta área o `A` para todas
 
 ### Desde la Lista de Mensajes
-Presiona **`C`** - marcará todos los mensajes del área actual como leídos.
+Presiona **`C`** - marcará todos los mensajes del área actual como leídos
 
 ---
 
@@ -309,7 +318,7 @@ Desde la lista de mensajes o áreas:
    - Patrón de búsqueda obligatorio
 4. `Enter` para ejecutar
 
-**Resultados:** Se muestra lista de áreas con coincidencias. Selecciona un área para ver los mensajes encontrados.
+**Resultados:** Se muestra lista de áreas con coincidencias. Selecciona un área para ver los mensajes encontrados
 
 ---
 
@@ -324,9 +333,13 @@ El editor se utiliza para escribir y modificar mensajes. Se accede desde:
 
 - **`Enter`**: Nueva línea
 - **`Backspace`** / **`Delete`**: Borrar carácteres
-- **`Ctrl+K`** / **`Ctrl+Y`**: Borrar línea completa
+- **`Ctrl+Y`**: Borrar línea completa
 - **`Ctrl+Z`**: Deshacer último cambio
 - **`Alt+Z`**: Rehacer (redo)
+- **`Ctrl+G`**: Ir al inicio del documento
+- **`Ctrl+K`**: Ir al final del documento
+- **`Alt+Q`**: Alternar modo de ajuste (wrap)
+- **`Alt+D`**: Ocultar panel de diccionario / alternar números de línea
 - **`F2`** / **`Ctrl+S`**: Guardar mensaje
 - **`F10`** / **`Esc`** / **`Ctrl+Q`**: Cancelar edición
 
@@ -354,18 +367,21 @@ El editor se utiliza para escribir y modificar mensajes. Se accede desde:
 
 CrashEdit se integra con el portapapeles del sistema operativo:
 
-- **Copiar (`Ctrl+C`)**: El texto seleccionado se copia tanto al portapapeles interno como al del sistema. Puedes pegarlo en otras aplicaciones.
-- **Cortar (`Ctrl+X`)**: Igual que copiar, pero borra el texto del editor.
-- **Pegar (`Ctrl+V`)**: Primero intenta pegar desde el portapapeles interno. Si no hay bloque interno, pega desde el portapapeles del sistema.
+- **Copiar (`Ctrl+C`)**: El texto seleccionado se copia tanto al portapapeles interno como al del sistema. Puedes pegarlo en otras aplicaciones
+- **Cortar (`Ctrl+X`)**: Igual que copiar, pero borra el texto del editor
+- **Pegar (`Ctrl+V`)**: Primero intenta pegar desde el portapapeles interno. Si no hay bloque interno, pega desde el portapapeles del sistema
 
-Esto permite intercambiar texto entre CrashEdit y otras aplicaciones (navegador, editor de texto, etc.).
+Esto permite intercambiar texto entre CrashEdit y otras aplicaciones (navegador, editor de texto, etc.)
 
 ### Buscar y Reemplazar
 
-- **`F5`**: Buscar texto hacia adelante
+- **`F5`** / **`Alt+S`**: Buscar (mostrar todas las coincidencias)
 - **`Ctrl+R`**: Buscar y reemplazar interactivo
+- **`F3`** / **`Alt+P`**: Coincidencia anterior (modo búsqueda)
+- **`F4`** / **`Alt+N`**: Coincidencia siguiente (modo búsqueda)
 - **`F6`** / **`Alt+B`**: Reemplazar todas las ocurrencias (modo búsqueda)
-- **`Ctrl+G`**: Ir a número de línea específico
+- **`Alt+G`**: Ir a número de línea específico
+- **`Ctrl+G`**: Ir al inicio del documento
 
 ### Deshacer/Rehacer
 
@@ -386,10 +402,10 @@ Esto permite intercambiar texto entre CrashEdit y otras aplicaciones (navegador,
 
 ### Adjuntos (Solo Netmail)
 
-- **`Ctrl+F`**: Añadir archivo adjunto
-- **`Ctrl+Q`**: Quitar adjunto
-- **`Ctrl+L`**: Listar adjuntos
-- **`Alt+L`**: Limpiar todos los adjuntos
+- **`Alt+A`**: Añadir archivo adjunto
+- **`Alt+X`**: Quitar adjunto
+- **`Alt+M`**: Listar adjuntos
+- **`Alt+C`**: Limpiar todos los adjuntos
 
 ### Spell Checker (Corrector Ortográfico)
 
@@ -431,9 +447,46 @@ Estas opciones se configuran desde el **Setup** (tecla `S`):
 
 ---
 
+## Texto a voz (TTS)
+
+Si se compila con `USE_TTS=1`, CrashEdit puede leer mensajes y el texto seleccionado en voz alta
+
+**Unix/Windows:**
+- `Ctrl+Alt+L`: Leer selección / párrafo
+- `Ctrl+Alt+K`: Leer mensaje completo
+- `Ctrl+Alt+P`: Pausar / reanudar voz
+- `Ctrl+Alt+O`: Detener voz
+- `Ctrl+Alt+J`: Popup de configuración de voz
+
+**AmigaOS:**
+- `Alt+Shift+L`: Leer selección / párrafo
+- `Alt+Shift+K`: Leer mensaje completo
+- `Alt+Shift+P`: Pausar / reanudar voz
+- `Alt+Shift+O`: Detener voz
+- `Alt+Shift+J`: Popup de configuración de voz
+
+Configura el backend TTS, voz, velocidad, tono y volumen desde Setup (`S`)
+
+---
+
+## Corrector Gramatical (Experimental)
+
+CrashEdit incluye un corrector gramatical/estilístico experimental al compilar con `USE_GRAMMAR=1`:
+
+- Módulo C autocontenido, sin librería externa
+- La revisión gramatical se hace sobre texto UTF-8; mensajes con otros charsets pueden dar resultados incorrectos
+- Carga packs de reglas `.rul` desde el directorio configurado
+- Los packs se pueden generar desde los XML de LanguageTool con `tools/lt2rul.py`
+- Solo se extrae un subconjunto de reglas de LanguageTool (pares literales simples, puntuación, espacios, mayúsculas, repeticiones, emparejamiento de paréntesis y sugerencias de estilo)
+- **No es un corrector ortográfico/gramatical completo por idioma**
+
+Habilita y configura el pack de reglas desde Setup (`S`) en el panel de diccionario
+
+---
+
 ## Configuración (Setup)
 
-Accede a la configuración desde cualquier pantalla principal con **`S`**.
+Accede a la configuración desde cualquier pantalla principal con **`S`**
 
 ### Opciones Configurables
 
@@ -527,10 +580,10 @@ Accede a la configuración desde cualquier pantalla principal con **`S`**.
 ## Cierre del Programa
 
 ### Desde la Lista de Áreas
-Presiona **`q`**. Si no hay operaciones pendientes, el programa se cierra inmediatamente.
+Presiona **`q`**. Si no hay operaciones pendientes, el programa se cierra inmediatamente
 
 ### Desde Cualquier Otra Pantalla
-Presiona **`q`** o **`Esc`** repetidamente hasta volver a la lista de áreas, luego **`q`** para salir.
+Presiona **`q`** o **`Esc`** repetidamente hasta volver a la lista de áreas, luego **`q`** para salir
 
 ### Desde el Editor
 - **`F10`**, **`Esc`**, o **`Ctrl+Q`**: Cancelar edición
@@ -551,4 +604,4 @@ Presiona **`q`** o **`Esc`** repetidamente hasta volver a la lista de áreas, lu
 
 ## Fin
 
-Para más detalles sobre configuración avanzada, consulta el archivo `crashedit.conf.example`.
+Para más detalles sobre configuración avanzada, consulta el archivo `crashedit.conf.example`

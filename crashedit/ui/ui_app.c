@@ -324,6 +324,12 @@ void ui_reapply_config(UiApp *app)
     ui_tts_load_from_config(app);
 #endif
 
+#ifdef HAVE_GRAMMAR
+    /* Reload grammar checker if its settings changed */
+    app->grammar_enabled = app->cfg->grammar_enabled;
+    ui_grammar_load_from_config(app);
+#endif
+
 #if !defined(PLATFORM_AMIGA) && !defined(PLATFORM_WIN32)
     /* Reconfigure mouse if setting changed */
     ui_configure_mouse(app->cfg->mouse_enabled);
